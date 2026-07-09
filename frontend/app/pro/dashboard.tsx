@@ -36,16 +36,30 @@ export default function ProDashboard() {
         <Text style={s.sub}>{todays.length > 0 ? `${todays.length} appointment${todays.length > 1 ? "s" : ""} today.` : "No appointments today."}</Text>
 
         {verification && verification.status !== "approved" && (
-          <Pressable testID="ver-banner" onPress={() => router.push("/pro/verification")} style={s.verBanner}>
-            <Feather name="alert-circle" size={20} color={verification.status === "rejected" ? colors.error : colors.warning} />
+          <Pressable
+            testID="ver-banner"
+            onPress={() => router.push("/pro/verification")}
+            style={[s.verBanner, verification.status === "rejected" && s.verBannerRejected]}
+          >
+            <Feather
+              name={verification.status === "rejected" ? "alert-triangle" : "alert-circle"}
+              size={20}
+              color={verification.status === "rejected" ? colors.error : colors.warning}
+            />
             <View style={{ flex: 1 }}>
-              <Text style={s.verBannerTitle}>
-                {verification.status === "pending" ? "Verification under review" : "Verification required"}
+              <Text style={[s.verBannerTitle, verification.status === "rejected" && { color: colors.error }]}>
+                {verification.status === "rejected"
+                  ? "Action required — application rejected"
+                  : verification.submitted_at
+                    ? "Verification under review"
+                    : "Verification required"}
               </Text>
               <Text style={s.verBannerMsg}>
-                {verification.status === "pending"
-                  ? "Typically completed within 3 business days. Your profile is hidden from customer search until approved."
-                  : "Submit your ID or license to appear in customer search."}
+                {verification.status === "rejected"
+                  ? "Tap to see the admin's feedback and resubmit."
+                  : verification.submitted_at
+                    ? "Typically completed within 3 business days. Your profile is hidden from customer search until approved."
+                    : "Submit your ID or license to appear in customer search."}
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color={colors.muted} />
@@ -113,6 +127,7 @@ const s = StyleSheet.create({
   apptStatus: { fontFamily: font.bodyMed, color: colors.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 1 },
   signOut: { marginTop: spacing.xxl, padding: spacing.lg, alignItems: "center", borderWidth: 1, borderColor: colors.error, borderRadius: radii.md },
   verBanner: { flexDirection: "row", gap: spacing.md, alignItems: "center", padding: spacing.md, borderWidth: 1, borderColor: colors.warning, backgroundColor: "#FFF6E6", borderRadius: radii.md, marginBottom: spacing.lg },
+  verBannerRejected: { borderColor: colors.error, backgroundColor: "#FFF3F2" },
   verBannerTitle: { fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 14 },
   verBannerMsg: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 12, marginTop: 2 },
 });

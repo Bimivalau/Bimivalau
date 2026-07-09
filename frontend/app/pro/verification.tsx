@@ -12,8 +12,13 @@ export default function ProVerification() {
   const [v, setV] = useState<any>(null);
   const [url, setUrl] = useState("");
   const [busy, setBusy] = useState(false);
+  const [justResubmitted, setJustResubmitted] = useState(false);
 
-  const load = () => api("/hairdressers/me/verification").then(setV);
+  const load = () => api("/hairdressers/me/verification").then((res) => {
+    setV(res);
+    // prefill with prior URL when rejected so pro can tweak instead of retyping
+    if (res.status === "rejected" && res.license_url) setUrl(res.license_url);
+  });
   useEffect(() => { load(); }, []);
 
   const submit = async () => {
@@ -21,38 +26,136 @@ export default function ProVerification() {
     setBusy(true);
     try {
       await api("/hairdressers/me/submit-verification", { method: "POST", body: JSON.stringify({ license_url: url }) });
-      setUrl("");
+      setJustResubmitted(true);
       await load();
     } finally { setBusy(false); }
   };
 
   if (!v) return <ActivityIndicator style={{ flex: 1 }} color={colors.brand} />;
 
-  const statusText: Record<string, string> = {
-    pending: "Under review — typically completed within 3 business days.",
-    approved: "You're verified. Your profile is live in customer search.",
-    rejected: v.reason ? `Rejected: ${v.reason}` : "Your submission was rejected. Please try again with a clearer document.",
-  };
-  const statusColor: Record<string, string> = { pending: colors.warning, approved: colors.success, rejected: colors.error };
+  const isRejected = v.status === "rejected";
+  const isPending = v.status === "pending";
+  const isApproved = v.status === "approved";
 
   return (
-    <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
+    <ScrollView
+      style={{ backgroundColor: colors.surface }}
+      contentContainerStyle={{ paddingBottom: spacing.xxxl }}
+      keyboardShouldPersistTaps="handled"
+    >
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.xl }}>
-        <Pressable testID="ver-back" onPress={() => router.back()}><Feather name="arrow-left" size={22} color={colors.onSurface} /></Pressable>
+        <Pressable testID="ver-back" onPress={() => router.back()}>
+          <Feather name="arrow-left" size={22} color={colors.onSurface} />
+        </Pressable>
         <Text style={s.title}>License verification</Text>
-        <View style={[s.status, { borderColor: statusColor[v.status] }]}>
-          <Text style={[s.statusLabel, { color: statusColor[v.status] }]}>{v.status.toUpperCase()}</Text>
-          <Text style={s.statusMsg}>{statusText[v.status]}</Text>
-          {v.status === "pending" && v.submitted_at && (
-            <Text style={s.statusMeta}>Submitted {new Date(v.submitted_at).toLocaleDateString()} · {v.overdue ? "Overdue — admin flagged" : `${v.days_left_sla} day(s) remaining in SLA`}</Text>
-          )}
-        </View>
 
-        {v.status !== "approved" && (
+        {/* ---------- REJECTED: dedicated fix-and-resubmit flow ---------- */}
+        {isRejected && !justResubmitted && (
+          <>
+            <View testID="rejected-hero" style={s.rejectedHero}>
+              <View style={s.rejectedIcon}>
+                <Feather name="alert-triangle" size={22} color="#fff" />
+              </View>
+              <Text style={s.rejectedTitle}>Application needs attention</Text>
+              <Text style={s.rejectedSub}>
+                Your last submission wasn't approved. Fix the issues below and resubmit — you'll go back into the queue with a fresh 3-day SLA.
+              </Text>
+            </View>
+
+            <View style={s.reasonBox}>
+              <Text style={s.reasonLabel}>ADMIN FEEDBACK</Text>
+              <Text testID="ver-reason" style={s.reasonText}>
+                “{v.reason || "No specific reason given. Please upload a clearer photo of a government-issued ID or braiding license."}”
+              </Text>
+              {v.decided_at && (
+                <Text style={s.reasonMeta}>Reviewed {new Date(v.decided_at).toLocaleDateString()}</Text>
+              )}
+            </View>
+
+            <Text style={s.section}>How to fix it</Text>
+            <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+              <Step n={1} title="Read the feedback" desc="Understand what the admin flagged in your previous upload." />
+              <Step n={2} title="Take a clear photo" desc="Well-lit, no glare, full document visible, text readable." />
+              <Step n={3} title="Upload and resubmit" desc="Paste the new URL below. Your profile stays hidden from customers until re-approved." />
+            </View>
+
+            <Text style={[s.section, { marginTop: spacing.xl }]}>Upload a new document</Text>
+            <Text style={s.help}>We've kept your previous URL so you can adjust it — replace with the new photo before resubmitting.</Text>
+            <TextInput
+              testID="ver-url"
+              value={url}
+              onChangeText={setUrl}
+              placeholder="https://…"
+              placeholderTextColor={colors.muted}
+              style={s.input}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Pressable
+              testID="ver-resubmit"
+              onPress={submit}
+              disabled={!url || busy || url === v.license_url}
+              style={[s.btn, (!url || busy || url === v.license_url) && { opacity: 0.4 }]}
+            >
+              <Text style={s.btnText}>{busy ? "Resubmitting…" : "Resubmit for review"}</Text>
+            </Pressable>
+            {url && url === v.license_url && (
+              <Text style={s.hintInline}>Change the URL before resubmitting — otherwise you'll upload the same document that was rejected.</Text>
+            )}
+          </>
+        )}
+
+        {/* ---------- Success just after resubmit: back to pending queue ---------- */}
+        {isPending && justResubmitted && (
+          <View testID="resubmitted-success" style={s.successBox}>
+            <Feather name="check-circle" size={28} color={colors.success} />
+            <Text style={s.successTitle}>You're back in the queue</Text>
+            <Text style={s.successMsg}>Admin has 3 business days to re-review. You'll get a notification with the outcome.</Text>
+          </View>
+        )}
+
+        {/* ---------- PENDING (first submission or after resubmit) ---------- */}
+        {isPending && !justResubmitted && (
+          <>
+            <View style={[s.status, { borderColor: colors.warning }]}>
+              <Text style={[s.statusLabel, { color: colors.warning }]}>PENDING</Text>
+              <Text style={s.statusMsg}>Under review — typically completed within 3 business days.</Text>
+              {v.submitted_at && (
+                <Text style={s.statusMeta}>
+                  Submitted {new Date(v.submitted_at).toLocaleDateString()} · {v.overdue ? "Overdue — admin flagged" : `${v.days_left_sla} day(s) remaining in SLA`}
+                </Text>
+              )}
+            </View>
+            <Text style={[s.help, { marginTop: spacing.lg }]}>
+              Your profile stays hidden from customer search while pending. We'll notify you as soon as an admin reviews.
+            </Text>
+          </>
+        )}
+
+        {/* ---------- APPROVED ---------- */}
+        {isApproved && (
+          <View style={[s.status, { borderColor: colors.success }]}>
+            <Text style={[s.statusLabel, { color: colors.success }]}>APPROVED</Text>
+            <Text style={s.statusMsg}>You're verified. Your profile is live in customer search.</Text>
+            {v.decided_at && <Text style={s.statusMeta}>Approved {new Date(v.decided_at).toLocaleDateString()}</Text>}
+          </View>
+        )}
+
+        {/* ---------- Fresh account, no submission yet (status=pending but no submitted_at) ---------- */}
+        {isPending && !v.submitted_at && !justResubmitted && (
           <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
             <Text style={s.section}>Submit ID / business license</Text>
             <Text style={s.help}>Paste a URL to a photo of your government-issued ID or braiding license. Your profile will be locked until an admin approves.</Text>
-            <TextInput testID="ver-url" value={url} onChangeText={setUrl} placeholder="https://…" placeholderTextColor={colors.muted} style={s.input} autoCapitalize="none" />
+            <TextInput
+              testID="ver-url"
+              value={url}
+              onChangeText={setUrl}
+              placeholder="https://…"
+              placeholderTextColor={colors.muted}
+              style={s.input}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
             <Pressable testID="ver-submit" onPress={submit} disabled={!url || busy} style={[s.btn, (!url || busy) && { opacity: 0.4 }]}>
               <Text style={s.btnText}>{busy ? "Submitting…" : "Submit for review"}</Text>
             </Pressable>
@@ -62,6 +165,19 @@ export default function ProVerification() {
     </ScrollView>
   );
 }
+
+function Step({ n, title, desc }: { n: number; title: string; desc: string }) {
+  return (
+    <View style={s.step}>
+      <View style={s.stepNum}><Text style={s.stepNumText}>{n}</Text></View>
+      <View style={{ flex: 1 }}>
+        <Text style={s.stepTitle}>{title}</Text>
+        <Text style={s.stepDesc}>{desc}</Text>
+      </View>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   title: { fontFamily: font.display, fontSize: 32, color: colors.onSurface, marginTop: spacing.lg, marginBottom: spacing.lg },
   status: { padding: spacing.lg, borderLeftWidth: 4, borderRadius: radii.md, backgroundColor: colors.surfaceSecondary },
@@ -73,4 +189,22 @@ const s = StyleSheet.create({
   input: { borderBottomWidth: 1, borderColor: colors.borderStrong, paddingVertical: spacing.md, fontFamily: font.body, color: colors.onSurface },
   btn: { backgroundColor: colors.brand, padding: spacing.md, borderRadius: radii.md, alignItems: "center" },
   btnText: { color: "#fff", fontFamily: font.bodyBold },
+  hintInline: { fontFamily: font.body, color: colors.warning, fontSize: 12, marginTop: -spacing.sm },
+  // Rejected UI
+  rejectedHero: { padding: spacing.lg, backgroundColor: colors.error, borderRadius: radii.md, gap: spacing.sm },
+  rejectedIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(255,255,255,0.2)", alignItems: "center", justifyContent: "center" },
+  rejectedTitle: { fontFamily: font.display, fontSize: 24, color: "#fff", marginTop: spacing.sm },
+  rejectedSub: { fontFamily: font.body, color: "#FFE6E4", fontSize: 14, lineHeight: 20 },
+  reasonBox: { marginTop: spacing.lg, padding: spacing.lg, backgroundColor: colors.surfaceSecondary, borderLeftWidth: 3, borderLeftColor: colors.error, borderRadius: radii.md },
+  reasonLabel: { fontFamily: font.bodyBold, color: colors.error, letterSpacing: 2, fontSize: 11 },
+  reasonText: { fontFamily: font.displayIt, color: colors.onSurface, fontSize: 16, lineHeight: 22, marginTop: spacing.sm },
+  reasonMeta: { fontFamily: font.body, color: colors.muted, fontSize: 11, marginTop: spacing.sm },
+  step: { flexDirection: "row", gap: spacing.md, alignItems: "flex-start", paddingVertical: spacing.sm },
+  stepNum: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
+  stepNumText: { color: "#fff", fontFamily: font.bodyBold, fontSize: 13 },
+  stepTitle: { fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 15 },
+  stepDesc: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 13, marginTop: 2 },
+  successBox: { padding: spacing.xl, backgroundColor: colors.surfaceSecondary, borderRadius: radii.md, alignItems: "center", gap: spacing.sm },
+  successTitle: { fontFamily: font.display, fontSize: 22, color: colors.onSurface },
+  successMsg: { fontFamily: font.body, color: colors.onSurfaceTertiary, textAlign: "center", fontSize: 14 },
 });
