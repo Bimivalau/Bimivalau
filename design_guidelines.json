@@ -1,0 +1,159 @@
+{
+  "app_name": "BraidsCommunity",
+  "personality": "3 Editorial Mobile LIGHT",
+  "personality_one_liner": "A warm, aspirational, and editorial experience that treats African and Afro-Caribbean braid styling as high art.",
+  "color": {
+    "surface": "#FCFAF8",
+    "onSurface": "#1A1918",
+    "surfaceSecondary": "#F3F0EA",
+    "onSurfaceSecondary": "#2D2A26",
+    "surfaceTertiary": "#E9E5DE",
+    "onSurfaceTertiary": "#4A4541",
+    "surfaceInverse": "#2A2825",
+    "onSurfaceInverse": "#F9F6F0",
+    "brand": "#B65942",
+    "brandPrimary": "#B65942",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#8F4533",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#E8CBBF",
+    "onBrandTertiary": "#5C2B1F",
+    "success": "#4B7355",
+    "onSuccess": "#FFFFFF",
+    "warning": "#D9933D",
+    "onWarning": "#1A1918",
+    "error": "#A84448",
+    "onError": "#FFFFFF",
+    "info": "#647781",
+    "onInfo": "#FFFFFF",
+    "border": "#E3DDD3",
+    "borderStrong": "#C7BEAF",
+    "divider": "#EAE4DA"
+  },
+  "typography": {
+    "displayFontFamily": "Playfair Display",
+    "textFontFamily": "DM Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Magazine-like spacing rhythms with generous vertical breathing room. Let typography, whitespace, and imagery carry the personality.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 0,
+    "md": 4,
+    "lg": 8,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Feather",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [],
+    "dont's": [
+      "No blur/glass anywhere. Editorial style requires solid, opaque surfaces to maintain the clean, paper-like aesthetic."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "solid surfaceSecondary",
+      "android": "solid surfaceSecondary",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Home",
+      "purpose": "A visually stunning discovery feed showcasing trending and featured braid styles.",
+      "states": {
+        "loading": "Centered spinner",
+        "empty": "Illustration + 'No trending styles right now.'",
+        "error": "Error message + Retry button"
+      },
+      "layout": "Use full-width editorial sections for categories (e.g., Box Braids, Cornrows). Large hero images with gradient scrims and serif titles overlaying the bottom."
+    },
+    {
+      "name": "Search",
+      "purpose": "Find hairdressers based on filters like distance, rating, price, and availability.",
+      "states": {
+        "loading": "Centered spinner",
+        "empty": "Illustration + 'No hairdressers found for this criteria.'",
+        "error": "Error message + Retry button"
+      },
+      "layout": "Minimalist search bar at the top, followed by filter chips. Results should be displayed as large image-led cards showing the hairdresser's best work, name, rating, and location."
+    },
+    {
+      "name": "Hairdresser Profile",
+      "purpose": "A portfolio-first profile showcasing the stylist's bio, top styles, reviews, and a sticky booking action.",
+      "states": {
+        "loading": "Centered spinner",
+        "empty": "Not applicable",
+        "error": "Error message + Retry button"
+      },
+      "layout": "Magazine spread feel: full-bleed cover image, large serif headline for the name, minimal tab row for Portfolio/Reviews/About. A masonry or grid layout for the portfolio. A sticky primary CTA ('Book Now') fixed at the bottom."
+    },
+    {
+      "name": "Booking Flow",
+      "purpose": "A fast, streamlined calendar selection leading to a pay-at-counter confirmation.",
+      "states": {
+        "loading": "Centered spinner",
+        "empty": "Not applicable",
+        "error": "Error message + Retry button"
+      },
+      "layout": "Interactive calendar with clearly marked available slots. Clean form for details, leading to a success screen with a prominent 'Pay at counter' notice."
+    },
+    {
+      "name": "Pro Dashboard",
+      "purpose": "A functional but aesthetically pleasing overview of today's schedule and business metrics for hairdressers.",
+      "states": {
+        "loading": "Centered spinner",
+        "empty": "No appointments today.",
+        "error": "Error message + Retry button"
+      },
+      "layout": "Clean, text-heavy layout with strong typographic hierarchy. Clear list of upcoming appointments with check-in buttons."
+    }
+  ],
+  "images": {
+    "home_hero_box_braids": {
+      "url": "https://images.unsplash.com/photo-1709672262859-68cb9b39ae4f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAxODF8MHwxfHNlYXJjaHwxfHxib3glMjBicmFpZHMlMjBoYWlyc3R5bGUlMjBtb2RlbHxlbnwwfHx8fDE3ODM2MzQwMjN8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "A woman with long box braids wearing a jean shirt"
+    },
+    "home_hero_cornrows": {
+      "url": "https://images.unsplash.com/photo-1762810548877-63512759805e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTJ8MHwxfHNlYXJjaHwxfHxjb3Jucm93cyUyMGhhaXJzdHlsZSUyMG1vZGVsfGVufDB8fHx8MTc4MzYzNDAyM3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Young woman with cornrows braided hair"
+    },
+    "salon_interior": {
+      "url": "https://images.unsplash.com/photo-1600948836101-f9ffda59d250?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzOTB8MHwxfHNlYXJjaHwxfHxzYWxvbiUyMGludGVyaW9yJTIwd2FybSUyMG5hdHVyYWx8ZW58MHx8fHwxNzgzNjM0MDIzfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Warm, natural salon interior"
+    },
+    "hairdresser_portrait": {
+      "url": "https://images.unsplash.com/photo-1592520113018-180c8bc831c9?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzZ8MHwxfHNlYXJjaHwyfHxibGFjayUyMHdvbWFuJTIwYnJhaWRzJTIwcG9ydHJhaXR8ZW58MHx8fHwxNzgzNjM0MDIzfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Portrait of a Black woman with braids"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Follow the 'Editorial Mobile LIGHT' personality strictly. Do not use generic AI-looking indigo/purple colors or heavy drop shadows.",
+    "Use solid background colors (e.g., surface, surfaceSecondary, surfaceInverse) for sticky elements and bottom tabs instead of glass/blur, as this fits the Editorial style.",
+    "Rely heavily on large, high-quality images. Always overlay a gradient scrim when placing text on top of images.",
+    "Typography: Use Playfair Display for headings to give a magazine feel, and DM Sans for clean readability in body and forms.",
+    "Keep navigation to 4 main tabs for the Customer role. Professional screens can be accessed via a nested 'Switch to Pro' flow in the Profile tab.",
+    "Ensure 'Book Now' CTAs on Hairdresser Profiles are sticky at the bottom of the screen."
+  ]
+}
