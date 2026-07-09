@@ -36,6 +36,7 @@ export default function ProVerification() {
   const isRejected = v.status === "rejected";
   const isPending = v.status === "pending";
   const isApproved = v.status === "approved";
+  const isUnverified = v.status === "unverified";
 
   return (
     <ScrollView
@@ -48,6 +49,47 @@ export default function ProVerification() {
           <Feather name="arrow-left" size={22} color={colors.onSurface} />
         </Pressable>
         <Text style={s.title}>License verification</Text>
+
+        {/* ---------- Fresh account, never submitted (UNVERIFIED = optional pitch) ---------- */}
+        {isUnverified && !justResubmitted && (
+          <>
+            <View testID="optional-hero" style={s.optionalHero}>
+              <View style={s.optionalBadge}>
+                <Feather name="shield" size={22} color={colors.brand} />
+              </View>
+              <Text style={s.optionalTitle}>Get the “Verified Pro” badge</Text>
+              <Text style={s.optionalSub}>
+                Verification is <Text style={{ fontFamily: font.bodyBold }}>optional</Text> — you're already live in customer search. Verified stylists get a badge on their profile and tend to earn more bookings.
+              </Text>
+            </View>
+
+            <Text style={[s.section, { marginTop: spacing.xl }]}>Why verify?</Text>
+            <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
+              <Perk icon="award" title="Verified Pro badge" desc="Shown on your profile, portfolio, and search results." />
+              <Perk icon="trending-up" title="More trust, more bookings" desc="Customers filter for verified stylists in busy cities." />
+              <Perk icon="clock" title="Fast turnaround" desc="Admins review within 3 business days." />
+            </View>
+
+            <Text style={[s.section, { marginTop: spacing.xl }]}>Submit ID / business license</Text>
+            <Text style={s.help}>Paste a URL to a photo of your government-issued ID or braiding license.</Text>
+            <TextInput
+              testID="ver-url"
+              value={url}
+              onChangeText={setUrl}
+              placeholder="https://…"
+              placeholderTextColor={colors.muted}
+              style={s.input}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Pressable testID="ver-submit" onPress={submit} disabled={!url || busy} style={[s.btn, (!url || busy) && { opacity: 0.4 }]}>
+              <Text style={s.btnText}>{busy ? "Submitting…" : "Submit for review"}</Text>
+            </Pressable>
+            <Pressable testID="ver-skip" onPress={() => router.back()} style={s.skipBtn}>
+              <Text style={s.skipText}>Maybe later</Text>
+            </Pressable>
+          </>
+        )}
 
         {/* ---------- REJECTED: dedicated fix-and-resubmit flow ---------- */}
         {isRejected && !justResubmitted && (
@@ -141,7 +183,7 @@ export default function ProVerification() {
           </View>
         )}
 
-        {/* ---------- Fresh account, no submission yet (status=pending but no submitted_at) ---------- */}
+        {/* ---------- Fresh account, no submission yet (legacy 'pending' with no submitted_at — kept for backward compat) ---------- */}
         {isPending && !v.submitted_at && !justResubmitted && (
           <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
             <Text style={s.section}>Submit ID / business license</Text>
@@ -170,6 +212,18 @@ function Step({ n, title, desc }: { n: number; title: string; desc: string }) {
   return (
     <View style={s.step}>
       <View style={s.stepNum}><Text style={s.stepNumText}>{n}</Text></View>
+      <View style={{ flex: 1 }}>
+        <Text style={s.stepTitle}>{title}</Text>
+        <Text style={s.stepDesc}>{desc}</Text>
+      </View>
+    </View>
+  );
+}
+
+function Perk({ icon, title, desc }: { icon: any; title: string; desc: string }) {
+  return (
+    <View style={s.step}>
+      <View style={s.perkIcon}><Feather name={icon} size={16} color={colors.brand} /></View>
       <View style={{ flex: 1 }}>
         <Text style={s.stepTitle}>{title}</Text>
         <Text style={s.stepDesc}>{desc}</Text>
@@ -207,4 +261,12 @@ const s = StyleSheet.create({
   successBox: { padding: spacing.xl, backgroundColor: colors.surfaceSecondary, borderRadius: radii.md, alignItems: "center", gap: spacing.sm },
   successTitle: { fontFamily: font.display, fontSize: 22, color: colors.onSurface },
   successMsg: { fontFamily: font.body, color: colors.onSurfaceTertiary, textAlign: "center", fontSize: 14 },
+  // Optional/unverified UI
+  optionalHero: { padding: spacing.lg, backgroundColor: colors.brandTertiary, borderRadius: radii.md, gap: spacing.sm },
+  optionalBadge: { width: 40, height: 40, borderRadius: 20, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  optionalTitle: { fontFamily: font.display, fontSize: 26, color: colors.onBrandTertiary, marginTop: spacing.sm },
+  optionalSub: { fontFamily: font.body, color: colors.onBrandTertiary, fontSize: 14, lineHeight: 20 },
+  perkIcon: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.brandTertiary, alignItems: "center", justifyContent: "center" },
+  skipBtn: { padding: spacing.md, alignItems: "center" },
+  skipText: { color: colors.muted, fontFamily: font.bodyMed, fontSize: 14 },
 });

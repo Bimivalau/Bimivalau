@@ -39,27 +39,42 @@ export default function ProDashboard() {
           <Pressable
             testID="ver-banner"
             onPress={() => router.push("/pro/verification")}
-            style={[s.verBanner, verification.status === "rejected" && s.verBannerRejected]}
+            style={[
+              s.verBanner,
+              verification.status === "rejected" && s.verBannerRejected,
+              verification.status === "unverified" && s.verBannerOptional,
+            ]}
           >
             <Feather
-              name={verification.status === "rejected" ? "alert-triangle" : "alert-circle"}
+              name={
+                verification.status === "rejected" ? "alert-triangle" :
+                verification.status === "pending" ? "clock" : "shield"
+              }
               size={20}
-              color={verification.status === "rejected" ? colors.error : colors.warning}
+              color={
+                verification.status === "rejected" ? colors.error :
+                verification.status === "pending" ? colors.warning : colors.brand
+              }
             />
             <View style={{ flex: 1 }}>
-              <Text style={[s.verBannerTitle, verification.status === "rejected" && { color: colors.error }]}>
+              <Text
+                style={[
+                  s.verBannerTitle,
+                  verification.status === "rejected" && { color: colors.error },
+                ]}
+              >
                 {verification.status === "rejected"
                   ? "Action required — application rejected"
-                  : verification.submitted_at
+                  : verification.status === "pending"
                     ? "Verification under review"
-                    : "Verification required"}
+                    : "Earn the Verified Pro badge"}
               </Text>
               <Text style={s.verBannerMsg}>
                 {verification.status === "rejected"
                   ? "Tap to see the admin's feedback and resubmit."
-                  : verification.submitted_at
-                    ? "Typically completed within 3 business days. Your profile is hidden from customer search until approved."
-                    : "Submit your ID or license to appear in customer search."}
+                  : verification.status === "pending"
+                    ? "Typically completed within 3 business days. You're live in search either way."
+                    : "Optional — customers trust verified stylists more. Takes 2 minutes."}
               </Text>
             </View>
             <Feather name="chevron-right" size={20} color={colors.muted} />
@@ -128,6 +143,7 @@ const s = StyleSheet.create({
   signOut: { marginTop: spacing.xxl, padding: spacing.lg, alignItems: "center", borderWidth: 1, borderColor: colors.error, borderRadius: radii.md },
   verBanner: { flexDirection: "row", gap: spacing.md, alignItems: "center", padding: spacing.md, borderWidth: 1, borderColor: colors.warning, backgroundColor: "#FFF6E6", borderRadius: radii.md, marginBottom: spacing.lg },
   verBannerRejected: { borderColor: colors.error, backgroundColor: "#FFF3F2" },
+  verBannerOptional: { borderColor: colors.border, backgroundColor: colors.surfaceSecondary },
   verBannerTitle: { fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 14 },
   verBannerMsg: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 12, marginTop: 2 },
 });

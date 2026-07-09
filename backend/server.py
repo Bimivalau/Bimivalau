@@ -193,7 +193,7 @@ async def register(body: RegisterIn):
         await db.hairdressers.insert_one({
             "id": uid, "user_id": uid, "bio": "", "salon_name": "",
             "address": "", "city": "", "latitude": 0.0, "longitude": 0.0,
-            "cover_photo": "", "verification_status": "pending",
+            "cover_photo": "", "verification_status": "unverified",
             "verification_submitted_at": None, "verification_license_url": None,
             "verification_decided_at": None, "verification_reason": None,
             "rating_avg": 0.0, "reviews_count": 0, "specialty_ids": [],
@@ -242,8 +242,8 @@ async def get_hairstyle(hid: str):
 
 @api.get("/hairstyles/{hid}/hairdressers")
 async def hairdressers_for_style(hid: str, user: Optional[UserOut] = Depends(maybe_user)):
-    # only approved pros are searchable
-    hds = await db.hairdressers.find({"specialty_ids": hid, "verification_status": "approved"}, {"_id": 0}).to_list(200)
+    # Verification is optional — all hairdressers are searchable. Approved pros just get the Verified Pro badge.
+    hds = await db.hairdressers.find({"specialty_ids": hid}, {"_id": 0}).to_list(200)
     for h in hds:
         u = await db.users.find_one({"id": h["user_id"]}, {"_id": 0, "password_hash": 0})
         h["name"] = u["name"] if u else "Stylist"
@@ -333,7 +333,8 @@ async def search(
     min_rating: float = 0.0,
     user: Optional[UserOut] = Depends(maybe_user),
 ):
-    query = {"verification_status": "approved"}
+    # Verification is optional — search returns all hairdressers regardless of verification status.
+    query = {}
     if category:
         style_ids = [s["id"] for s in await db.hairstyles.find({"category": category}, {"id": 1, "_id": 0}).to_list(100)]
         query["specialty_ids"] = {"$in": style_ids}
@@ -451,8 +452,6 @@ async def create_booking(body: BookingIn, user: UserOut = Depends(get_user)):
     hd = await db.hairdressers.find_one({"id": body.hairdresser_id}, {"_id": 0})
     if not hs or not hd:
         raise HTTPException(404, "Hairstyle or hairdresser not found")
-    if hd.get("verification_status") != "approved":
-        raise HTTPException(400, "Stylist not approved yet")
     # unique 6-char booking code (retry a couple of times on collision)
     for _ in range(5):
         code = gen_code(6)
@@ -674,6 +673,7 @@ def _require_admin(user: UserOut):
 @api.get("/admin/verifications")
 async def admin_list_verifications(status_: Optional[str] = Query(None, alias="status"), user: UserOut = Depends(get_user)):
     _require_admin(user)
+    # Only pros who submitted docs surface in the admin queue — 'unverified' means they never applied.
     q = {"verification_status": status_} if status_ else {"verification_status": {"$in": ["pending", "approved", "rejected"]}}
     hds = await db.hairdressers.find(q, {"_id": 0}).sort("verification_submitted_at", 1).to_list(500)
     now = datetime.now(timezone.utc)
