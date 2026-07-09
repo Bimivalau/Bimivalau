@@ -21,7 +21,8 @@ export default function Register() {
     setErr(null); setBusy(true);
     try {
       await signUp(email.trim(), password, name.trim(), role);
-      router.replace("/");
+      if (role === "hairdresser") router.replace("/pro/verification");
+      else router.replace("/");
     } catch (e: any) { setErr(e.message || "Sign-up failed"); }
     finally { setBusy(false); }
   };

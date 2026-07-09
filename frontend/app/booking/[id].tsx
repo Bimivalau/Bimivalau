@@ -17,6 +17,8 @@ export default function BookingDetail() {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState("");
   const [reviewed, setReviewed] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  const [codeErr, setCodeErr] = useState<string | null>(null);
 
   const load = useCallback(() => api(`/bookings/${id}`).then(setB), [id]);
   useEffect(() => { load(); }, [load]);
@@ -26,6 +28,19 @@ export default function BookingDetail() {
   const isPro = user?.role === "hairdresser";
 
   const act = async (path: string) => { await api(`/bookings/${id}/${path}`, { method: "POST" }); await load(); };
+
+  const checkInWithMyCode = async () => {
+    setCodeErr(null);
+    try { await api("/bookings/check-in-by-code", { method: "POST", body: JSON.stringify({ code: b.code }) }); await load(); }
+    catch (e: any) { setCodeErr(e.message); }
+  };
+  const checkInWithEntered = async () => {
+    setCodeErr(null);
+    try {
+      await api("/bookings/check-in-by-code", { method: "POST", body: JSON.stringify({ code: codeInput.toUpperCase() }) });
+      setCodeInput(""); await load();
+    } catch (e: any) { setCodeErr(e.message); }
+  };
   const submitReview = async () => {
     await api("/reviews", { method: "POST", body: JSON.stringify({ booking_id: id, rating, comment }) });
     setReviewed(true);
@@ -56,9 +71,36 @@ export default function BookingDetail() {
         <Row label="Status" value={b.status.replace("_", " ").toUpperCase()} />
 
         {b.status === "confirmed" && (
-          <View style={{ marginTop: spacing.xl, gap: spacing.sm }}>
-            <Pressable testID="bd-checkin" onPress={() => act("check-in")} style={s.btn}><Text style={s.btnText}>Check-in now</Text></Pressable>
-            <Pressable testID="bd-cancel" onPress={() => act("cancel")} style={[s.btn, s.btnGhost]}><Text style={[s.btnText, { color: colors.onSurface }]}>Cancel</Text></Pressable>
+          <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
+            <Text style={s.section}>Check-in code</Text>
+            <View style={s.codeBox}>
+              <Text testID="booking-code" style={s.codeText}>{b.code}</Text>
+              <Text style={s.codeHint}>Show this to your {isPro ? "customer" : "stylist"} at the counter — or enter their code below to start the appointment.</Text>
+            </View>
+            <Pressable testID="checkin-my-code" onPress={checkInWithMyCode} style={s.btn}>
+              <Text style={s.btnText}>Check-in with my code</Text>
+            </Pressable>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+              <View style={{ flex: 1, height: 1, backgroundColor: colors.divider }} />
+              <Text style={{ color: colors.muted, fontFamily: font.body, fontSize: 11 }}>OR ENTER A CODE</Text>
+              <View style={{ flex: 1, height: 1, backgroundColor: colors.divider }} />
+            </View>
+            <TextInput
+              testID="checkin-code-input"
+              value={codeInput}
+              onChangeText={(t) => setCodeInput(t.toUpperCase())}
+              placeholder="6-char code"
+              maxLength={6}
+              autoCapitalize="characters"
+              style={s.codeInput}
+            />
+            {codeErr && <Text testID="checkin-err" style={{ color: colors.error, fontFamily: font.body }}>{codeErr}</Text>}
+            <Pressable testID="checkin-enter" disabled={codeInput.length !== 6} onPress={checkInWithEntered} style={[s.btn, codeInput.length !== 6 && { opacity: 0.4 }]}>
+              <Text style={s.btnText}>Check-in with entered code</Text>
+            </Pressable>
+            <Pressable testID="bd-cancel" onPress={() => act("cancel")} style={[s.btn, s.btnGhost]}>
+              <Text style={[s.btnText, { color: colors.onSurface }]}>Cancel booking</Text>
+            </Pressable>
           </View>
         )}
         {isPro && b.status === "checked_in" && (
@@ -109,4 +151,8 @@ const s = StyleSheet.create({
   btnText: { color: "#fff", fontFamily: font.bodyBold },
   section: { fontFamily: font.display, fontSize: 22, color: colors.onSurface },
   textarea: { minHeight: 100, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, padding: spacing.md, fontFamily: font.body, textAlignVertical: "top" },
+  codeBox: { padding: spacing.lg, backgroundColor: colors.brandTertiary, borderRadius: radii.md, alignItems: "center" },
+  codeText: { fontFamily: font.display, fontSize: 44, letterSpacing: 8, color: colors.onBrandTertiary },
+  codeHint: { fontFamily: font.body, color: colors.onBrandTertiary, fontSize: 12, marginTop: spacing.sm, textAlign: "center", lineHeight: 17 },
+  codeInput: { borderBottomWidth: 1, borderColor: colors.borderStrong, paddingVertical: spacing.md, fontFamily: font.display, fontSize: 24, letterSpacing: 6, textAlign: "center", color: colors.onSurface },
 });

@@ -12,9 +12,15 @@ export default function ProDashboard() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [data, setData] = useState<any>(null);
+  const [verification, setVerification] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const load = useCallback(async () => { const d = await api("/hairdressers/me/dashboard"); setData(d); setLoading(false); }, []);
+  const load = useCallback(async () => {
+    const [d, ver] = await Promise.all([api("/hairdressers/me/dashboard"), api("/hairdressers/me/verification")]);
+    setData(d);
+    setVerification(ver);
+    setLoading(false);
+  }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.brand} />;
@@ -29,6 +35,23 @@ export default function ProDashboard() {
         <Text style={s.title}>Hello, {user?.name?.split(" ")[0]}.</Text>
         <Text style={s.sub}>{todays.length > 0 ? `${todays.length} appointment${todays.length > 1 ? "s" : ""} today.` : "No appointments today."}</Text>
 
+        {verification && verification.status !== "approved" && (
+          <Pressable testID="ver-banner" onPress={() => router.push("/pro/verification")} style={s.verBanner}>
+            <Feather name="alert-circle" size={20} color={verification.status === "rejected" ? colors.error : colors.warning} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.verBannerTitle}>
+                {verification.status === "pending" ? "Verification under review" : "Verification required"}
+              </Text>
+              <Text style={s.verBannerMsg}>
+                {verification.status === "pending"
+                  ? "Typically completed within 3 business days. Your profile is hidden from customer search until approved."
+                  : "Submit your ID or license to appear in customer search."}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={colors.muted} />
+          </Pressable>
+        )}
+
         <View style={s.actions}>
           <Pressable testID="pro-availability" onPress={() => router.push("/pro/availability")} style={s.actionCard}>
             <Feather name="clock" size={22} color={colors.brand} />
@@ -38,9 +61,9 @@ export default function ProDashboard() {
             <Feather name="image" size={22} color={colors.brand} />
             <Text style={s.actionText}>Portfolio</Text>
           </Pressable>
-          <Pressable testID="pro-profile" onPress={() => router.push("/subscription")} style={s.actionCard}>
-            <Feather name="star" size={22} color={colors.brand} />
-            <Text style={s.actionText}>Plan</Text>
+          <Pressable testID="pro-verification" onPress={() => router.push("/pro/verification")} style={s.actionCard}>
+            <Feather name="shield" size={22} color={colors.brand} />
+            <Text style={s.actionText}>Verify</Text>
           </Pressable>
         </View>
 
@@ -89,4 +112,7 @@ const s = StyleSheet.create({
   apptCust: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 13 },
   apptStatus: { fontFamily: font.bodyMed, color: colors.muted, fontSize: 11, textTransform: "uppercase", letterSpacing: 1 },
   signOut: { marginTop: spacing.xxl, padding: spacing.lg, alignItems: "center", borderWidth: 1, borderColor: colors.error, borderRadius: radii.md },
+  verBanner: { flexDirection: "row", gap: spacing.md, alignItems: "center", padding: spacing.md, borderWidth: 1, borderColor: colors.warning, backgroundColor: "#FFF6E6", borderRadius: radii.md, marginBottom: spacing.lg },
+  verBannerTitle: { fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 14 },
+  verBannerMsg: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 12, marginTop: 2 },
 });

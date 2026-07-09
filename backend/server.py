@@ -8,8 +8,14 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Literal
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-import os, uuid, logging, bcrypt
+import os, uuid, logging, bcrypt, secrets, string
 from jose import jwt, JWTError
+
+def gen_code(n: int = 6) -> str:
+    alphabet = string.ascii_uppercase + string.digits
+    # drop confusable chars 0/O/1/I
+    alphabet = "".join(c for c in alphabet if c not in "0O1I")
+    return "".join(secrets.choice(alphabet) for _ in range(n))
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
@@ -35,19 +41,30 @@ BookingStatus = Literal["confirmed", "checked_in", "completed", "cancelled", "no
 
 # ---------- Models ----------
 class UserOut(BaseModel):
+    """Public user shape. `phone` is intentionally NEVER exposed except to the user themselves via /auth/me."""
     id: str
     email: EmailStr
     name: str
     role: Role
     plan: Plan = "standard"
-    phone: Optional[str] = None
     profile_photo: Optional[str] = None
+    phone: Optional[str] = None  # only populated on /auth/me self endpoint
+
+class VerificationSubmitIn(BaseModel):
+    license_url: str  # base64 or URL of ID/license image
+
+class VerificationDecisionIn(BaseModel):
+    status: Literal["approved", "rejected"]
+    reason: Optional[str] = None
+
+class CheckInByCodeIn(BaseModel):
+    code: str
 
 class RegisterIn(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6)
     name: str
-    role: Role = "customer"
+    role: Literal["customer", "hairdresser"] = "customer"
     phone: Optional[str] = None
 
 class LoginIn(BaseModel):
@@ -130,9 +147,10 @@ def clean(doc: dict) -> dict:
     doc.pop("_id", None)
     return doc
 
-async def user_from_doc(u: dict) -> UserOut:
+async def user_from_doc(u: dict, include_phone: bool = False) -> UserOut:
     return UserOut(id=u["id"], email=u["email"], name=u["name"], role=u["role"],
-                   plan=u.get("plan", "standard"), phone=u.get("phone"),
+                   plan=u.get("plan", "standard"),
+                   phone=u.get("phone") if include_phone else None,
                    profile_photo=u.get("profile_photo"))
 
 async def get_user(cred: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> UserOut:
@@ -176,6 +194,8 @@ async def register(body: RegisterIn):
             "id": uid, "user_id": uid, "bio": "", "salon_name": "",
             "address": "", "city": "", "latitude": 0.0, "longitude": 0.0,
             "cover_photo": "", "verification_status": "pending",
+            "verification_submitted_at": None, "verification_license_url": None,
+            "verification_decided_at": None, "verification_reason": None,
             "rating_avg": 0.0, "reviews_count": 0, "specialty_ids": [],
         })
     user = await user_from_doc(doc)
@@ -190,7 +210,9 @@ async def login(body: LoginIn):
 
 @api.get("/auth/me", response_model=UserOut)
 async def me(user: UserOut = Depends(get_user)):
-    return user
+    # include user's own phone in self endpoint only
+    u = await db.users.find_one({"id": user.id}, {"_id": 0, "password_hash": 0})
+    return await user_from_doc(u, include_phone=True)
 
 @api.post("/auth/plan", response_model=UserOut)
 async def update_plan(body: PlanUpdate, user: UserOut = Depends(get_user)):
@@ -220,7 +242,8 @@ async def get_hairstyle(hid: str):
 
 @api.get("/hairstyles/{hid}/hairdressers")
 async def hairdressers_for_style(hid: str, user: Optional[UserOut] = Depends(maybe_user)):
-    hds = await db.hairdressers.find({"specialty_ids": hid}, {"_id": 0}).to_list(200)
+    # only approved pros are searchable
+    hds = await db.hairdressers.find({"specialty_ids": hid, "verification_status": "approved"}, {"_id": 0}).to_list(200)
     for h in hds:
         u = await db.users.find_one({"id": h["user_id"]}, {"_id": 0, "password_hash": 0})
         h["name"] = u["name"] if u else "Stylist"
@@ -267,7 +290,7 @@ async def hairdresser_detail(hid: str, user: Optional[UserOut] = Depends(maybe_u
     h["specialties"] = specialties
     # badges
     badges = []
-    if h.get("verification_status") == "verified":
+    if h.get("verification_status") == "approved":
         badges.append("Verified Pro")
     if h.get("rating_avg", 0) >= 4.5 and h.get("reviews_count", 0) >= 5:
         badges.append("Top Rated")
@@ -310,7 +333,7 @@ async def search(
     min_rating: float = 0.0,
     user: Optional[UserOut] = Depends(maybe_user),
 ):
-    query = {}
+    query = {"verification_status": "approved"}
     if category:
         style_ids = [s["id"] for s in await db.hairstyles.find({"category": category}, {"id": 1, "_id": 0}).to_list(100)]
         query["specialty_ids"] = {"$in": style_ids}
@@ -428,8 +451,16 @@ async def create_booking(body: BookingIn, user: UserOut = Depends(get_user)):
     hd = await db.hairdressers.find_one({"id": body.hairdresser_id}, {"_id": 0})
     if not hs or not hd:
         raise HTTPException(404, "Hairstyle or hairdresser not found")
+    if hd.get("verification_status") != "approved":
+        raise HTTPException(400, "Stylist not approved yet")
+    # unique 6-char booking code (retry a couple of times on collision)
+    for _ in range(5):
+        code = gen_code(6)
+        if not await db.bookings.find_one({"code": code}):
+            break
     booking = {
         "id": str(uuid.uuid4()),
+        "code": code,
         "customer_id": user.id,
         "hairdresser_id": body.hairdresser_id,
         "hairstyle_id": body.hairstyle_id,
@@ -441,10 +472,9 @@ async def create_booking(body: BookingIn, user: UserOut = Depends(get_user)):
         "duration_min": hs["avg_duration_min"],
     }
     await db.bookings.insert_one(booking)
-    # notification
     await db.notifications.insert_one({
         "id": str(uuid.uuid4()), "user_id": user.id, "type": "booking_confirmed",
-        "message": f"Your booking for {hs['name']} is confirmed. Pay at the counter.",
+        "message": f"Your booking for {hs['name']} is confirmed. Check-in code: {code}. Pay at the counter.",
         "related_booking_id": booking["id"], "read": False,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
@@ -489,6 +519,22 @@ async def check_in(bid: str, user: UserOut = Depends(get_user)):
         "checked_in_at": datetime.now(timezone.utc).isoformat(),
     }})
     return {"ok": True}
+
+@api.post("/bookings/check-in-by-code")
+async def check_in_by_code(body: CheckInByCodeIn, user: UserOut = Depends(get_user)):
+    code = body.code.strip().upper()
+    b = await db.bookings.find_one({"code": code}, {"_id": 0})
+    if not b:
+        raise HTTPException(404, "Invalid code")
+    if b["customer_id"] != user.id and b["hairdresser_id"] != user.id:
+        raise HTTPException(403, "This code isn't yours")
+    if b["status"] != "confirmed":
+        raise HTTPException(400, f"Cannot check in from {b['status']}")
+    await db.bookings.update_one({"id": b["id"]}, {"$set": {
+        "status": "checked_in",
+        "checked_in_at": datetime.now(timezone.utc).isoformat(),
+    }})
+    return {"ok": True, "booking_id": b["id"]}
 
 @api.post("/bookings/{bid}/complete")
 async def complete_booking(bid: str, user: UserOut = Depends(get_user)):
@@ -582,6 +628,103 @@ async def my_notifications(user: UserOut = Depends(get_user)):
     return items
 
 
+# ---------- Verification (Pro) ----------
+@api.post("/hairdressers/me/submit-verification")
+async def submit_verification(body: VerificationSubmitIn, user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only hairdressers")
+    await db.hairdressers.update_one({"user_id": user.id}, {"$set": {
+        "verification_status": "pending",
+        "verification_license_url": body.license_url,
+        "verification_submitted_at": datetime.now(timezone.utc).isoformat(),
+        "verification_decided_at": None,
+        "verification_reason": None,
+    }})
+    return {"ok": True}
+
+@api.get("/hairdressers/me/verification")
+async def my_verification(user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only hairdressers")
+    hd = await db.hairdressers.find_one({"user_id": user.id}, {"_id": 0}) or {}
+    status_ = hd.get("verification_status", "pending")
+    submitted = hd.get("verification_submitted_at")
+    overdue = False
+    days_left = None
+    if status_ == "pending" and submitted:
+        elapsed = datetime.now(timezone.utc) - datetime.fromisoformat(submitted)
+        overdue = elapsed.total_seconds() > 3 * 86400
+        days_left = max(0, 3 - int(elapsed.total_seconds() // 86400))
+    return {
+        "status": status_,
+        "submitted_at": submitted,
+        "license_url": hd.get("verification_license_url"),
+        "decided_at": hd.get("verification_decided_at"),
+        "reason": hd.get("verification_reason"),
+        "overdue": overdue,
+        "days_left_sla": days_left,
+    }
+
+
+# ---------- Admin ----------
+def _require_admin(user: UserOut):
+    if user.role != "admin":
+        raise HTTPException(403, "Admins only")
+
+@api.get("/admin/verifications")
+async def admin_list_verifications(status_: Optional[str] = Query(None, alias="status"), user: UserOut = Depends(get_user)):
+    _require_admin(user)
+    q = {"verification_status": status_} if status_ else {"verification_status": {"$in": ["pending", "approved", "rejected"]}}
+    hds = await db.hairdressers.find(q, {"_id": 0}).sort("verification_submitted_at", 1).to_list(500)
+    now = datetime.now(timezone.utc)
+    for h in hds:
+        u = await db.users.find_one({"id": h["user_id"]}, {"_id": 0, "password_hash": 0})
+        h["name"] = u["name"] if u else ""
+        h["email"] = u["email"] if u else ""
+        sub = h.get("verification_submitted_at")
+        h["overdue"] = bool(sub and h["verification_status"] == "pending" and
+                            (now - datetime.fromisoformat(sub)).total_seconds() > 3 * 86400)
+    return hds
+
+@api.post("/admin/verifications/{hid}/decide")
+async def admin_decide(hid: str, body: VerificationDecisionIn, user: UserOut = Depends(get_user)):
+    _require_admin(user)
+    await db.hairdressers.update_one({"id": hid}, {"$set": {
+        "verification_status": body.status,
+        "verification_decided_at": datetime.now(timezone.utc).isoformat(),
+        "verification_reason": body.reason,
+    }})
+    # notify pro
+    await db.notifications.insert_one({
+        "id": str(uuid.uuid4()), "user_id": hid, "type": f"verification_{body.status}",
+        "message": ("Your profile has been approved and is now live." if body.status == "approved"
+                    else f"Your verification was rejected. {body.reason or ''}"),
+        "related_booking_id": None, "read": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"ok": True}
+
+
+# ---------- Featured Stylist of the Week ----------
+@api.get("/featured-stylist")
+async def featured_stylist():
+    # Pick from Unlimited + approved pros; rotate by ISO week number for deterministic freshness.
+    pros_users = await db.users.find({"role": "hairdresser", "plan": "unlimited"}, {"_id": 0, "password_hash": 0}).to_list(500)
+    ids = [u["id"] for u in pros_users]
+    if not ids:
+        return None
+    hds = await db.hairdressers.find({"id": {"$in": ids}, "verification_status": "approved"}, {"_id": 0}).to_list(500)
+    if not hds:
+        return None
+    hds.sort(key=lambda h: h["id"])  # deterministic order
+    week = datetime.now(timezone.utc).isocalendar()[1]
+    h = hds[week % len(hds)]
+    u = next((x for x in pros_users if x["id"] == h["id"]), None)
+    h["name"] = u["name"] if u else "Stylist"
+    return h
+
+
+
 # ---------- Auto-cancel job ----------
 async def auto_cancel_late():
     now = datetime.now(timezone.utc)
@@ -670,10 +813,22 @@ async def seed(force: bool = False):
         })
         # each pro specializes in 3 random styles (deterministic)
         specs = style_ids[i:i+3] if len(style_ids[i:i+3]) == 3 else style_ids[:3]
+        # 3 of 4 approved, last one pending (submitted 4 days ago -> overdue) so admin has data
+        if i < 3:
+            vstatus = "approved"
+            submitted = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+            decided = (datetime.now(timezone.utc) - timedelta(days=5)).isoformat()
+        else:
+            vstatus = "pending"
+            submitted = (datetime.now(timezone.utc) - timedelta(days=4)).isoformat()  # overdue
+            decided = None
         await db.hairdressers.insert_one({
             "id": uid, "user_id": uid, "bio": bio, "salon_name": salon,
             "address": addr, "city": city, "latitude": lat, "longitude": lng,
-            "cover_photo": cover, "verification_status": "verified" if i < 3 else "pending",
+            "cover_photo": cover, "verification_status": vstatus,
+            "verification_submitted_at": submitted, "verification_decided_at": decided,
+            "verification_license_url": "https://placeholder.example/license.jpg" if submitted else None,
+            "verification_reason": None,
             "rating_avg": rating, "reviews_count": revs, "specialty_ids": specs,
         })
         # portfolio
@@ -695,6 +850,13 @@ async def seed(force: bool = False):
     await db.users.insert_one({
         "id": cust_id, "email": "sara@braids.demo", "name": "Sara Bello",
         "role": "customer", "plan": "standard", "phone": None, "profile_photo": None,
+        "password_hash": hash_pw("demo1234"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    # demo admin
+    await db.users.insert_one({
+        "id": str(uuid.uuid4()), "email": "admin@braids.demo", "name": "BC Admin",
+        "role": "admin", "plan": "unlimited", "phone": None, "profile_photo": None,
         "password_hash": hash_pw("demo1234"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })

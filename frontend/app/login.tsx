@@ -48,7 +48,7 @@ export default function Login() {
           <Pressable testID="go-register" onPress={() => router.push("/register")}>
             <Text style={styles.link}>New here? Create an account →</Text>
           </Pressable>
-          <Text style={styles.demo}>Demo customer: sara@braids.demo · demo1234{"\n"}Demo pro: amara@braids.demo · demo1234</Text>
+          <Text style={styles.demo}>Customer: sara@braids.demo · demo1234{"\n"}Pro: amara@braids.demo · demo1234{"\n"}Admin: admin@braids.demo · demo1234</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -56,7 +56,7 @@ export default function Login() {
 }
 
 const styles = StyleSheet.create({
-  eyebrow: { color: colors.onBrandTertiary, letterSpacing: 3, fontSize: 11, fontFamily: font.bodyMed, marginBottom: spacing.sm, color: "#E8CBBF" },
+  eyebrow: { color: "#E8CBBF", letterSpacing: 3, fontSize: 11, fontFamily: font.bodyMed, marginBottom: spacing.sm },
   hero: { color: "#F9F6F0", fontFamily: font.display, fontSize: 44, lineHeight: 48 },
   label: { fontFamily: font.bodyMed, color: colors.onSurfaceSecondary, fontSize: 12, letterSpacing: 1 },
   input: { borderBottomWidth: 1, borderColor: colors.borderStrong, paddingVertical: spacing.md, fontSize: 16, fontFamily: font.body, color: colors.onSurface },

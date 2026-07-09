@@ -64,10 +64,15 @@ export default function Bookings() {
                   <Text style={s.style}>{b.hairstyle_name}</Text>
                   <Text style={s.sub}>with {b.hairdresser_name}</Text>
                   <Text style={s.date}>{dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · {dt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
-                  <Text style={[s.badge, s[`badge_${b.status}`]]}>{b.status.replace("_", " ").toUpperCase()}</Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" }}>
+                    <Text style={[s.badge, s[`badge_${b.status}`]]}>{b.status.replace("_", " ").toUpperCase()}</Text>
+                    {b.code && b.status === "confirmed" && (
+                      <Text testID={`code-${b.id}`} style={s.codePill}>#{b.code}</Text>
+                    )}
+                  </View>
                   {tab === "upcoming" && b.status === "confirmed" && (
                     <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm }}>
-                      <Pressable testID={`checkin-${b.id}`} onPress={() => checkIn(b.id)} style={s.mini}><Text style={s.miniText}>Check-in</Text></Pressable>
+                      <Pressable testID={`open-${b.id}`} onPress={() => router.push(`/booking/${b.id}`)} style={s.mini}><Text style={s.miniText}>Open · Check-in</Text></Pressable>
                       <Pressable testID={`cancel-${b.id}`} onPress={() => cancel(b.id)} style={[s.mini, s.miniGhost]}><Text style={[s.miniText, { color: colors.onSurface }]}>Cancel</Text></Pressable>
                     </View>
                   )}
@@ -102,4 +107,5 @@ const s = StyleSheet.create({
   mini: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: colors.brand, borderRadius: radii.md },
   miniGhost: { backgroundColor: "transparent", borderWidth: 1, borderColor: colors.borderStrong },
   miniText: { color: "#fff", fontFamily: font.bodyBold, fontSize: 12 },
+  codePill: { fontFamily: font.bodyBold, color: colors.brand, fontSize: 12, letterSpacing: 3, marginTop: spacing.sm, paddingHorizontal: spacing.sm, paddingVertical: 3, borderWidth: 1, borderColor: colors.brand, borderRadius: 4, alignSelf: "flex-start" },
 });

@@ -61,11 +61,32 @@ export default function HairdresserProfile() {
 
         {tab === "portfolio" && (
           <View style={s.grid}>
-            {h.portfolio.map((p: any) => (
-              <View key={p.id} style={s.gridItem}>
-                <Image source={{ uri: p.photo_url }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-              </View>
-            ))}
+            {(() => {
+              // Standard tier gets a capped preview; Unlimited sees all.
+              const cap = h.location_blurred ? 6 : h.portfolio.length;
+              const shown = h.portfolio.slice(0, cap);
+              const encodedUrls = shown.map((p: any) => encodeURIComponent(p.photo_url)).join(",");
+              return (
+                <>
+                  {shown.map((p: any, i: number) => (
+                    <Pressable
+                      key={p.id}
+                      testID={`portfolio-photo-${p.id}`}
+                      onPress={() => router.push(`/viewer?photos=${encodedUrls}&index=${i}`)}
+                      style={s.gridItem}
+                    >
+                      <Image source={{ uri: p.photo_url }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                    </Pressable>
+                  ))}
+                  {cap < h.portfolio.length && (
+                    <View style={s.moreLocked}>
+                      <Feather name="lock" size={20} color={colors.brand} />
+                      <Text style={s.moreLockedText}>+{h.portfolio.length - cap} more with Unlimited</Text>
+                    </View>
+                  )}
+                </>
+              );
+            })()}
             {h.portfolio.length === 0 && <Text style={{ paddingHorizontal: spacing.xl, color: colors.muted, fontFamily: font.body }}>No portfolio yet.</Text>}
           </View>
         )}
@@ -128,6 +149,8 @@ const s = StyleSheet.create({
   tabTextActive: { color: colors.onSurface },
   grid: { flexDirection: "row", flexWrap: "wrap", padding: 2, marginTop: spacing.sm },
   gridItem: { width: "33.33%", aspectRatio: 1, padding: 2 },
+  moreLocked: { width: "33.33%", aspectRatio: 1, padding: 2, alignItems: "center", justifyContent: "center", backgroundColor: colors.brandTertiary },
+  moreLockedText: { fontFamily: font.bodyMed, color: colors.onBrandTertiary, fontSize: 10, textAlign: "center", marginTop: 4, paddingHorizontal: 6 },
   review: { borderBottomWidth: 1, borderColor: colors.divider, paddingBottom: spacing.md, gap: spacing.xs },
   revName: { fontFamily: font.bodyBold, color: colors.onSurface },
   revText: { fontFamily: font.body, color: colors.onSurfaceSecondary, fontSize: 14 },

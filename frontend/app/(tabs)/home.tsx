@@ -15,6 +15,7 @@ export default function Home() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [styles_, setStyles] = useState<Style[]>([]);
+  const [featured, setFeatured] = useState<any>(null);
   const [cats, setCats] = useState<string[]>([]);
   const [cat, setCat] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,9 +23,12 @@ export default function Home() {
 
   const load = useCallback(async (c: string | null) => {
     const q = c ? `?category=${encodeURIComponent(c)}` : "";
-    const [list, catRes] = await Promise.all([api(`/hairstyles${q}`), api(`/hairstyles/categories`)]);
+    const [list, catRes, feat] = await Promise.all([
+      api(`/hairstyles${q}`), api(`/hairstyles/categories`), api(`/featured-stylist`).catch(() => null),
+    ]);
     setStyles(list);
     setCats(catRes.categories);
+    setFeatured(feat);
   }, []);
 
   useEffect(() => { (async () => { setLoading(true); await load(cat); setLoading(false); })(); }, [cat, load]);
@@ -61,6 +65,16 @@ export default function Home() {
         <ActivityIndicator style={{ marginTop: spacing.xxl }} color={colors.brand} />
       ) : (
         <>
+          {featured && (
+            <Pressable testID={`featured-${featured.id}`} onPress={() => router.push(`/hairdresser/${featured.id}`)} style={s.featured}>
+              <Image source={{ uri: featured.cover_photo }} style={s.featuredImg} contentFit="cover" />
+              <View style={{ flex: 1 }}>
+                <Text style={s.featuredBadge}>FEATURED · WEEK OF {new Date().toLocaleDateString("en", { month: "short", day: "numeric" }).toUpperCase()}</Text>
+                <Text style={s.featuredName}>{featured.name}</Text>
+                <Text style={s.featuredSalon}>{featured.salon_name}</Text>
+              </View>
+            </Pressable>
+          )}
           {hero && (
             <Pressable testID={`style-hero-${hero.id}`} onPress={() => router.push(`/hairstyle/${hero.id}`)} style={s.hero}>
               <Image source={{ uri: hero.cover_photo }} style={StyleSheet.absoluteFill} contentFit="cover" transition={200} />
@@ -111,4 +125,9 @@ const s = StyleSheet.create({
   cardImg: { width: "100%", aspectRatio: 0.8, backgroundColor: colors.surfaceSecondary, borderRadius: radii.md },
   cardTitle: { fontFamily: font.display, fontSize: 18, color: colors.onSurface, marginTop: spacing.sm },
   cardMeta: { fontFamily: font.body, fontSize: 12, color: colors.muted, marginTop: 2 },
+  featured: { marginHorizontal: spacing.xl, marginBottom: spacing.md, padding: spacing.md, backgroundColor: colors.surfaceInverse, borderRadius: radii.md, flexDirection: "row", gap: spacing.md, alignItems: "center" },
+  featuredImg: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.surfaceTertiary },
+  featuredBadge: { fontFamily: font.bodyMed, color: "#E8CBBF", letterSpacing: 2, fontSize: 9 },
+  featuredName: { fontFamily: font.display, fontSize: 20, color: colors.onSurfaceInverse, marginTop: 2 },
+  featuredSalon: { fontFamily: font.body, color: "#F9F6F0", fontSize: 12, opacity: 0.8 },
 });
