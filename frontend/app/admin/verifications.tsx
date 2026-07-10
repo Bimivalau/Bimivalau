@@ -39,7 +39,7 @@ export default function AdminVerifications() {
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.xl, paddingBottom: spacing.md }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <Text style={s.title}>Admin</Text>
-          <Pressable testID="admin-signout" onPress={signOut}><Feather name="log-out" size={22} color={colors.onSurface} /></Pressable>
+          <Pressable testID="admin-signout" onPress={async () => { await signOut(); router.replace("/login"); }}><Feather name="log-out" size={22} color={colors.onSurface} /></Pressable>
         </View>
         <Text style={s.sub}>Verify professional accounts. SLA: 3 business days.</Text>
         <View style={s.tabs}>

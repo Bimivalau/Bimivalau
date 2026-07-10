@@ -120,7 +120,7 @@ export default function ProDashboard() {
           </Pressable>
         ))}
 
-        <Pressable testID="pro-signout" onPress={signOut} style={s.signOut}>
+        <Pressable testID="pro-signout" onPress={async () => { await signOut(); router.replace("/login"); }} style={s.signOut}>
           <Text style={{ color: colors.error, fontFamily: font.bodyBold }}>Sign out</Text>
         </Pressable>
       </View>
