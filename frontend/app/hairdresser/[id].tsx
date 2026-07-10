@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, TextInput } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -15,11 +15,22 @@ export default function HairdresserProfile() {
   const [h, setH] = useState<any>(null);
   const [tab, setTab] = useState<"portfolio" | "reviews" | "about">("portfolio");
   const [fav, setFav] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportReason, setReportReason] = useState("");
+  const [reportMsg, setReportMsg] = useState<string | null>(null);
 
   useEffect(() => { api(`/hairdressers/${id}`).then(setH); }, [id]);
   const toggleFav = async () => {
     if (!fav) { await api("/favorites", { method: "POST", body: JSON.stringify({ hairdresser_id: id }) }); setFav(true); }
     else { await api(`/favorites/${id}`, { method: "DELETE" }); setFav(false); }
+  };
+  const submitReport = async () => {
+    if (!reportReason.trim()) return;
+    try {
+      await api("/reports", { method: "POST", body: JSON.stringify({ reported_user_id: id, reason: reportReason.trim() }) });
+      setReportMsg("Reported. An admin will review.");
+      setTimeout(() => { setReportOpen(false); setReportMsg(null); setReportReason(""); }, 2500);
+    } catch (e: any) { setReportMsg(e.message); }
   };
 
   if (!h) return <ActivityIndicator style={{ flex: 1 }} color={colors.brand} />;
@@ -117,6 +128,28 @@ export default function HairdresserProfile() {
                 <View key={sp.id} style={s.chip}><Text style={s.chipText}>{sp.name}</Text></View>
               ))}
             </View>
+
+            <Pressable testID="report-toggle" onPress={() => setReportOpen(o => !o)} style={{ flexDirection: "row", gap: spacing.sm, alignItems: "center", marginTop: spacing.lg }}>
+              <Feather name="flag" size={14} color={colors.error} />
+              <Text style={{ color: colors.error, fontFamily: font.bodyMed, fontSize: 13 }}>Report this stylist</Text>
+            </Pressable>
+            {reportOpen && (
+              <View style={{ gap: spacing.sm }}>
+                <TextInput
+                  testID="report-reason"
+                  value={reportReason}
+                  onChangeText={setReportReason}
+                  placeholder="What happened? (visible only to admins)"
+                  placeholderTextColor={colors.muted}
+                  multiline
+                  style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, padding: spacing.md, minHeight: 80, fontFamily: font.body, textAlignVertical: "top" }}
+                />
+                <Pressable testID="report-submit" onPress={submitReport} disabled={!reportReason.trim()} style={[s.btn, !reportReason.trim() && { opacity: 0.4 }]}>
+                  <Text style={s.btnText}>Submit report</Text>
+                </Pressable>
+                {reportMsg && <Text style={{ color: colors.success, fontFamily: font.bodyMed }}>{reportMsg}</Text>}
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -163,4 +196,6 @@ const s = StyleSheet.create({
   bookMeta: { fontFamily: font.body, color: colors.muted, fontSize: 11 },
   bookBtn: { backgroundColor: colors.brand, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radii.md },
   bookBtnText: { color: "#fff", fontFamily: font.bodyBold, fontSize: 15 },
+  btn: { backgroundColor: colors.brand, padding: spacing.md, borderRadius: radii.md, alignItems: "center" },
+  btnText: { color: "#fff", fontFamily: font.bodyBold },
 });

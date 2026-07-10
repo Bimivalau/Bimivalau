@@ -39,10 +39,18 @@ export default function AdminVerifications() {
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.xl, paddingBottom: spacing.md }}>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <Text style={s.title}>Admin</Text>
-          <Pressable testID="admin-signout" onPress={async () => { await signOut(); router.replace("/login"); }}><Feather name="log-out" size={22} color={colors.onSurface} /></Pressable>
+          <Pressable testID="admin-signout" onPress={async () => { await signOut(); router.replace("/welcome"); }}><Feather name="log-out" size={22} color={colors.onSurface} /></Pressable>
         </View>
         <Text style={s.sub}>Verify professional accounts. SLA: 3 business days.</Text>
         <View style={s.tabs}>
+          <Pressable testID="admin-tab-verifications" style={[s.tab, s.mainTabActive]}>
+            <Text style={[s.mainTabText, s.mainTabTextActive]}>Pro verifications</Text>
+          </Pressable>
+          <Pressable testID="admin-tab-flags" onPress={() => router.replace("/admin/flags")} style={s.tab}>
+            <Text style={s.mainTabText}>Customer flags</Text>
+          </Pressable>
+        </View>
+        <View style={[s.tabs, { marginTop: 0 }]}>
           {(["pending", "approved", "rejected"] as Filter[]).map(f => (
             <Pressable key={f} testID={`admin-tab-${f}`} onPress={() => setFilter(f)} style={[s.tab, filter === f && s.tabActive]}>
               <Text style={[s.tabText, filter === f && s.tabTextActive]}>{f.charAt(0).toUpperCase() + f.slice(1)}</Text>
@@ -112,6 +120,9 @@ const s = StyleSheet.create({
   tabActive: { borderBottomWidth: 2, borderColor: colors.brand, marginBottom: -1 },
   tabText: { fontFamily: font.bodyMed, color: colors.muted, fontSize: 14 },
   tabTextActive: { color: colors.onSurface },
+  mainTabActive: { borderBottomWidth: 2, borderColor: colors.brand, marginBottom: -1 },
+  mainTabText: { fontFamily: font.bodyBold, color: colors.muted, fontSize: 14 },
+  mainTabTextActive: { color: colors.onSurface },
   card: { padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, gap: spacing.sm, backgroundColor: colors.surface },
   cardOverdue: { borderColor: colors.error, backgroundColor: "#FFF3F2" },
   img: { width: 68, height: 68, borderRadius: radii.md, backgroundColor: colors.surfaceSecondary },

@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";
-import { useRouter, useFocusEffect } from "expo-router";
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@/src/api";
@@ -13,15 +12,26 @@ export default function ProDashboard() {
   const insets = useSafeAreaInsets();
   const [data, setData] = useState<any>(null);
   const [verification, setVerification] = useState<any>(null);
+  const [onboarding, setOnboarding] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [d, ver] = await Promise.all([api("/hairdressers/me/dashboard"), api("/hairdressers/me/verification")]);
+    const [d, ver, ob] = await Promise.all([
+      api("/hairdressers/me/dashboard"),
+      api("/hairdressers/me/verification"),
+      api("/hairdressers/me/onboarding-status"),
+    ]);
     setData(d);
     setVerification(ver);
+    setOnboarding(ob);
     setLoading(false);
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Route incomplete onboarding to the setup hub
+  useEffect(() => {
+    if (onboarding && !onboarding.completed) router.replace("/pro/onboarding");
+  }, [onboarding, router]);
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.brand} />;
   const upcoming = data?.upcoming || [];
@@ -120,7 +130,7 @@ export default function ProDashboard() {
           </Pressable>
         ))}
 
-        <Pressable testID="pro-signout" onPress={async () => { await signOut(); router.replace("/login"); }} style={s.signOut}>
+        <Pressable testID="pro-signout" onPress={async () => { await signOut(); router.replace("/welcome"); }} style={s.signOut}>
           <Text style={{ color: colors.error, fontFamily: font.bodyBold }}>Sign out</Text>
         </Pressable>
       </View>

@@ -69,7 +69,7 @@ export default function Profile() {
             </Pressable>
           ))}
         </View>
-        <Pressable testID="signout-btn" onPress={async () => { await signOut(); router.replace("/login"); }} style={s.signOut}>
+        <Pressable testID="signout-btn" onPress={async () => { await signOut(); router.replace("/welcome"); }} style={s.signOut}>
           <Text style={s.signOutText}>Sign out</Text>
         </Pressable>
       </View>

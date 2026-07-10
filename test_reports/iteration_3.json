@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 3 (Final Build v1) verified. Backend: 73/73 pytest PASS (31 iter1 + 22 iter2 + 17 iter3 + 3 iter2 relaxed for iter3 spec change). Iter3-specific coverage: extended pro registration (phone/bio/service_area/salon/city/specialty_ids) with fresh unverified pro appearing in search, Founding-Pro promo (seeded Amara = slot #1 is_founding_pro/plan_type=unlimited/price=0/promo_expires_at≈+365d), 11th+ pro gets NO founding promo, GET /subscriptions/me pricing shape (customer $8/$76.80, pro $19/$182.40, yearly_savings_pct=20, founding_pro_days_left populated), POST /subscriptions/subscribe yearly for customer=76.8 & pro=182.4 including reconciliation on GET, 400 when billing_interval missing for Unlimited, founding pro re-subscribe returns note 'Founding Pro promo — no charge until it expires' and does NOT overwrite sub, onboarding-status gating (400 until specialty+availability both set, then 200 flips onboarding_completed), POST /customer-ratings pro-only (403 for customer), duplicate blocked (400), not-completed blocked (400), 3 flagged ratings restrict customer, restricted customer POST /bookings returns 403 with 'temporarily restricted', admin /customer-flags lists with recent_flags[≤5], admin lift resets flag_count/booking_restricted=false and sends restriction_lifted notification, restricted customer can book after lift, POST /reports OK & self-report=400, featured-stylist cache returns same pro across calls within week. Frontend (mobile viewport 390x844): /welcome renders welcome-customer, welcome-braider, welcome-existing CTAs; login 'New here?' -> /welcome; Amara login lands on /pro/dashboard directly (onboarding_completed=true seeded); pro-signout -> /welcome; Sara login -> /home; admin login -> /admin/verifications with 'Pro verifications' + 'Customer flags' tab bar working (customer-flags shows 'No restricted customers right now.'); Extended pro register form shows testIDs reg-name/email/password/phone/bio/service-area/salon (city field omitted in UI — merged into service-area per copy), 6 specialty chips present; successful pro register routes to /pro/onboarding NOT /pro/dashboard; Subscription screen for fresh non-founding pro shows Monthly/Yearly toggle with 'save 20%', pro yearly $182.4/yr, standard 'Current plan' + Unlimited 'Switch to Unlimited yearly' CTA. Founding banner only present for Amara (verified separately via GET /subscriptions/me founding_pro_days_left>300). Cosmetic: RN warning 'props.pointerEvents is deprecated. Use style.pointerEvents' still emitted (iter1/2 known).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/register?role=hairdresser", "issues": ["Separate 'City' input not exposed in UI — city is derived from service_area on submit. Spec labels city as optional so this is acceptable, but consider adding a dedicated city input for clarity."]}
+    ],
+    "react_native_issues": [
+      {"component": "internal-RN", "issue": "'props.pointerEvents is deprecated. Use style.pointerEvents' console warning (unchanged from iter1/iter2). Low priority — internal RN warning."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_braids_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/iteration3_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "None blocking — all iter3 spec items pass end-to-end. Optional polish: (1) expose a dedicated 'City' input on the pro register form (currently derived from service_area); (2) consider migrating remaining internal 'props.pointerEvents' warning-source components to style.pointerEvents when convenient."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now ~1256 lines — please split into routers (auth, subscriptions, bookings, ratings, admin, verification, featured) post-MVP. Growing monolith risks merge conflicts.",
+    "Iteration 3 correctly reversed iter2's pending-pro-exclusion in /search and /hairstyles/{id}/hairdressers (verification is now optional per spec). Old iter2 tests updated in place to assert the new relaxed behavior (kept as regression coverage).",
+    "founding_pro_slot uses pro_count post-insert (so slot values are 1..10 inclusive). Matches spec. Consider an atomic find_and_modify counter to remove race window if signup traffic ever concurrent.",
+    "get_active_subscription auto-expires the founding promo when promo_expires_at passes and downgrades user.plan to standard — good.",
+    "PRICING constants centralized (customer 8/76.80, pro 19/182.40) — clean.",
+    "admin/customer-flags returns recent_flags[]≤5 with phone forcibly nulled. Good privacy discipline.",
+    "featured-stylist caches by ISO week_start; test verified same pro across calls in the same request loop. The weighted-rotation logic (rating + inverse-recency) is only exercised on the first call of a fresh week — worth an end-of-week manual sanity check when tick happens.",
+    "POST /reports has no rate limit — an abusive user could spam reports. Consider deduping (reporter_id, reported_user_id) or throttling for prod."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration3.py (new — 17 tests)",
+    "/app/backend/tests/test_iteration2.py (updated 3 tests to reflect iter3 spec: verification is now optional so pending pros appear in search/style-list and can be booked)"
+  ],
+  "success_rate": {"backend": "100% (73/73 pytest)", "frontend": "100% for critical iter3 flows tested: /welcome CTAs, login->welcome link, pro register->onboarding routing, Amara direct-to-dashboard, all-role signout->/welcome, admin tabs Pro-verifications/Customer-flags, subscription pricing screen with monthly/yearly toggle & 20% savings label & pro $182.4/yr"},
+  "seed_data_creation": "None new. Used seeded admin/sara/amara/kenya/simone. Ad-hoc test users created with test_*/newbie_* prefix and @example.com domain. Some test bookings on Amara's calendar left cancelled or checked-in cleanly. Founding-pro-flooding test creates ≤12 fresh hairdresser accounts to exhaust the 10-slot cap (idempotent via UUID emails).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Run full suite: cd /app/backend/tests && python -m pytest -v --junitxml=/app/test_reports/pytest/pytest_results.xml (73 tests, ~27s). Iter3 endpoints: POST /api/auth/register (extended pro fields), GET/POST /api/subscriptions/me & /subscribe (PRICING customer 8/76.80 pro 19/182.40, yearly_savings_pct=20, is_founding_pro handling), GET /api/hairdressers/me/onboarding-status, POST /api/hairdressers/me/onboarding-complete (needs hairstyle_ids body for /api/specialties/me PUT), POST /api/customer-ratings (flag threshold=3), POST /api/bookings (403 if booking_restricted), GET /api/admin/customer-flags, POST /api/admin/customer-flags/{uid}/decide (lift/keep/remove), POST /api/reports, GET /api/featured-stylist (ISO-week cached in featured_stylists collection). Key testIDs — welcome: welcome-customer/welcome-braider/welcome-existing; login: login-email/login-password/login-submit/go-register; register: reg-name/reg-email/reg-password/reg-phone/reg-bio/reg-service-area/reg-salon/reg-spec-{styleId}/reg-submit; onboarding: onb-availability/onb-portfolio/onb-verify/onb-finish/onb-title; pro dashboard: pro-availability/pro-portfolio/pro-verification/pro-signout; booking detail check-in-by-code testIDs unchanged from iter2. Spec change vs iter2: verification is now optional — search & style-hairdresser listings and booking against pending/unverified pros are ALL allowed. Only 'approved' triggers the 'Verified Pro' badge.",
+  "rca_of_issue": "N/A — no production bugs discovered in iter3. Two test-only issues found and fixed by testing agent: (a) iter3 test_onboarding used wrong endpoint paths POST /api/hairdressers/me/{specialties,availability} — actual routes are PUT /api/specialties/me (body hairstyle_ids) and PUT /api/availability/me; (b) iter2 pending-exclusion tests were stale (spec changed) — rewritten as 'pending-included' assertions."
+}

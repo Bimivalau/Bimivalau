@@ -19,6 +19,11 @@ export default function BookingDetail() {
   const [reviewed, setReviewed] = useState(false);
   const [codeInput, setCodeInput] = useState("");
   const [codeErr, setCodeErr] = useState<string | null>(null);
+  const [proRating, setProRating] = useState(5);
+  const [flagged, setFlagged] = useState(false);
+  const [flagReason, setFlagReason] = useState("");
+  const [proRated, setProRated] = useState(false);
+  const [proRateErr, setProRateErr] = useState<string | null>(null);
 
   const load = useCallback(() => api(`/bookings/${id}`).then(setB), [id]);
   useEffect(() => { load(); }, [load]);
@@ -44,6 +49,16 @@ export default function BookingDetail() {
   const submitReview = async () => {
     await api("/reviews", { method: "POST", body: JSON.stringify({ booking_id: id, rating, comment }) });
     setReviewed(true);
+  };
+  const submitProRating = async () => {
+    setProRateErr(null);
+    try {
+      await api("/customer-ratings", { method: "POST", body: JSON.stringify({
+        booking_id: id, rating: proRating,
+        flagged_for_removal: flagged, flag_reason: flagged ? (flagReason || "No reason given") : null,
+      }) });
+      setProRated(true);
+    } catch (e: any) { setProRateErr(e.message); }
   };
 
   return (
@@ -123,6 +138,43 @@ export default function BookingDetail() {
           </View>
         )}
         {reviewed && <Text style={{ color: colors.success, marginTop: spacing.md, fontFamily: font.bodyBold }}>Thanks — review posted!</Text>}
+
+        {/* Pro rates the customer after completion / no-show */}
+        {isPro && (b.status === "completed" || b.status === "no_show") && !proRated && (
+          <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
+            <Text style={s.section}>Rate this customer</Text>
+            <Text style={{ fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 13 }}>
+              Your rating stays private to admins. If a customer was disrespectful or a no-show, flag them — 3 flags from different braiders temporarily suspend their booking privileges.
+            </Text>
+            <View style={{ flexDirection: "row", gap: spacing.sm }}>
+              {[1, 2, 3, 4, 5].map(n => (
+                <Pressable key={n} testID={`prostar-${n}`} onPress={() => setProRating(n)}>
+                  <Feather name="star" size={28} color={n <= proRating ? colors.brand : colors.border} />
+                </Pressable>
+              ))}
+            </View>
+            <Pressable testID="flag-toggle" onPress={() => setFlagged(f => !f)} style={s.flagRow}>
+              <Feather name={flagged ? "check-square" : "square"} size={18} color={flagged ? colors.error : colors.muted} />
+              <Text style={[s.flagText, flagged && { color: colors.error }]}>Flag this customer for removal</Text>
+            </Pressable>
+            {flagged && (
+              <TextInput
+                testID="flag-reason"
+                value={flagReason}
+                onChangeText={setFlagReason}
+                placeholder="Reason (no-show, unsafe, disrespectful…)"
+                placeholderTextColor={colors.muted}
+                multiline
+                style={s.textarea}
+              />
+            )}
+            {proRateErr && <Text style={{ color: colors.error, fontFamily: font.body }}>{proRateErr}</Text>}
+            <Pressable testID="submit-pro-rating" onPress={submitProRating} style={s.btn}>
+              <Text style={s.btnText}>{flagged ? "Submit rating + flag" : "Submit rating"}</Text>
+            </Pressable>
+          </View>
+        )}
+        {proRated && <Text style={{ color: colors.success, marginTop: spacing.md, fontFamily: font.bodyBold }}>Rating recorded{flagged ? " · Customer flagged for admin review" : ""}.</Text>}
       </View>
     </ScrollView>
   );
@@ -155,4 +207,6 @@ const s = StyleSheet.create({
   codeText: { fontFamily: font.display, fontSize: 44, letterSpacing: 8, color: colors.onBrandTertiary },
   codeHint: { fontFamily: font.body, color: colors.onBrandTertiary, fontSize: 12, marginTop: spacing.sm, textAlign: "center", lineHeight: 17 },
   codeInput: { borderBottomWidth: 1, borderColor: colors.borderStrong, paddingVertical: spacing.md, fontFamily: font.display, fontSize: 24, letterSpacing: 6, textAlign: "center", color: colors.onSurface },
+  flagRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },
+  flagText: { fontFamily: font.bodyMed, color: colors.onSurface, fontSize: 14 },
 });

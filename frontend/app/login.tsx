@@ -45,10 +45,10 @@ export default function Login() {
           <Pressable testID="login-submit" onPress={submit} disabled={busy} style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]}>
             <Text style={styles.btnText}>{busy ? "Signing in…" : "Sign in"}</Text>
           </Pressable>
-          <Pressable testID="go-register" onPress={() => router.push("/register")}>
-            <Text style={styles.link}>New here? Create an account →</Text>
+          <Pressable testID="go-register" onPress={() => router.push("/welcome")}>
+            <Text style={styles.link}>New here? Get started →</Text>
           </Pressable>
-          <Text style={styles.demo}>Customer: sara@braids.demo · demo1234{"\n"}Pro: amara@braids.demo · demo1234{"\n"}Admin: admin@braids.demo · demo1234</Text>
+          <Text style={styles.demo}>Customer: sara@braids.demo · demo1234{"\n"}Pro: amara@braids.demo · demo1234{"\n"}Admin: admin@braids.demo · demo1234{"\n"}(All accounts use password: demo1234)</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

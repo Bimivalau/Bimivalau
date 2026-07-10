@@ -51,7 +51,8 @@ class UserOut(BaseModel):
     phone: Optional[str] = None  # only populated on /auth/me self endpoint
 
 class VerificationSubmitIn(BaseModel):
-    license_url: str  # base64 or URL of ID/license image
+    # Either a URL or a base64 data-URI string (e.g. "data:image/jpeg;base64,....")
+    license_url: str
 
 class VerificationDecisionIn(BaseModel):
     status: Literal["approved", "rejected"]
@@ -66,6 +67,34 @@ class RegisterIn(BaseModel):
     name: str
     role: Literal["customer", "hairdresser"] = "customer"
     phone: Optional[str] = None
+    # Pro-only extended fields (required for hairdressers, ignored for customers)
+    bio: Optional[str] = None
+    service_area: Optional[str] = None
+    salon_name: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    specialty_ids: Optional[List[str]] = None
+
+class CustomerRatingIn(BaseModel):
+    booking_id: str
+    rating: int = Field(ge=1, le=5)
+    flagged_for_removal: bool = False
+    flag_reason: Optional[str] = None
+
+class ReportIn(BaseModel):
+    reported_user_id: str
+    reason: str
+
+class SubscribeIn(BaseModel):
+    plan_type: Literal["standard", "unlimited"]
+    billing_interval: Optional[Literal["monthly", "yearly"]] = None  # required for paid
+
+class OnboardingCompleteIn(BaseModel):
+    onboarding_completed: bool = True
+
+class FlagDecisionIn(BaseModel):
+    action: Literal["lift", "keep", "remove"]
+    reason: Optional[str] = None
 
 class LoginIn(BaseModel):
     email: EmailStr
@@ -175,30 +204,92 @@ async def maybe_user(cred: Optional[HTTPAuthorizationCredentials] = Depends(secu
         return None
 
 
+# ---------- Pricing (mocked; no real payment processor yet) ----------
+FOUNDING_PRO_SLOTS = 10
+YEARLY_DISCOUNT = 0.20  # 20% off vs 12x monthly
+PRICING = {
+    "customer": {"monthly": 8.0, "yearly": round(8.0 * 12 * (1 - YEARLY_DISCOUNT), 2)},   # $96/yr
+    "professional": {"monthly": 19.0, "yearly": round(19.0 * 12 * (1 - YEARLY_DISCOUNT), 2)},  # $228/yr
+}
+
+async def get_active_subscription(user_id: str) -> Optional[dict]:
+    """Return the most-recent active subscription for a user, honoring promo_expires_at."""
+    sub = await db.subscriptions.find_one({"user_id": user_id, "status": "active"}, {"_id": 0}, sort=[("start_date", -1)])
+    if not sub:
+        return None
+    # Auto-downgrade expired founding-pro promo to standard
+    if sub.get("is_founding_pro") and sub.get("promo_expires_at"):
+        if datetime.fromisoformat(sub["promo_expires_at"]) < datetime.now(timezone.utc):
+            await db.subscriptions.update_one({"id": sub["id"]}, {"$set": {"status": "expired"}})
+            await db.users.update_one({"id": user_id}, {"$set": {"plan": "standard"}})
+            return None
+    return sub
+
+async def sync_user_plan_from_sub(user_id: str) -> str:
+    """Reconciles the user.plan field with their subscription record. Returns the effective plan."""
+    sub = await get_active_subscription(user_id)
+    plan = sub["plan_type"] if sub else "standard"
+    await db.users.update_one({"id": user_id}, {"$set": {"plan": plan}})
+    return plan
+
+
 # ---------- Auth ----------
 @api.post("/auth/register", response_model=TokenOut)
 async def register(body: RegisterIn):
     if await db.users.find_one({"email": body.email}):
         raise HTTPException(400, "Email already registered")
     uid = str(uuid.uuid4())
+    now = datetime.now(timezone.utc)
     doc = {
         "id": uid, "email": body.email, "name": body.name, "role": body.role,
         "phone": body.phone, "plan": "standard",
         "password_hash": hash_pw(body.password),
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": now.isoformat(),
         "profile_photo": None,
+        "flag_count": 0, "booking_restricted": False,
     }
     await db.users.insert_one(doc)
+
     if body.role == "hairdresser":
-        await db.hairdressers.insert_one({
-            "id": uid, "user_id": uid, "bio": "", "salon_name": "",
-            "address": "", "city": "", "latitude": 0.0, "longitude": 0.0,
+        # Pro extended fields (bio/service_area/specialties power search matching + trust)
+        pro_doc = {
+            "id": uid, "user_id": uid,
+            "bio": body.bio or "", "salon_name": body.salon_name or "",
+            "address": body.address or "", "city": body.city or "",
+            "service_area": body.service_area or body.city or "",
+            "latitude": 0.0, "longitude": 0.0,
             "cover_photo": "", "verification_status": "unverified",
             "verification_submitted_at": None, "verification_license_url": None,
             "verification_decided_at": None, "verification_reason": None,
-            "rating_avg": 0.0, "reviews_count": 0, "specialty_ids": [],
-        })
-    user = await user_from_doc(doc)
+            "rating_avg": 0.0, "reviews_count": 0,
+            "specialty_ids": body.specialty_ids or [],
+            "onboarding_completed": False,
+        }
+        await db.hairdressers.insert_one(pro_doc)
+
+        # Founding-Pro promo: first N pros get Unlimited free for 1 year
+        pro_count = await db.hairdressers.count_documents({})  # includes the one just inserted
+        if pro_count <= FOUNDING_PRO_SLOTS:
+            promo_expires = now + timedelta(days=365)
+            sub = {
+                "id": str(uuid.uuid4()),
+                "user_id": uid,
+                "account_type": "professional",
+                "plan_type": "unlimited",
+                "billing_interval": "yearly",
+                "price": 0.0,
+                "status": "active",
+                "start_date": now.isoformat(),
+                "renewal_date": promo_expires.isoformat(),
+                "is_founding_pro": True,
+                "promo_expires_at": promo_expires.isoformat(),
+                "founding_pro_slot": pro_count,
+            }
+            await db.subscriptions.insert_one(sub)
+            await db.users.update_one({"id": uid}, {"$set": {"plan": "unlimited"}})
+            doc["plan"] = "unlimited"
+
+    user = await user_from_doc(doc, include_phone=True)
     return TokenOut(access_token=make_token(uid, body.role), user=user)
 
 @api.post("/auth/login", response_model=TokenOut)
@@ -216,9 +307,78 @@ async def me(user: UserOut = Depends(get_user)):
 
 @api.post("/auth/plan", response_model=UserOut)
 async def update_plan(body: PlanUpdate, user: UserOut = Depends(get_user)):
+    """Legacy mock toggle — retained for backward compat. New callers should use /subscriptions/subscribe."""
     await db.users.update_one({"id": user.id}, {"$set": {"plan": body.plan}})
+    if body.plan == "standard":
+        await db.subscriptions.update_many({"user_id": user.id, "status": "active"}, {"$set": {"status": "cancelled"}})
     u = await db.users.find_one({"id": user.id}, {"_id": 0, "password_hash": 0})
-    return await user_from_doc(u)
+    return await user_from_doc(u, include_phone=True)
+
+
+# ---------- Subscriptions ----------
+@api.get("/subscriptions/me")
+async def get_my_subscription(user: UserOut = Depends(get_user)):
+    """Returns the active subscription (or None) + pricing options tailored to the user's role."""
+    sub = await get_active_subscription(user.id)
+    await sync_user_plan_from_sub(user.id)
+    account_type = "professional" if user.role == "hairdresser" else "customer"
+    prices = PRICING[account_type]
+    days_left_promo = None
+    if sub and sub.get("is_founding_pro") and sub.get("promo_expires_at"):
+        delta = datetime.fromisoformat(sub["promo_expires_at"]) - datetime.now(timezone.utc)
+        days_left_promo = max(0, delta.days)
+    return {
+        "subscription": sub,
+        "account_type": account_type,
+        "pricing": {
+            "monthly": prices["monthly"],
+            "yearly": prices["yearly"],
+            "yearly_savings_pct": int(YEARLY_DISCOUNT * 100),
+        },
+        "founding_pro_days_left": days_left_promo,
+    }
+
+@api.post("/subscriptions/subscribe")
+async def subscribe(body: SubscribeIn, user: UserOut = Depends(get_user)):
+    """Mocked subscribe — creates a real subscription record; no payment processor is called."""
+    account_type = "professional" if user.role == "hairdresser" else "customer"
+    now = datetime.now(timezone.utc)
+
+    # Standard = cancel any active paid subscription
+    if body.plan_type == "standard":
+        await db.subscriptions.update_many({"user_id": user.id, "status": "active"}, {"$set": {"status": "cancelled"}})
+        await db.users.update_one({"id": user.id}, {"$set": {"plan": "standard"}})
+        return {"ok": True, "plan": "standard"}
+
+    if not body.billing_interval:
+        raise HTTPException(400, "billing_interval required for Unlimited")
+
+    # Preserve founding-pro promo if it's still valid — don't overwrite with a paid sub
+    current = await get_active_subscription(user.id)
+    if current and current.get("is_founding_pro") and current.get("promo_expires_at") \
+            and datetime.fromisoformat(current["promo_expires_at"]) > now:
+        return {"ok": True, "plan": "unlimited", "note": "You're on the Founding Pro promo — no charge until it expires."}
+
+    price = PRICING[account_type][body.billing_interval]
+    renewal = now + timedelta(days=30 if body.billing_interval == "monthly" else 365)
+    # Cancel prior subs and insert new
+    await db.subscriptions.update_many({"user_id": user.id, "status": "active"}, {"$set": {"status": "cancelled"}})
+    sub = {
+        "id": str(uuid.uuid4()),
+        "user_id": user.id,
+        "account_type": account_type,
+        "plan_type": "unlimited",
+        "billing_interval": body.billing_interval,
+        "price": price,
+        "status": "active",
+        "start_date": now.isoformat(),
+        "renewal_date": renewal.isoformat(),
+        "is_founding_pro": False,
+        "promo_expires_at": None,
+    }
+    await db.subscriptions.insert_one(sub)
+    await db.users.update_one({"id": user.id}, {"$set": {"plan": "unlimited"}})
+    return {"ok": True, "plan": "unlimited", "subscription": {k: v for k, v in sub.items() if k != "_id"}}
 
 
 # ---------- Hairstyles ----------
@@ -440,6 +600,14 @@ async def get_slots(hid: str, date: str):
 async def create_booking(body: BookingIn, user: UserOut = Depends(get_user)):
     if user.role != "customer":
         raise HTTPException(403, "Only customers can book")
+    # Two-way trust: repeatedly-flagged customers can't book anyone until admin reviews
+    fresh = await db.users.find_one({"id": user.id}, {"_id": 0})
+    if fresh and fresh.get("booking_restricted"):
+        raise HTTPException(
+            403,
+            "Your account is temporarily restricted from booking after receiving repeated flags from braiders. "
+            "An admin will review your account — you'll be notified with the decision.",
+        )
     dt_iso = body.appointment_datetime.isoformat()
     conflict = await db.bookings.find_one({
         "hairdresser_id": body.hairdresser_id,
@@ -627,6 +795,140 @@ async def my_notifications(user: UserOut = Depends(get_user)):
     return items
 
 
+# ---------- Customer Ratings (braider rates the customer) ----------
+FLAG_THRESHOLD = 3
+
+@api.post("/customer-ratings")
+async def rate_customer(body: CustomerRatingIn, user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only braiders can rate customers")
+    b = await db.bookings.find_one({"id": body.booking_id}, {"_id": 0})
+    if not b:
+        raise HTTPException(404, "Booking not found")
+    if b["hairdresser_id"] != user.id:
+        raise HTTPException(403, "Not your booking")
+    if b["status"] not in ("completed", "no_show"):
+        raise HTTPException(400, "Booking must be completed or no-show before rating")
+    if await db.customer_ratings.find_one({"booking_id": body.booking_id}):
+        raise HTTPException(400, "Already rated for this booking")
+    rating = {
+        "id": str(uuid.uuid4()),
+        "booking_id": body.booking_id,
+        "hairdresser_id": user.id,
+        "customer_id": b["customer_id"],
+        "rating": body.rating,
+        "flagged_for_removal": body.flagged_for_removal,
+        "flag_reason": body.flag_reason,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.customer_ratings.insert_one(rating)
+
+    # If flagged, increment the customer's flag_count and enforce booking_restricted at threshold
+    if body.flagged_for_removal:
+        cu = await db.users.find_one({"id": b["customer_id"]}, {"_id": 0})
+        new_count = (cu.get("flag_count") or 0) + 1
+        updates = {"flag_count": new_count}
+        just_restricted = False
+        if new_count >= FLAG_THRESHOLD and not cu.get("booking_restricted"):
+            updates["booking_restricted"] = True
+            just_restricted = True
+        await db.users.update_one({"id": b["customer_id"]}, {"$set": updates})
+        if just_restricted:
+            await db.notifications.insert_one({
+                "id": str(uuid.uuid4()), "user_id": b["customer_id"], "type": "account_restricted",
+                "message": ("Your account has been temporarily restricted from booking after multiple flags from braiders. "
+                           "An admin will review shortly."),
+                "related_booking_id": b["id"], "read": False,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            })
+    return {"ok": True, "rating": {k: v for k, v in rating.items() if k != "_id"}}
+
+
+# ---------- Reports (any user reports another) ----------
+@api.post("/reports")
+async def create_report(body: ReportIn, user: UserOut = Depends(get_user)):
+    if body.reported_user_id == user.id:
+        raise HTTPException(400, "You can't report yourself")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "reporter_id": user.id,
+        "reported_user_id": body.reported_user_id,
+        "reason": body.reason,
+        "status": "open",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.reports.insert_one(doc)
+    return {"ok": True, "id": doc["id"]}
+
+
+# ---------- Pro Onboarding ----------
+@api.post("/hairdressers/me/onboarding-complete")
+async def mark_onboarding_complete(user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only hairdressers")
+    # Minimum onboarding = at least one specialty + one availability slot
+    hd = await db.hairdressers.find_one({"user_id": user.id}, {"_id": 0}) or {}
+    has_specialty = bool(hd.get("specialty_ids"))
+    has_avail = await db.availability.count_documents({"hairdresser_id": user.id}) > 0
+    if not (has_specialty and has_avail):
+        raise HTTPException(400, "Add at least one specialty and one weekly availability window before finishing setup.")
+    await db.hairdressers.update_one({"user_id": user.id}, {"$set": {"onboarding_completed": True}})
+    return {"ok": True}
+
+@api.get("/hairdressers/me/onboarding-status")
+async def onboarding_status(user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only hairdressers")
+    hd = await db.hairdressers.find_one({"user_id": user.id}, {"_id": 0}) or {}
+    has_specialty = bool(hd.get("specialty_ids"))
+    has_avail = await db.availability.count_documents({"hairdresser_id": user.id}) > 0
+    has_portfolio = await db.portfolio_items.count_documents({"hairdresser_id": user.id}) > 0
+    return {
+        "completed": bool(hd.get("onboarding_completed")),
+        "has_specialty": has_specialty,
+        "has_availability": has_avail,
+        "has_portfolio": has_portfolio,
+    }
+
+
+# ---------- Admin: Customer Flag Queue ----------
+@api.get("/admin/customer-flags")
+async def admin_list_flags(user: UserOut = Depends(get_user)):
+    _require_admin(user)
+    users = await db.users.find({"booking_restricted": True}, {"_id": 0, "password_hash": 0}).to_list(500)
+    for u in users:
+        # attach up to 5 recent flag entries for context
+        flags = await db.customer_ratings.find(
+            {"customer_id": u["id"], "flagged_for_removal": True}, {"_id": 0}
+        ).sort("created_at", -1).to_list(5)
+        u["recent_flags"] = flags
+        u["phone"] = None  # never expose to admin either
+    return users
+
+@api.post("/admin/customer-flags/{uid}/decide")
+async def admin_decide_flag(uid: str, body: FlagDecisionIn, user: UserOut = Depends(get_user)):
+    _require_admin(user)
+    if body.action == "lift":
+        await db.users.update_one({"id": uid}, {"$set": {"booking_restricted": False, "flag_count": 0}})
+        await db.notifications.insert_one({
+            "id": str(uuid.uuid4()), "user_id": uid, "type": "restriction_lifted",
+            "message": "Your booking restriction has been lifted after admin review. You can book again.",
+            "related_booking_id": None, "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    elif body.action == "keep":
+        # Restriction stands; just record admin note (log via notification for transparency)
+        await db.notifications.insert_one({
+            "id": str(uuid.uuid4()), "user_id": uid, "type": "restriction_kept",
+            "message": f"Admin reviewed your account and the restriction remains in place.{(' Reason: ' + body.reason) if body.reason else ''}",
+            "related_booking_id": None, "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    elif body.action == "remove":
+        await db.users.update_one({"id": uid}, {"$set": {"booking_restricted": True, "removed_at": datetime.now(timezone.utc).isoformat(), "removed_reason": body.reason}})
+    return {"ok": True}
+
+
 # ---------- Verification (Pro) ----------
 @api.post("/hairdressers/me/submit-verification")
 async def submit_verification(body: VerificationSubmitIn, user: UserOut = Depends(get_user)):
@@ -706,22 +1008,69 @@ async def admin_decide(hid: str, body: VerificationDecisionIn, user: UserOut = D
 
 
 # ---------- Featured Stylist of the Week ----------
+def _iso_week_range(now: Optional[datetime] = None) -> tuple[datetime, datetime]:
+    now = now or datetime.now(timezone.utc)
+    monday = now - timedelta(days=now.weekday())
+    monday = monday.replace(hour=0, minute=0, second=0, microsecond=0)
+    return monday, monday + timedelta(days=7)
+
 @api.get("/featured-stylist")
 async def featured_stylist():
-    # Pick from Unlimited + approved pros; rotate by ISO week number for deterministic freshness.
+    """Cached weekly pick from unlimited+approved pros, weighted by rating & inverse-recency of last feature.
+    Result is memoized into `featured_stylists` collection so the same pro shows all week."""
+    week_start, week_end = _iso_week_range()
+    existing = await db.featured_stylists.find_one({"week_start": week_start.isoformat()}, {"_id": 0})
+    if existing:
+        hd = await db.hairdressers.find_one({"id": existing["hairdresser_id"]}, {"_id": 0})
+        if hd:
+            u = await db.users.find_one({"id": hd["user_id"]}, {"_id": 0})
+            hd["name"] = u["name"] if u else "Stylist"
+            hd["selection_reason"] = existing.get("selection_reason")
+            return hd
+
+    # Build eligibility pool: approved pros with active Unlimited subscription
     pros_users = await db.users.find({"role": "hairdresser", "plan": "unlimited"}, {"_id": 0, "password_hash": 0}).to_list(500)
-    ids = [u["id"] for u in pros_users]
-    if not ids:
+    if not pros_users:
         return None
+    ids = [u["id"] for u in pros_users]
     hds = await db.hairdressers.find({"id": {"$in": ids}, "verification_status": "approved"}, {"_id": 0}).to_list(500)
     if not hds:
         return None
-    hds.sort(key=lambda h: h["id"])  # deterministic order
-    week = datetime.now(timezone.utc).isocalendar()[1]
-    h = hds[week % len(hds)]
-    u = next((x for x in pros_users if x["id"] == h["id"]), None)
-    h["name"] = u["name"] if u else "Stylist"
-    return h
+
+    # Weight = (rating_avg + 1) / (weeks_since_last_feature + 1). Never featured -> huge weight.
+    now = datetime.now(timezone.utc)
+    scored = []
+    for h in hds:
+        last = await db.featured_stylists.find_one({"hairdresser_id": h["id"]}, sort=[("week_start", -1)])
+        if last:
+            weeks_since = max(0, (now - datetime.fromisoformat(last["week_start"])).days // 7)
+        else:
+            weeks_since = 52  # very high recency weight for never-featured
+        weight = (h.get("rating_avg", 0.0) + 1.0) * (weeks_since + 1)
+        scored.append((h, weight))
+
+    total = sum(w for _, w in scored)
+    r = secrets.randbelow(int(total * 1000)) / 1000.0
+    acc = 0.0
+    pick = scored[-1][0]
+    for h, w in scored:
+        acc += w
+        if r <= acc:
+            pick = h
+            break
+
+    doc = {
+        "id": str(uuid.uuid4()),
+        "hairdresser_id": pick["id"],
+        "week_start": week_start.isoformat(),
+        "week_end": week_end.isoformat(),
+        "selection_reason": f"rating={pick.get('rating_avg', 0):.2f}, weighted rotation among {len(scored)} eligible Unlimited pros",
+    }
+    await db.featured_stylists.insert_one(doc)
+    u = next((x for x in pros_users if x["id"] == pick["id"]), None)
+    pick["name"] = u["name"] if u else "Stylist"
+    pick["selection_reason"] = doc["selection_reason"]
+    return pick
 
 
 
@@ -753,6 +1102,10 @@ async def seed(force: bool = False):
     await db.portfolio_items.delete_many({})
     await db.availability.delete_many({})
     await db.reviews.delete_many({})
+    await db.subscriptions.delete_many({})
+    await db.customer_ratings.delete_many({})
+    await db.reports.delete_many({})
+    await db.featured_stylists.delete_many({})
     await db.users.delete_many({"email": {"$regex": "@braids.demo$"}})
     await db.bookings.delete_many({})
 
@@ -808,6 +1161,7 @@ async def seed(force: bool = False):
             "id": uid, "email": email, "name": name, "role": "hairdresser",
             "plan": "unlimited" if i < 2 else "standard",
             "phone": None, "profile_photo": cover,
+            "flag_count": 0, "booking_restricted": False,
             "password_hash": hash_pw("demo1234"),
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
@@ -824,13 +1178,27 @@ async def seed(force: bool = False):
             decided = None
         await db.hairdressers.insert_one({
             "id": uid, "user_id": uid, "bio": bio, "salon_name": salon,
-            "address": addr, "city": city, "latitude": lat, "longitude": lng,
+            "address": addr, "city": city, "service_area": city,
+            "latitude": lat, "longitude": lng,
             "cover_photo": cover, "verification_status": vstatus,
             "verification_submitted_at": submitted, "verification_decided_at": decided,
             "verification_license_url": "https://placeholder.example/license.jpg" if submitted else None,
             "verification_reason": None,
             "rating_avg": rating, "reviews_count": revs, "specialty_ids": specs,
+            "onboarding_completed": True,
         })
+        # Founding-Pro promo for first 2 seeded pros (i < 2 == unlimited plan)
+        if i < 2:
+            promo_expires = datetime.now(timezone.utc) + timedelta(days=365)
+            await db.subscriptions.insert_one({
+                "id": str(uuid.uuid4()), "user_id": uid,
+                "account_type": "professional", "plan_type": "unlimited",
+                "billing_interval": "yearly", "price": 0.0, "status": "active",
+                "start_date": datetime.now(timezone.utc).isoformat(),
+                "renewal_date": promo_expires.isoformat(),
+                "is_founding_pro": True, "promo_expires_at": promo_expires.isoformat(),
+                "founding_pro_slot": i + 1,
+            })
         # portfolio
         for j, ph in enumerate(portfolio_photos[:6]):
             await db.portfolio_items.insert_one({
@@ -850,6 +1218,7 @@ async def seed(force: bool = False):
     await db.users.insert_one({
         "id": cust_id, "email": "sara@braids.demo", "name": "Sara Bello",
         "role": "customer", "plan": "standard", "phone": None, "profile_photo": None,
+        "flag_count": 0, "booking_restricted": False,
         "password_hash": hash_pw("demo1234"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
@@ -857,9 +1226,12 @@ async def seed(force: bool = False):
     await db.users.insert_one({
         "id": str(uuid.uuid4()), "email": "admin@braids.demo", "name": "BC Admin",
         "role": "admin", "plan": "unlimited", "phone": None, "profile_photo": None,
+        "flag_count": 0, "booking_restricted": False,
         "password_hash": hash_pw("demo1234"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
+    # Clear any prior featured-stylist picks so weighted rotation runs fresh
+    await db.featured_stylists.delete_many({})
     return {"status": "seeded"}
 
 
