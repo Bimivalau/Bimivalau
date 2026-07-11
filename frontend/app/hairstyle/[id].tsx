@@ -17,7 +17,6 @@ import { colors, spacing, font, radii } from "@/src/theme";
 import StyleCard, { Hairstyle } from "@/src/components/StyleCard";
 import SaveSheet from "@/src/components/SaveSheet";
 import { cldTransform } from "@/src/utils/cloudinary";
-
 const durationLabel = (m: number) => {
   const h = Math.floor(m / 60);
   const r = m % 60;
@@ -41,6 +40,8 @@ export default function HairstyleDetail() {
       try {
         const [st, res] = await Promise.all([api(`/hairstyles/${id}`), api(`/hairstyles/${id}/hairdressers`)]);
         setStyle(st); setHds(res.results); setGated(res.gated);
+        // Best-effort view tracking — fuels "Continue Dreaming" and future analytics.
+        api(`/hairstyles/${id}/view`, { method: "POST" }).catch(() => {});
       } finally { setLoading(false); }
     })();
   }, [id]);
@@ -113,6 +114,33 @@ export default function HairstyleDetail() {
           <Fact icon="scissors" label="Hair length" value={style.hair_length || "Long"} />
           <Fact icon="calendar" label="Lasts" value={`~${style.lasts_weeks || 6} wks`} />
           <Fact icon="droplet" label="Maintenance" value={style.maintenance || "Low"} />
+        </View>
+
+        {/* ---------- Style Intelligence ---------- */}
+        <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.xxl }}>
+          <View style={si.card}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+              <LinearGradient colors={["#F5C77E", "#B78141", "#8B5A2B"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={si.badge}>
+                <Text style={si.badgeScore}>{Math.round(style.style_score || 0)}</Text>
+                <Text style={si.badgeMax}>/100</Text>
+              </LinearGradient>
+              <View style={{ flex: 1 }}>
+                <Text style={si.title}>Style Intelligence</Text>
+                <Text style={si.desc}>BraidsCommunity's proprietary score — powered by real customer signals.</Text>
+              </View>
+            </View>
+            <View style={si.chipRow}>
+              {(style.tags || []).includes("trending") && <SIChip emoji="🔥" text="Trending" />}
+              {(style.saves_count || 0) > 2000 && <SIChip emoji="❤️" text="Loved by the community" />}
+              {(style.style_score || 0) >= 90 && <SIChip emoji="⭐" text="Highly rated" />}
+              {(style.lasts_weeks || 0) >= 8 && <SIChip emoji="⏳" text="Long lasting" />}
+              {(style.tags || []).includes("protective") && <SIChip emoji="💪" text="Protective style" />}
+              <SIChip emoji="👩🏿" text="Suitable for most hair types" />
+            </View>
+            <Text style={si.formula}>
+              Score blends popularity, saves, ratings, appointments, professional recommendations, 30-day trend growth, difficulty, maintenance and average longevity.
+            </Text>
+          </View>
         </View>
 
         {/* ---------- Description ---------- */}
@@ -207,6 +235,30 @@ function Fact({ icon, label, value }: { icon: any; label: string; value: string 
     </View>
   );
 }
+
+
+function SIChip({ emoji, text }: { emoji: string; text: string }) {
+  return (
+    <View style={si.chip}>
+      <Text style={{ fontSize: 12 }}>{emoji}</Text>
+      <Text style={si.chipText}>{text}</Text>
+    </View>
+  );
+}
+
+
+const si = StyleSheet.create({
+  card: { padding: spacing.lg, borderRadius: 22, backgroundColor: "#FAF6EF", borderWidth: 1, borderColor: "#EBDEC5" },
+  badge: { width: 68, height: 68, borderRadius: 34, alignItems: "center", justifyContent: "center", borderWidth: 2, borderColor: "rgba(255,255,255,0.6)" },
+  badgeScore: { color: "#fff", fontFamily: font.display, fontSize: 22, lineHeight: 24 },
+  badgeMax: { color: "#fff", fontFamily: font.body, fontSize: 9, opacity: 0.9, marginTop: -2 },
+  title: { fontFamily: font.display, fontSize: 20, color: colors.onSurface },
+  desc: { fontFamily: font.body, fontSize: 12, color: colors.onSurfaceTertiary, marginTop: 2, lineHeight: 16 },
+  chipRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: spacing.md },
+  chip: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: spacing.sm, paddingVertical: 6, borderRadius: radii.pill, backgroundColor: "#fff", borderWidth: 1, borderColor: "#EBDEC5" },
+  chipText: { fontFamily: font.bodyMed, fontSize: 11, color: colors.onSurfaceSecondary },
+  formula: { fontFamily: font.body, fontSize: 10, color: colors.onSurfaceTertiary, marginTop: spacing.md, lineHeight: 15 },
+});
 
 
 const s = StyleSheet.create({

@@ -169,6 +169,7 @@ class HairstyleIn(BaseModel):
     maintenance: Optional[Literal["Low", "Medium", "High"]] = "Low"
     lasts_weeks: Optional[int] = 6
     tags: Optional[List[str]] = []           # ["trending","new","bridal","vacation","kids","office","event","most_loved","protective","luxury","natural","celebrity","color","quick"]
+    country_tags: Optional[List[str]] = []   # ISO-alpha-2 codes: US, FR, NG, GB, GH, SN, KE, ZA, BR, JM, CM, CI, CG
     style_score: Optional[float] = 0.0       # 0..100 aggregated popularity
     saves_count: Optional[int] = 0
     recommended_for: Optional[List[str]] = []  # ["Children","Adults","Natural Hair","Relaxed Hair","Vacation","Wedding","Office"]
@@ -674,6 +675,7 @@ async def list_hairstyles(
     category: Optional[str] = None,
     tag: Optional[str] = None,
     section: Optional[str] = None,
+    country: Optional[str] = None,
     limit: int = 200,
     user: Optional[UserOut] = Depends(maybe_user),
 ):
@@ -682,6 +684,7 @@ async def list_hairstyles(
       - category:  exact category name
       - tag:       any tag in `tags[]` (trending, new, bridal, kids, vacation, office, event, most_loved, ...)
       - section:   canonical section name — mapped to a tag or sort
+      - country:   ISO-alpha-2 code (US/FR/NG/GB/GH/SN/KE/ZA/BR/JM/CM/CI/CG) or "WW" for worldwide (all)
     Adds computed fields per row: nearby_pros_count, is_saved (if user).
     """
     q: dict = {}
@@ -689,6 +692,8 @@ async def list_hairstyles(
         q["category"] = category
     if tag:
         q["tags"] = tag
+    if country and country.upper() not in ("WW", "WORLDWIDE", ""):
+        q["country_tags"] = country.upper()
     # Section aliases → tag or sort strategy
     sort = [("style_score", -1)]
     if section:
@@ -736,6 +741,127 @@ async def list_hairstyles(
 async def hairstyle_categories():
     cats = await db.hairstyles.distinct("category")
     return {"categories": cats}
+
+
+# ---------- Trending Countries ----------
+# ISO-alpha-2 codes + flag emoji + display name. The client renders these as chips
+# in the "Trending Worldwide" section. Ordering is the display order on the strip.
+TRENDING_COUNTRIES = [
+    {"code": "WW", "flag": "🌍", "name": "Worldwide"},
+    {"code": "US", "flag": "🇺🇸", "name": "United States"},
+    {"code": "FR", "flag": "🇫🇷", "name": "France"},
+    {"code": "GB", "flag": "🇬🇧", "name": "United Kingdom"},
+    {"code": "NG", "flag": "🇳🇬", "name": "Nigeria"},
+    {"code": "GH", "flag": "🇬🇭", "name": "Ghana"},
+    {"code": "SN", "flag": "🇸🇳", "name": "Senegal"},
+    {"code": "CI", "flag": "🇨🇮", "name": "Côte d'Ivoire"},
+    {"code": "CM", "flag": "🇨🇲", "name": "Cameroon"},
+    {"code": "CG", "flag": "🇨🇬", "name": "Congo"},
+    {"code": "KE", "flag": "🇰🇪", "name": "Kenya"},
+    {"code": "ZA", "flag": "🇿🇦", "name": "South Africa"},
+    {"code": "BR", "flag": "🇧🇷", "name": "Brazil"},
+    {"code": "JM", "flag": "🇯🇲", "name": "Jamaica"},
+]
+
+
+@api.get("/trending/countries")
+async def trending_countries():
+    return TRENDING_COUNTRIES
+
+
+@api.get("/trending/{code}")
+async def trending_for_country(code: str, limit: int = 12, user: Optional[UserOut] = Depends(maybe_user)):
+    """
+    Returns the top trending hairstyles for a country (or "WW" worldwide).
+    Ranking today uses style_score; when real telemetry (views/saves/bookings/
+    ratings/searches) is available, replace this query with an aggregation on
+    the `style_views`, `style_saves`, `bookings` and `reviews` collections
+    without changing the response shape.
+    """
+    q: dict = {}
+    code_up = code.upper()
+    if code_up not in ("WW", "WORLDWIDE"):
+        q["country_tags"] = code_up
+    items = await db.hairstyles.find(q, {"_id": 0}).sort([("style_score", -1)]).to_list(limit)
+    for it in items:
+        it["nearby_pros_count"] = await db.hairdressers.count_documents({"specialty_ids": it["id"]})
+    if user and items:
+        ids = [i["id"] for i in items]
+        saved_ids = {
+            r["hairstyle_id"]
+            async for r in db.style_saves.find({"user_id": user.id, "hairstyle_id": {"$in": ids}}, {"_id": 0})
+        }
+        for it in items:
+            it["is_saved"] = it["id"] in saved_ids
+    return items
+
+
+# ---------- View tracking (feeds "Continue Dreaming") ----------
+@api.post("/hairstyles/{hid}/view")
+async def track_view(hid: str, user: Optional[UserOut] = Depends(maybe_user)):
+    """Best-effort view tracker. Silent on failure so page loads never break."""
+    if not user:
+        return {"ok": True, "anonymous": True}
+    try:
+        exists = await db.hairstyles.count_documents({"id": hid}) > 0
+        if not exists:
+            return {"ok": False}
+        # Upsert one row per (user, style) — timestamp becomes recency signal.
+        await db.style_views.update_one(
+            {"user_id": user.id, "hairstyle_id": hid},
+            {"$set": {"viewed_at": datetime.now(timezone.utc).isoformat()},
+             "$inc": {"view_count": 1},
+             "$setOnInsert": {"id": str(uuid.uuid4())}},
+            upsert=True,
+        )
+        # Global counter fuels future analytics-driven ranking.
+        await db.hairstyles.update_one({"id": hid}, {"$inc": {"view_count": 1}})
+    except Exception:
+        pass
+    return {"ok": True}
+
+
+# ---------- Continue Dreaming / Start Your Journey ----------
+@api.get("/continue-dreaming/me")
+async def continue_dreaming(user: UserOut = Depends(get_user)):
+    """
+    Personalized shelf:
+      - Saved styles first (most recent first)
+      - Then recently-viewed styles not already in saved
+      - Section is empty ONLY if user has no saves AND no views — in that case
+        the client renders "Start Your Journey" using /trending/WW.
+
+    Cap 10 items, each annotated with `personal_reason`: "Saved" or "Last viewed".
+    """
+    limit = 10
+    saved = await db.style_saves.find({"user_id": user.id}, {"_id": 0}).sort([("created_at", -1)]).to_list(limit)
+    saved_ids = [s["hairstyle_id"] for s in saved]
+
+    views_q = {"user_id": user.id}
+    if saved_ids:
+        views_q["hairstyle_id"] = {"$nin": saved_ids}
+    viewed = await db.style_views.find(views_q, {"_id": 0}).sort([("viewed_at", -1)]).to_list(limit)
+
+    ordered_ids = saved_ids + [v["hairstyle_id"] for v in viewed]
+    ordered_ids = ordered_ids[:limit]
+    if not ordered_ids:
+        return {"mode": "new_user", "items": []}
+
+    styles = await db.hairstyles.find({"id": {"$in": ordered_ids}}, {"_id": 0}).to_list(limit)
+    by_id = {s["id"]: s for s in styles}
+    saved_set = set(saved_ids)
+    out: List[dict] = []
+    for sid in ordered_ids:
+        st = by_id.get(sid)
+        if not st:
+            continue
+        st = dict(st)
+        st["personal_reason"] = "Saved" if sid in saved_set else "Last viewed"
+        st["nearby_pros_count"] = await db.hairdressers.count_documents({"specialty_ids": sid})
+        st["is_saved"] = sid in saved_set
+        out.append(st)
+    return {"mode": "returning_user", "items": out}
+
 
 @api.get("/hairstyles/{hid}")
 async def get_hairstyle(hid: str, user: Optional[UserOut] = Depends(maybe_user)):
@@ -1969,118 +2095,136 @@ async def seed(force: bool = False):
     await db.bookings.delete_many({})
 
     styles = [
-        # (name, category, description, price, duration_min, cover, difficulty, hair_length, maintenance, lasts_weeks, tags, style_score, saves, recommended_for)
+        # (name, category, description, price, duration_min, cover, difficulty, hair_length, maintenance, lasts_weeks, tags, style_score, saves, recommended_for, country_tags)
         ("Box Braids", "Box Braids", "Classic long box braids with sleek partings. A protective staple.",
          180, 300,
          "https://images.unsplash.com/photo-1594254773847-9fce26e950bc?w=800&q=85",
          "Medium", "Long", "Low", 8,
-         ["trending", "most_loved", "protective"], 92.4, 3120, ["Adults", "Natural Hair", "Relaxed Hair", "Vacation"]),
+         ["trending", "most_loved", "protective"], 92.4, 3120,
+         ["Adults", "Natural Hair", "Relaxed Hair", "Vacation"], ["US", "NG", "GH", "JM", "GB"]),
 
         ("Knotless Braids", "Knotless Braids", "Gentle knotless technique — feather-light finish, no tension at the root.",
          240, 420,
          "https://images.unsplash.com/photo-1572955304332-bf714bd49add?w=800&q=85",
          "Advanced", "Extra Long", "Low", 8,
-         ["trending", "most_loved", "luxury", "protective", "office"], 96.8, 4890, ["Adults", "Natural Hair", "Relaxed Hair", "Office", "Wedding"]),
+         ["trending", "most_loved", "luxury", "protective", "office"], 96.8, 4890,
+         ["Adults", "Natural Hair", "Relaxed Hair", "Office", "Wedding"], ["US", "FR", "NG", "GB", "CI"]),
 
         ("Cornrows", "Cornrows", "Sleek straight-back cornrows — quick, timeless and workout-friendly.",
          90, 120,
          "https://images.unsplash.com/photo-1481385694031-f2b14f8621d5?w=800&q=85",
          "Easy", "Short", "Low", 3,
-         ["quick", "office", "protective", "new"], 78.2, 1420, ["Children", "Adults", "Office"]),
+         ["quick", "office", "protective", "new"], 78.2, 1420,
+         ["Children", "Adults", "Office"], ["US", "KE", "ZA", "GH"]),
 
         ("Feed-in Braids", "Cornrows", "Perfectly parted feed-in cornrows with natural gradient hair addition.",
          120, 180,
          "https://images.unsplash.com/photo-1673470907547-1c0c6a996095?w=800&q=85",
          "Medium", "Mid-length", "Low", 4,
-         ["office", "trending", "protective"], 84.5, 2010, ["Adults", "Office", "Vacation"]),
+         ["office", "trending", "protective"], 84.5, 2010,
+         ["Adults", "Office", "Vacation"], ["NG", "GH", "US", "CI", "CM"]),
 
         ("Fulani Braids", "Fulani Braids", "Signature Fulani-style parts, side braid, beads and gold cuffs.",
          200, 300,
          "https://images.unsplash.com/photo-1623038455007-891466ff6016?w=800&q=85",
          "Advanced", "Long", "Medium", 6,
-         ["trending", "luxury", "celebrity", "event"], 91.0, 2790, ["Adults", "Vacation", "Wedding", "Event"]),
+         ["trending", "luxury", "celebrity", "event"], 91.0, 2790,
+         ["Adults", "Vacation", "Wedding", "Event"], ["SN", "NG", "CI", "GH", "CM"]),
 
         ("Goddess Boho Braids", "Goddess Braids", "Bohemian curls flowing through soft knotless braids.",
          260, 480,
          "https://images.unsplash.com/photo-1663851071150-b6617bbee927?w=800&q=85",
          "Expert", "Extra Long", "Medium", 6,
-         ["luxury", "bridal", "vacation", "trending"], 94.1, 3610, ["Adults", "Vacation", "Wedding"]),
+         ["luxury", "bridal", "vacation", "trending"], 94.1, 3610,
+         ["Adults", "Vacation", "Wedding"], ["US", "BR", "FR", "GB"]),
 
         ("Passion Twists", "Twists", "Boho passion twists — soft, wavy, and endlessly photogenic.",
          210, 360,
          "https://images.unsplash.com/photo-1653263169788-9332cdbf07f5?w=800&q=85",
          "Medium", "Long", "Low", 6,
-         ["vacation", "new", "most_loved", "protective"], 88.6, 2340, ["Adults", "Natural Hair", "Vacation"]),
+         ["vacation", "new", "most_loved", "protective"], 88.6, 2340,
+         ["Adults", "Natural Hair", "Vacation"], ["US", "JM", "BR", "GB"]),
 
         ("Bantu Knots", "Bantu Knots", "Sculptural Bantu knots — cultural, striking, editorial.",
          100, 150,
          "https://images.unsplash.com/photo-1781274054513-6dad85ab6f20?w=800&q=85",
          "Easy", "Short", "Low", 2,
-         ["quick", "new", "event", "natural"], 72.4, 840, ["Adults", "Natural Hair", "Event"]),
+         ["quick", "new", "event", "natural"], 72.4, 840,
+         ["Adults", "Natural Hair", "Event"], ["ZA", "KE", "US", "CG"]),
 
         ("Sculpted Bantu Set", "Bantu Knots", "Editorial Bantu set — perfect for photoshoots and events.",
          140, 180,
          "https://images.unsplash.com/photo-1584897149326-536f40649b38?w=800&q=85",
          "Medium", "Short", "Low", 2,
-         ["event", "luxury", "celebrity"], 81.3, 1120, ["Adults", "Event", "Wedding"]),
+         ["event", "luxury", "celebrity"], 81.3, 1120,
+         ["Adults", "Event", "Wedding"], ["ZA", "CI", "CM", "US"]),
 
         ("Kids Box Braids", "Kids Braids", "Gentle, size-appropriate box braids designed for kids' scalps.",
          120, 180,
          "https://images.unsplash.com/photo-1535043883-2548fb805573?w=800&q=85",
          "Medium", "Mid-length", "Low", 6,
-         ["kids", "protective", "new"], 79.7, 1560, ["Children"]),
+         ["kids", "protective", "new"], 79.7, 1560,
+         ["Children"], ["US", "NG", "GB", "FR"]),
 
         ("Colorful Vacation Braids", "Box Braids", "Ocean-ready ombre color braids — bold, playful and sun-safe.",
          260, 420,
          "https://images.unsplash.com/photo-1774773131630-a89d57efa2dc?w=800&q=85",
          "Advanced", "Long", "Medium", 6,
-         ["vacation", "color", "luxury", "trending"], 87.9, 2140, ["Adults", "Vacation"]),
+         ["vacation", "color", "luxury", "trending"], 87.9, 2140,
+         ["Adults", "Vacation"], ["BR", "JM", "US", "FR"]),
 
         ("Pastel Braids Set", "Box Braids", "Soft pastel color-melt braids for a dreamy, editorial finish.",
          280, 480,
          "https://images.unsplash.com/photo-1774773133706-5b79160e90a7?w=800&q=85",
          "Expert", "Extra Long", "Medium", 5,
-         ["color", "luxury", "celebrity"], 89.4, 1890, ["Adults", "Vacation", "Event"]),
+         ["color", "luxury", "celebrity"], 89.4, 1890,
+         ["Adults", "Vacation", "Event"], ["US", "GB", "FR"]),
 
         ("Micro Tribal Braids", "Micro Braids", "Ultra-fine micro braids — meticulous, delicate craftsmanship.",
          320, 600,
          "https://images.unsplash.com/photo-1709342548703-a675702f19ef?w=800&q=85",
          "Expert", "Extra Long", "Medium", 10,
-         ["luxury", "celebrity", "trending"], 90.2, 1650, ["Adults", "Wedding", "Event"]),
+         ["luxury", "celebrity", "trending"], 90.2, 1650,
+         ["Adults", "Wedding", "Event"], ["US", "NG", "GH", "CM", "SN"]),
 
         ("Faux Locs", "Locs", "Beautiful faux locs — protective, lightweight, versatile.",
          220, 360,
          "https://images.unsplash.com/photo-1535146981003-d37e3e2428c3?w=800&q=85",
          "Advanced", "Long", "Low", 8,
-         ["protective", "natural", "new"], 85.6, 1980, ["Adults", "Natural Hair", "Vacation"]),
+         ["protective", "natural", "new"], 85.6, 1980,
+         ["Adults", "Natural Hair", "Vacation"], ["US", "JM", "BR", "ZA"]),
 
         ("Braided Ponytail", "Cornrows", "Sleek cornrowed base blending into a luxurious high ponytail.",
          160, 240,
          "https://images.unsplash.com/photo-1547547700-b3954043b1b8?w=800&q=85",
          "Medium", "Long", "Low", 4,
-         ["office", "quick", "event"], 82.8, 1310, ["Adults", "Office", "Event"]),
+         ["office", "quick", "event"], 82.8, 1310,
+         ["Adults", "Office", "Event"], ["US", "KE", "GB", "NG"]),
 
         ("Butterfly Locs", "Locs", "Fluttery butterfly locs — the softest, most romantic protective style.",
          240, 420,
          "https://images.unsplash.com/photo-1619981871676-ea8e24a8ff46?w=800&q=85",
          "Advanced", "Long", "Low", 8,
-         ["trending", "vacation", "protective", "new"], 93.5, 3410, ["Adults", "Vacation", "Wedding"]),
+         ["trending", "vacation", "protective", "new"], 93.5, 3410,
+         ["Adults", "Vacation", "Wedding"], ["US", "JM", "FR", "BR"]),
 
         ("Boho Bridal Braids", "Goddess Braids", "Loose curls and soft braids woven into a dreamy bridal updo.",
          320, 540,
          "https://images.unsplash.com/photo-1614173968962-0e61c5ed196f?w=800&q=85",
          "Expert", "Long", "Low", 2,
-         ["bridal", "luxury", "event"], 88.0, 1420, ["Adults", "Wedding", "Event"]),
+         ["bridal", "luxury", "event"], 88.0, 1420,
+         ["Adults", "Wedding", "Event"], ["US", "FR", "BR", "GB"]),
 
         ("Sleek Bun Cornrows", "Cornrows", "Refined cornrow bun — polished for the office or an evening out.",
          100, 150,
          "https://images.unsplash.com/photo-1616166183781-0fdd2ef83374?w=800&q=85",
          "Easy", "Short", "Low", 3,
-         ["office", "quick", "new"], 76.4, 970, ["Adults", "Office"]),
+         ["office", "quick", "new"], 76.4, 970,
+         ["Adults", "Office"], ["GB", "US", "FR", "KE"]),
     ]
     style_ids = []
     for row in styles:
-        name, cat, desc, price, dur, cover, diff, hlen, maint, lasts, tags, score, saves, rec = row
+        name, cat, desc, price, dur, cover, diff, hlen, maint, lasts, tags, score, saves, rec, countries = row
         sid = str(uuid.uuid4())
         style_ids.append(sid)
         await db.hairstyles.insert_one({
@@ -2088,7 +2232,7 @@ async def seed(force: bool = False):
             "avg_price": price, "avg_duration_min": dur, "cover_photo": cover,
             "difficulty": diff, "hair_length": hlen, "maintenance": maint,
             "lasts_weeks": lasts, "tags": tags, "style_score": score, "saves_count": saves,
-            "recommended_for": rec,
+            "recommended_for": rec, "country_tags": countries,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 

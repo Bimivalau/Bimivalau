@@ -1,21 +1,25 @@
 /**
- * StyleCard — the signature card of the BraidsCommunity home experience.
- * Two variants:
- *   - variant="feature"  → large portrait card for hero sections (240x340)
- *   - variant="compact"  → smaller card for row scrolls        (200x280)
+ * StyleCard — luxury Airbnb/Apple-inspired card.
+ * Variants:
+ *   - "editorial" → 260×380  · hero-first slot in a section
+ *   - "standard"  → 210×310  · rest of the row (or grid)
+ *   - "compact"   → 172×250  · dense grids (Discover)
  *
- * Displays: image, style name, avg price, avg duration, difficulty,
- * hair length, trending badge, nearby pros count, saves count, bookmark & share.
+ * Signature elements:
+ *   - Circular gold→bronze "Style Intelligence" badge (score only, no label)
+ *   - Optional "Saved / Last viewed" ribbon on top-left
+ *   - Trending flame chip
+ *   - Minimal metadata under the photo: name · $ · duration · nearby braiders
+ *   - Soft elevation (Airbnb-style), 22px rounded corners, generous padding
  */
 import { useState } from "react";
-import { View, Text, Pressable, StyleSheet, Share } from "react-native";
+import { View, Text, Pressable, StyleSheet, Share, Platform } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { Feather } from "@expo/vector-icons";
 import { colors, spacing, font, radii } from "@/src/theme";
 import { cldTransform } from "@/src/utils/cloudinary";
 
-// Local bundled fallback image (uses a repository asset) — displayed when the
-// remote image URL fails to load. Falls back gracefully to a solid color.
 const FALLBACK_URI: any = require("../../assets/images/icon.png");
 
 export type Hairstyle = {
@@ -32,11 +36,14 @@ export type Hairstyle = {
   saves_count?: number;
   nearby_pros_count?: number;
   is_saved?: boolean;
+  personal_reason?: string; // "Saved" | "Last viewed"
 };
+
+type Variant = "editorial" | "standard" | "compact";
 
 interface Props {
   style: Hairstyle;
-  variant?: "feature" | "compact" | "wide";
+  variant?: Variant;
   onPress: () => void;
   onSave?: () => void;
   onShare?: () => void;
@@ -50,12 +57,19 @@ const durationLabel = (m: number) => {
   return `${m}m`;
 };
 
-export default function StyleCard({ style, variant = "feature", onPress, onSave, onShare }: Props) {
-  const isTrending = (style.tags || []).includes("trending");
+const DIM = {
+  editorial: { w: 260, h: 380, radius: 24 },
+  standard: { w: 210, h: 310, radius: 22 },
+  compact: { w: 172, h: 250, radius: 20 },
+};
+
+export default function StyleCard({ style, variant = "standard", onPress, onSave, onShare }: Props) {
+  const dim = DIM[variant];
   const [imgError, setImgError] = useState(false);
-  const w = variant === "feature" ? 240 : variant === "wide" ? 300 : 172;
-  const h = variant === "feature" ? 340 : variant === "wide" ? 200 : 240;
-  const img = cldTransform(style.cover_photo, { w: w * 2, h: h * 2, c: "fill", g: "auto", q: "auto", f: "auto" });
+  const [pressed, setPressed] = useState(false);
+  const isTrending = (style.tags || []).includes("trending");
+  const img = cldTransform(style.cover_photo, { w: dim.w * 2, h: dim.h * 2, c: "fill", g: "auto", q: "auto", f: "auto" });
+  const score = Math.round(style.style_score || 0);
 
   const share = async () => {
     if (onShare) return onShare();
@@ -65,84 +79,138 @@ export default function StyleCard({ style, variant = "feature", onPress, onSave,
   };
 
   return (
-    <Pressable testID={`style-card-${style.id}`} onPress={onPress} style={[s.card, { width: w }]}>
-      <View style={[s.image, { height: h }]}>
+    <Pressable
+      testID={`style-card-${style.id}`}
+      onPress={onPress}
+      onPressIn={() => setPressed(true)}
+      onPressOut={() => setPressed(false)}
+      style={[s.card, { width: dim.w, transform: [{ scale: pressed ? 0.98 : 1 }] }]}
+    >
+      <View style={[s.image, { height: dim.h, borderRadius: dim.radius }]}>
         <Image
           source={imgError ? FALLBACK_URI : { uri: img }}
           style={StyleSheet.absoluteFillObject}
           contentFit="cover"
-          transition={200}
+          transition={260}
           placeholder={{ blurhash: "L6PZfSjE.AyE_3t7t7Rj~qofbHof" }}
           onError={() => setImgError(true)}
         />
-        {/* Top badges */}
-        <View style={s.topRow}>
-          {isTrending && (
-            <View style={s.badge}>
-              <Feather name="trending-up" size={11} color="#fff" />
-              <Text style={s.badgeText}>TRENDING</Text>
-            </View>
-          )}
-          <View style={{ flex: 1 }} />
-          <Pressable hitSlop={8} onPress={onSave} style={s.iconBtn}>
-            <Feather name={style.is_saved ? "bookmark" : "bookmark"} size={16} color={style.is_saved ? colors.brand : "#fff"} />
-          </Pressable>
-        </View>
 
-        {/* Bottom gradient info */}
-        <View style={s.gradient} />
-        <View style={s.bottomRow}>
-          <View style={{ flex: 1 }}>
-            <Text numberOfLines={1} style={s.name}>{style.name}</Text>
-            <View style={s.metaRow}>
-              <Text style={s.meta}>${Math.round(style.avg_price)}</Text>
-              <Text style={s.metaDot}>•</Text>
-              <Text style={s.meta}>{durationLabel(style.avg_duration_min)}</Text>
-              {style.difficulty && (
-                <>
-                  <Text style={s.metaDot}>•</Text>
-                  <Text style={s.meta}>{style.difficulty}</Text>
-                </>
-              )}
-            </View>
-          </View>
-        </View>
-      </View>
+        {/* subtle top-fade for legibility of the score badge & reason ribbon */}
+        <LinearGradient colors={["rgba(0,0,0,0.35)", "transparent"]} style={s.topFade} />
 
-      <View style={s.footer}>
-        <View style={s.tagPill}>
-          <Text style={s.tagText}>{style.hair_length || "Long"}</Text>
-        </View>
-        {typeof style.nearby_pros_count === "number" && (
-          <View style={s.footerItem}>
-            <Feather name="users" size={11} color={colors.onSurfaceTertiary} />
-            <Text style={s.footerText}>{style.nearby_pros_count} nearby</Text>
+        {/* Reason ribbon (Saved / Last viewed) */}
+        {style.personal_reason && (
+          <View style={s.reasonRibbon}>
+            <Feather name={style.personal_reason === "Saved" ? "bookmark" : "clock"} size={10} color="#fff" />
+            <Text style={s.reasonText}>{style.personal_reason.toUpperCase()}</Text>
           </View>
         )}
-        <Pressable hitSlop={6} onPress={share} style={{ marginLeft: "auto" }}>
-          <Feather name="share-2" size={14} color={colors.onSurfaceTertiary} />
+
+        {/* Style Intelligence badge (top-right, gold→bronze gradient) */}
+        <Pressable onPress={onPress} style={s.scoreWrap} hitSlop={6}>
+          <LinearGradient colors={["#F5C77E", "#B78141", "#8B5A2B"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.scoreCircle}>
+            <Text style={s.scoreText}>{score || "—"}</Text>
+          </LinearGradient>
         </Pressable>
+
+        {/* Trending flame — small, discreet */}
+        {isTrending && !style.personal_reason && (
+          <View style={s.trendChip}>
+            <Text style={s.trendEmoji}>🔥</Text>
+          </View>
+        )}
+
+        {/* Bottom gradient + name overlay for editorial cards only */}
+        {variant === "editorial" && (
+          <>
+            <LinearGradient colors={["transparent", "rgba(0,0,0,0.55)"]} style={s.bottomFade} />
+            <View style={s.editorialText}>
+              <Text numberOfLines={1} style={s.editorialName}>{style.name}</Text>
+              <Text style={s.editorialMeta}>${Math.round(style.avg_price)} · {durationLabel(style.avg_duration_min)} · {style.nearby_pros_count ?? 0} braiders nearby</Text>
+            </View>
+          </>
+        )}
       </View>
+
+      {/* Off-image metadata for standard/compact — feels airy and premium */}
+      {variant !== "editorial" && (
+        <View style={s.meta}>
+          <Text numberOfLines={1} style={s.name}>{style.name}</Text>
+          <Text style={s.metaRow}>
+            ${Math.round(style.avg_price)} · {durationLabel(style.avg_duration_min)}
+          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 3 }}>
+            <Feather name="users" size={10} color={colors.onSurfaceTertiary} />
+            <Text style={s.nearby}>{style.nearby_pros_count ?? 0} braiders nearby</Text>
+          </View>
+        </View>
+      )}
     </Pressable>
   );
 }
 
 const s = StyleSheet.create({
-  card: { marginRight: spacing.md },
-  image: { borderRadius: radii.lg, overflow: "hidden", backgroundColor: colors.surfaceSecondary, position: "relative" },
-  topRow: { position: "absolute", top: spacing.sm, left: spacing.sm, right: spacing.sm, flexDirection: "row", alignItems: "center", zIndex: 2 },
-  badge: { flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: colors.brand, paddingHorizontal: spacing.sm, paddingVertical: 4, borderRadius: radii.pill },
-  badgeText: { color: "#fff", fontFamily: font.bodyBold, fontSize: 9, letterSpacing: 1 },
-  iconBtn: { width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(0,0,0,0.35)", alignItems: "center", justifyContent: "center" },
-  gradient: { position: "absolute", bottom: 0, left: 0, right: 0, height: "45%", backgroundColor: "rgba(0,0,0,0.35)" },
-  bottomRow: { position: "absolute", bottom: 0, left: 0, right: 0, padding: spacing.md, flexDirection: "row", alignItems: "flex-end" },
-  name: { color: "#fff", fontFamily: font.display, fontSize: 18, lineHeight: 22 },
-  metaRow: { flexDirection: "row", alignItems: "center", marginTop: 4, flexWrap: "wrap" },
-  meta: { color: "#F5EFE7", fontFamily: font.bodyMed, fontSize: 11 },
-  metaDot: { color: "#C6B9A8", marginHorizontal: 4, fontSize: 10 },
-  footer: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm, paddingHorizontal: 2 },
-  tagPill: { paddingHorizontal: spacing.sm, paddingVertical: 2, borderRadius: radii.pill, backgroundColor: colors.brandTertiary },
-  tagText: { fontFamily: font.bodyMed, fontSize: 10, color: colors.onBrandTertiary, letterSpacing: 0.4 },
-  footerItem: { flexDirection: "row", alignItems: "center", gap: 3 },
-  footerText: { fontFamily: font.body, fontSize: 11, color: colors.onSurfaceTertiary },
+  card: {
+    marginRight: spacing.lg,
+    // Very soft Airbnb-style depth. Kept subtle so it doesn't fight the photography.
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.08,
+        shadowRadius: 20,
+        shadowOffset: { width: 0, height: 8 },
+      },
+      android: { elevation: 6 },
+      default: {},
+    }),
+  },
+  image: {
+    overflow: "hidden",
+    backgroundColor: colors.surfaceSecondary,
+    position: "relative",
+  },
+  topFade: { position: "absolute", top: 0, left: 0, right: 0, height: "22%" },
+  bottomFade: { position: "absolute", bottom: 0, left: 0, right: 0, height: "50%" },
+
+  // Score badge
+  scoreWrap: { position: "absolute", top: spacing.md, right: spacing.md, zIndex: 3 },
+  scoreCircle: {
+    width: 40, height: 40, borderRadius: 20,
+    alignItems: "center", justifyContent: "center",
+    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.6)",
+  },
+  scoreText: { color: "#fff", fontFamily: font.bodyBold, fontSize: 13, letterSpacing: 0.3 },
+
+  // Reason ribbon
+  reasonRibbon: {
+    position: "absolute", top: spacing.md, left: spacing.md,
+    flexDirection: "row", alignItems: "center", gap: 4,
+    paddingHorizontal: spacing.sm, paddingVertical: 4,
+    borderRadius: radii.pill,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    zIndex: 3,
+  },
+  reasonText: { color: "#fff", fontFamily: font.bodyBold, fontSize: 9, letterSpacing: 1 },
+
+  // Trending flame
+  trendChip: {
+    position: "absolute", top: spacing.md, left: spacing.md,
+    width: 26, height: 26, borderRadius: 13,
+    backgroundColor: "rgba(255,255,255,0.92)",
+    alignItems: "center", justifyContent: "center",
+    zIndex: 3,
+  },
+  trendEmoji: { fontSize: 13 },
+
+  // Editorial variant bottom text
+  editorialText: { position: "absolute", left: spacing.lg, right: spacing.lg, bottom: spacing.lg },
+  editorialName: { color: "#fff", fontFamily: font.display, fontSize: 22, lineHeight: 26 },
+  editorialMeta: { color: "#F0EAE1", fontFamily: font.bodyMed, fontSize: 11, marginTop: 4 },
+
+  // Off-image meta
+  meta: { marginTop: spacing.sm, paddingHorizontal: 2 },
+  name: { fontFamily: font.display, fontSize: 16, color: colors.onSurface, lineHeight: 20 },
+  metaRow: { fontFamily: font.bodyMed, fontSize: 12, color: colors.onSurfaceTertiary, marginTop: 2 },
+  nearby: { fontFamily: font.body, fontSize: 11, color: colors.onSurfaceTertiary },
 });
