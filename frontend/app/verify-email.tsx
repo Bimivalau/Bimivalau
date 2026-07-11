@@ -25,6 +25,12 @@ export default function VerifyEmail() {
     setErr(null); setInfo(null); setDevCode(null);
     try {
       const r = await api("/auth/send-verification", { method: "POST", body: "{}" });
+      if (r.already_verified) {
+        // Someone opened /verify-email but their email is already confirmed — just route them onward.
+        await refresh();
+        router.replace("/");
+        return;
+      }
       setInfo(`Code sent to ${r.email}`);
       if (r.dev_code) setDevCode(r.dev_code);
       setCooldown(r.resend_after_sec || 45);
