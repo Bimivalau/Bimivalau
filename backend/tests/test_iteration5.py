@@ -74,14 +74,14 @@ class TestRegister:
 
 # ---------- Send-verification / cooldown / dev_code ----------
 class TestSendVerification:
-    def test_send_returns_dev_code_when_sendgrid_unset(self):
+    def test_send_returns_dev_code_when_resend_unset(self):
         _, tok, _ = _reg()
         r = requests.post(f"{API}/auth/send-verification", json={}, headers=_hdrs(tok), timeout=15)
         assert r.status_code == 200, r.text
         d = r.json()
         assert d["sent"] is True
-        # Dev mode expected (no SENDGRID key)
-        if not os.environ.get("SENDGRID_API_KEY", "").strip():
+        # Dev mode expected (no RESEND key)
+        if not os.environ.get("RESEND_API_KEY", "").strip():
             assert "dev_code" in d
             assert len(d["dev_code"]) == 6
             assert d["dev_code"].isdigit()
@@ -105,6 +105,42 @@ class TestVerifyEmail:
         r = requests.post(f"{API}/auth/verify-email", json={"code": "999999"}, headers=_hdrs(tok), timeout=15)
         assert r.status_code == 400
         assert "incorrect" in r.json()["detail"].lower()
+
+    def test_new_code_invalidates_old_code(self):
+        """Rule: requesting a new code (after cooldown) must invalidate the previous code."""
+        email, tok, _ = _reg()
+        s1 = requests.post(f"{API}/auth/send-verification", json={}, headers=_hdrs(tok), timeout=15).json()
+        old_code = s1["dev_code"]
+        # Force cooldown to elapse
+        async def age():
+            c = AsyncIOMotorClient(MONGO_URL); db = c[DB_NAME]
+            u = await db.users.find_one({"email": email})
+            await db.email_verification_codes.update_many(
+                {"user_id": u["id"], "consumed": False},
+                {"$set": {"created_at": (datetime.now(timezone.utc) - timedelta(minutes=2)).isoformat()}},
+            )
+            c.close()
+        asyncio.run(age())
+        s2 = requests.post(f"{API}/auth/send-verification", json={}, headers=_hdrs(tok), timeout=15).json()
+        new_code = s2["dev_code"]
+        assert old_code != new_code
+        # Old code must now fail
+        r_old = requests.post(f"{API}/auth/verify-email", json={"code": old_code}, headers=_hdrs(tok), timeout=15)
+        assert r_old.status_code == 400
+        # New code must succeed
+        r_new = requests.post(f"{API}/auth/verify-email", json={"code": new_code}, headers=_hdrs(tok), timeout=15)
+        assert r_new.status_code == 200
+        assert r_new.json()["email_verified"] is True
+
+    def test_max_5_wrong_attempts_consumes_code(self):
+        """Rule: after 5 wrong attempts, code is invalidated (429)."""
+        _, tok, _ = _reg()
+        requests.post(f"{API}/auth/send-verification", json={}, headers=_hdrs(tok), timeout=15)
+        for _ in range(5):
+            requests.post(f"{API}/auth/verify-email", json={"code": "000000"}, headers=_hdrs(tok), timeout=15)
+        r = requests.post(f"{API}/auth/verify-email", json={"code": "000000"}, headers=_hdrs(tok), timeout=15)
+        assert r.status_code == 429
+        assert "too many" in r.json()["detail"].lower()
 
     def test_correct_code_sets_email_verified_true(self):
         email, tok, _ = _reg()

@@ -98,7 +98,7 @@ export default function VerifyEmail() {
         {devCode && (
           <View testID="dev-code-banner" style={s.devBanner}>
             <Feather name="alert-circle" size={14} color={colors.warning} />
-            <Text style={s.devText}>Dev mode — SendGrid not wired yet. Your code: <Text style={{ fontFamily: font.bodyBold }}>{devCode}</Text></Text>
+            <Text style={s.devText}>Dev mode — email delivery not configured. Your code: <Text style={{ fontFamily: font.bodyBold }}>{devCode}</Text></Text>
           </View>
         )}
 
