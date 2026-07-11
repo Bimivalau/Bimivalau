@@ -17,6 +17,7 @@ type Ctx = {
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (email: string, password: string, name: string, role: "customer" | "hairdresser") => Promise<void>;
+  signInWithGoogle: () => Promise<{ is_new_user: boolean; needs_pro_completion: boolean } | null>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
   setPlan: (plan: "standard" | "unlimited") => Promise<void>;
@@ -42,6 +43,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
+      // If we're coming back from Google auth (web hash or mobile deep link), exchange first.
+      try {
+        const exchanged = await captureSessionIdFromUrl();
+        if (exchanged) {
+          setUser(exchanged.user);
+          setLoading(false);
+          return;
+        }
+      } catch { /* fall through to normal session hydrate */ }
       await refresh();
       setLoading(false);
     })();
