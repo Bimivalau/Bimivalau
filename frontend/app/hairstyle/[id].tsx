@@ -47,6 +47,10 @@ export default function HairstyleDetail() {
         </View>
         <Text style={s.desc}>{style.description}</Text>
         <Text style={s.section}>Stylists who braid this</Text>
+        <Pressable testID="compare-cta" onPress={() => router.push(`/compare/${style.id}`)} style={s.compareCta}>
+          <Feather name="git-compare" size={16} color="#fff" />
+          <Text style={s.compareCtaText}>Compare braiders who offer this style</Text>
+        </Pressable>
         {gated && (
           <View testID="gated-banner" style={s.gated}>
             <Text style={s.gatedText}>Showing top 3 · location blurred. Upgrade for full access.</Text>
@@ -91,4 +95,6 @@ const s = StyleSheet.create({
   hdSalon: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 12 },
   hdMeta: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 12 },
   hdAddr: { fontFamily: font.body, color: colors.muted, fontSize: 11, marginTop: 2 },
+  compareCta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, padding: spacing.md, backgroundColor: colors.surfaceInverse, borderRadius: radii.md, marginBottom: spacing.md },
+  compareCtaText: { color: colors.onSurfaceInverse, fontFamily: font.bodyBold, fontSize: 14 },
 });

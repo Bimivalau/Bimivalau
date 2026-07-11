@@ -51,6 +51,29 @@ class UserOut(BaseModel):
     phone: Optional[str] = None  # only populated on /auth/me self endpoint
     email_verified: bool = False
 
+class ProfessionalServiceIn(BaseModel):
+    hairstyle_id: str
+    custom_name: Optional[str] = None
+    price: float = Field(ge=0)
+    currency: str = "USD"
+    duration_minutes: int = Field(ge=15)
+    hair_included: bool = False
+    consultation_required: bool = False
+    description: Optional[str] = None
+    inventory_required: bool = False
+    active: bool = True
+
+class InventoryItemIn(BaseModel):
+    product_name: str
+    brand: Optional[str] = None
+    hair_type: Optional[str] = None
+    color_code: Optional[str] = None
+    length: Optional[str] = None
+    quantity_available: int = 0
+    selling_price: Optional[float] = None
+    currency: str = "USD"
+    available: bool = True
+
 class VerificationSubmitIn(BaseModel):
     # Either a URL or a base64 data-URI string (e.g. "data:image/jpeg;base64,....")
     license_url: str
@@ -333,25 +356,55 @@ async def login(body: LoginIn):
 # ---------- Email verification ----------
 EMAIL_CODE_TTL_MIN = 10
 RESEND_COOLDOWN_SEC = 45
-SENDGRID_KEY = os.environ.get("SENDGRID_API_KEY", "").strip()
+MAX_FAILED_ATTEMPTS = 5
+MAX_RESENDS_PER_HOUR = 5
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "").strip()
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "noreply@braidscommunity.app").strip()
+SENDER_NAME = "BraidsCommunity"
+
+def _hash_code(code: str) -> str:
+    """SHA-256 hash. Codes are random 6-digit — full 20-char hex slice keeps DB small."""
+    import hashlib
+    return hashlib.sha256(code.encode()).hexdigest()
+
+def _codes_match(code: str, stored_hash: str) -> bool:
+    import hmac
+    return hmac.compare_digest(_hash_code(code), stored_hash)
 
 async def _send_verification_email(to: str, code: str) -> bool:
-    """Deliver via SendGrid if configured; otherwise log to console.
-    Returns True on actual email delivery; caller decides dev-fallback behaviour."""
-    if not SENDGRID_KEY:
-        log.warning(f"[MOCKED EMAIL] Verification code for {to}: {code} (SENDGRID_API_KEY not set)")
+    if not RESEND_API_KEY:
+        log.warning(f"[MOCKED EMAIL] Verification code for {to}: (masked, dev fallback active)")
         return False
+    body = (f"Welcome to BraidsCommunity.\n\n"
+            f"Your verification code is:\n{code}\n\n"
+            f"This code expires in 10 minutes.\n\n"
+            f"If you did not create a BraidsCommunity account, you can ignore this email.\n\n"
+            f"BraidsCommunity\nWhere braids are art.")
+    html = (f"<p>Welcome to BraidsCommunity.</p>"
+            f"<p>Your verification code is:</p>"
+            f"<p style='font-size:32px;letter-spacing:8px;font-weight:700'>{code}</p>"
+            f"<p>This code expires in 10 minutes.</p>"
+            f"<p>If you did not create a BraidsCommunity account, you can ignore this email.</p>"
+            f"<p style='color:#8a8378;font-family:serif;font-style:italic'>BraidsCommunity — Where braids are art.</p>")
     try:
-        from sendgrid import SendGridAPIClient
-        from sendgrid.helpers.mail import Mail
-        msg = Mail(from_email=SENDER_EMAIL, to_emails=to,
-                   subject="Your BraidsCommunity verification code",
-                   html_content=f"<p>Your code:</p><p style='font-size:28px;letter-spacing:6px'><strong>{code}</strong></p><p>Expires in 10 minutes.</p>")
-        SendGridAPIClient(SENDGRID_KEY).send(msg)
+        async with httpx.AsyncClient(timeout=10) as client:
+            r = await client.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+                json={
+                    "from": f"{SENDER_NAME} <{SENDER_EMAIL}>",
+                    "to": [to],
+                    "subject": "Verify your BraidsCommunity email",
+                    "text": body,
+                    "html": html,
+                },
+            )
+        if r.status_code >= 400:
+            log.error(f"Resend delivery failed: status={r.status_code}")
+            return False
         return True
     except Exception as e:
-        log.error(f"SendGrid delivery failed: {e}")
+        log.error(f"Resend delivery exception: {type(e).__name__}")
         return False
 
 
@@ -361,15 +414,30 @@ async def send_verification(user: UserOut = Depends(get_user)):
     if u.get("email_verified"):
         return {"already_verified": True}
     now = datetime.now(timezone.utc)
+
+    # Anti-abuse: max resends per hour
+    hour_ago = (now - timedelta(hours=1)).isoformat()
+    recent = await db.email_verification_codes.count_documents({
+        "user_id": user.id, "created_at": {"$gte": hour_ago}
+    })
+    if recent >= MAX_RESENDS_PER_HOUR:
+        raise HTTPException(429, "Too many code requests. Try again in an hour.")
+
     last = await db.email_verification_codes.find_one({"user_id": user.id}, sort=[("created_at", -1)])
     if last:
         elapsed = (now - datetime.fromisoformat(last["created_at"])).total_seconds()
         if elapsed < RESEND_COOLDOWN_SEC:
             raise HTTPException(429, f"Please wait {int(RESEND_COOLDOWN_SEC - elapsed)}s before requesting another code.")
+
     code = "".join(secrets.choice(string.digits) for _ in range(6))
+    # Invalidate all older codes for this user
+    await db.email_verification_codes.update_many(
+        {"user_id": user.id, "consumed": False},
+        {"$set": {"consumed": True, "invalidated_reason": "superseded"}},
+    )
     await db.email_verification_codes.insert_one({
         "id": str(uuid.uuid4()), "user_id": user.id, "email": u["email"],
-        "code": code, "attempts": 0,
+        "code_hash": _hash_code(code), "attempts": 0,
         "created_at": now.isoformat(),
         "expires_at": (now + timedelta(minutes=EMAIL_CODE_TTL_MIN)).isoformat(),
         "consumed": False,
@@ -377,9 +445,13 @@ async def send_verification(user: UserOut = Depends(get_user)):
     delivered = await _send_verification_email(u["email"], code)
     resp: dict = {"sent": True, "email": u["email"], "expires_in_sec": EMAIL_CODE_TTL_MIN * 60,
                   "resend_after_sec": RESEND_COOLDOWN_SEC, "delivered_via_email": delivered}
-    if not delivered:
+    if not delivered and not RESEND_API_KEY:
+        # Only expose dev_code when no key is configured at all (never in real prod).
         resp["dev_code"] = code
-        resp["dev_notice"] = "SendGrid not configured — set SENDGRID_API_KEY + SENDER_EMAIL to deliver real emails."
+        resp["dev_notice"] = "RESEND_API_KEY not set — code shown for local dev only."
+    elif not delivered:
+        # Key is set but delivery failed — do NOT leak the code. Surface generic error.
+        raise HTTPException(502, "Could not send verification email. Please try again in a moment.")
     return resp
 
 
@@ -395,10 +467,13 @@ async def verify_email(body: VerifyEmailIn, user: UserOut = Depends(get_user)):
         raise HTTPException(400, "No active verification code. Tap Resend to get a new one.")
     if datetime.fromisoformat(entry["expires_at"]) < datetime.now(timezone.utc):
         raise HTTPException(400, "That code has expired. Tap Resend to get a fresh code.")
-    if entry["code"] != code:
+    if entry.get("attempts", 0) >= MAX_FAILED_ATTEMPTS:
+        await db.email_verification_codes.update_one({"id": entry["id"]}, {"$set": {"consumed": True, "invalidated_reason": "too_many_attempts"}})
+        raise HTTPException(429, "Too many incorrect attempts. Tap Resend to get a new code.")
+    if not _codes_match(code, entry.get("code_hash", "")):
         await db.email_verification_codes.update_one({"id": entry["id"]}, {"$inc": {"attempts": 1}})
         raise HTTPException(400, "Incorrect code — please double-check and try again.")
-    await db.email_verification_codes.update_one({"id": entry["id"]}, {"$set": {"consumed": True}})
+    await db.email_verification_codes.update_one({"id": entry["id"]}, {"$set": {"consumed": True, "invalidated_reason": "used"}})
     await db.users.update_one({"id": user.id}, {"$set": {"email_verified": True}})
     return {"ok": True, "email_verified": True}
 
@@ -410,7 +485,7 @@ async def change_email(body: ChangeEmailIn, user: UserOut = Depends(get_user)):
     if existing and existing["id"] != user.id:
         raise HTTPException(400, "That email is already in use.")
     await db.users.update_one({"id": user.id}, {"$set": {"email": new_email, "email_verified": False}})
-    await db.email_verification_codes.update_many({"user_id": user.id, "consumed": False}, {"$set": {"consumed": True}})
+    await db.email_verification_codes.update_many({"user_id": user.id, "consumed": False}, {"$set": {"consumed": True, "invalidated_reason": "email_changed"}})
     return {"ok": True, "email": new_email}
 
 
@@ -729,8 +804,8 @@ async def add_portfolio(body: PortfolioItemIn, user: UserOut = Depends(get_user)
     if user.role != "hairdresser":
         raise HTTPException(403, "Only hairdressers")
     count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
-    if user.plan == "standard" and count >= 10:
-        raise HTTPException(402, "Standard plan is capped at 10 portfolio items. Upgrade to Unlimited.")
+    if user.plan == "standard" and count >= 5:
+        raise HTTPException(402, "Free plan is capped at 5 portfolio photos. Upgrade to Unlimited for more.")
     item = {"id": str(uuid.uuid4()), "hairdresser_id": user.id, **body.dict()}
     await db.portfolio_items.insert_one(item)
     return clean(item)
@@ -1128,6 +1203,189 @@ async def admin_decide_flag(uid: str, body: FlagDecisionIn, user: UserOut = Depe
         })
     elif body.action == "remove":
         await db.users.update_one({"id": uid}, {"$set": {"booking_restricted": True, "removed_at": datetime.now(timezone.utc).isoformat(), "removed_reason": body.reason}})
+    return {"ok": True}
+
+
+# ---------- Professional Services + Style Comparison ----------
+@api.get("/hairdressers/me/services")
+async def list_my_services(user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Hairdressers only")
+    items = await db.professional_services.find({"hairdresser_id": user.id}, {"_id": 0}).to_list(200)
+    for it in items:
+        hs = await db.hairstyles.find_one({"id": it["hairstyle_id"]}, {"_id": 0, "name": 1, "category": 1})
+        if hs:
+            it["hairstyle_name"] = hs["name"]
+            it["hairstyle_category"] = hs["category"]
+    return items
+
+@api.post("/hairdressers/me/services")
+async def upsert_service(body: ProfessionalServiceIn, user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Hairdressers only")
+    now = datetime.now(timezone.utc).isoformat()
+    existing = await db.professional_services.find_one(
+        {"hairdresser_id": user.id, "hairstyle_id": body.hairstyle_id, "active": True},
+        {"_id": 0},
+    )
+    if existing:
+        await db.professional_services.update_one(
+            {"id": existing["id"]},
+            {"$set": {**body.dict(), "updated_at": now}},
+        )
+        # Also register the specialty on the hairdresser (feeds legacy search)
+        await db.hairdressers.update_one(
+            {"user_id": user.id},
+            {"$addToSet": {"specialty_ids": body.hairstyle_id}},
+        )
+        return {"ok": True, "id": existing["id"]}
+    sid = str(uuid.uuid4())
+    doc = {"id": sid, "hairdresser_id": user.id, **body.dict(), "created_at": now, "updated_at": now}
+    await db.professional_services.insert_one(doc)
+    await db.hairdressers.update_one(
+        {"user_id": user.id},
+        {"$addToSet": {"specialty_ids": body.hairstyle_id}},
+    )
+    return {"ok": True, "id": sid}
+
+@api.delete("/hairdressers/me/services/{sid}")
+async def delete_service(sid: str, user: UserOut = Depends(get_user)):
+    await db.professional_services.update_one(
+        {"id": sid, "hairdresser_id": user.id}, {"$set": {"active": False}}
+    )
+    return {"ok": True}
+
+
+@api.get("/hairstyles/{hid}/compare")
+async def compare_braiders_for_style(
+    hid: str,
+    sort: Optional[str] = Query("earliest"),
+    max_price: Optional[float] = None,
+    min_rating: float = 0.0,
+    hair_included: Optional[bool] = None,
+    verified_only: bool = False,
+    available_today: bool = False,
+    user: Optional[UserOut] = Depends(maybe_user),
+):
+    """Comparison feed for a hairstyle. Uses real professional_services when defined,
+    otherwise falls back to hairdresser.specialty_ids so legacy pros still surface."""
+    services = await db.professional_services.find(
+        {"hairstyle_id": hid, "active": True},
+        {"_id": 0},
+    ).to_list(500)
+    service_by_hd = {s["hairdresser_id"]: s for s in services}
+    hd_ids_with_service = list(service_by_hd.keys())
+    legacy_pros = await db.hairdressers.find(
+        {"specialty_ids": hid, "id": {"$nin": hd_ids_with_service}}, {"_id": 0}
+    ).to_list(500)
+    hd_ids = hd_ids_with_service + [h["id"] for h in legacy_pros]
+    hairstyle = await db.hairstyles.find_one({"id": hid}, {"_id": 0})
+    if not hairstyle:
+        raise HTTPException(404, "Hairstyle not found")
+
+    total_matches = len(hd_ids)
+    is_unlimited = user and user.plan == "unlimited"
+    cards = []
+    for hid_ in hd_ids:
+        hd = await db.hairdressers.find_one({"id": hid_}, {"_id": 0})
+        if not hd: continue
+        u = await db.users.find_one({"id": hd["user_id"]}, {"_id": 0, "password_hash": 0})
+        svc = service_by_hd.get(hid_)
+        # Use pro's own service data when present; fall back to hairstyle averages
+        price = svc["price"] if svc else hairstyle.get("avg_price", 0)
+        currency = svc["currency"] if svc else "USD"
+        duration = svc["duration_minutes"] if svc else hairstyle.get("avg_duration_min", 0)
+        hair_inc = svc["hair_included"] if svc else False
+        # Earliest available slot lookup
+        slots_today = 0
+        upcoming_slot = None
+        for delta in range(0, 14):
+            d = (datetime.now(timezone.utc) + timedelta(days=delta)).replace(hour=0, minute=0, second=0, microsecond=0)
+            avails = await db.availability.find({"hairdresser_id": hid_, "day_of_week": d.weekday()}, {"_id": 0}).to_list(5)
+            if not avails: continue
+            slot_str = f"{d.date().isoformat()} · {avails[0]['start_time']}"
+            if upcoming_slot is None:
+                upcoming_slot = slot_str
+            if delta == 0:
+                slots_today = 1
+        # Portfolio photo tagged with this style
+        portfolio = await db.portfolio_items.find_one({"hairdresser_id": hid_, "hairstyle_id": hid}, {"_id": 0})
+        card = {
+            "hairdresser_id": hid_,
+            "name": u["name"] if u else "Stylist",
+            "salon_name": hd.get("salon_name") or "",
+            "service_area": hd.get("service_area") or hd.get("city") or "",
+            "verified": hd.get("verification_status") == "approved",
+            "rating_avg": hd.get("rating_avg", 0.0),
+            "reviews_count": hd.get("reviews_count", 0),
+            "price": price, "currency": currency,
+            "duration_minutes": duration,
+            "hair_included": hair_inc,
+            "earliest_available": upcoming_slot,
+            "available_today": slots_today > 0,
+            "portfolio_photo": (portfolio or {}).get("photo_url") or hd.get("cover_photo"),
+            "location_blurred": not is_unlimited,
+        }
+        # Location privacy
+        if not is_unlimited:
+            card["service_area"] = (card["service_area"] or "").split(",")[0] + " · area"
+        cards.append(card)
+
+    # Filters
+    if max_price is not None:
+        cards = [c for c in cards if c["price"] <= max_price]
+    if min_rating > 0:
+        cards = [c for c in cards if c["rating_avg"] >= min_rating]
+    if hair_included is not None:
+        cards = [c for c in cards if c["hair_included"] == hair_included]
+    if verified_only:
+        cards = [c for c in cards if c["verified"]]
+    if available_today:
+        cards = [c for c in cards if c["available_today"]]
+
+    # Sorting
+    keys = {
+        "lowest_price": lambda c: c["price"],
+        "shortest": lambda c: c["duration_minutes"],
+        "highest_rated": lambda c: -c["rating_avg"],
+        "most_reviewed": lambda c: -c["reviews_count"],
+        "earliest": lambda c: c["earliest_available"] or "9999",
+    }
+    if sort in keys:
+        cards.sort(key=keys[sort])
+
+    # Free gating: preview 3 cards + total count
+    preview = cards if is_unlimited else cards[:3]
+    return {
+        "hairstyle": {"id": hairstyle["id"], "name": hairstyle["name"], "category": hairstyle["category"], "cover_photo": hairstyle.get("cover_photo")},
+        "total_matches": total_matches,
+        "shown": len(preview),
+        "gated": not is_unlimited,
+        "results": preview,
+    }
+
+
+# ---------- Inventory ----------
+@api.get("/hairdressers/me/inventory")
+async def list_my_inventory(user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Hairdressers only")
+    return await db.inventory.find({"hairdresser_id": user.id}, {"_id": 0}).to_list(200)
+
+@api.post("/hairdressers/me/inventory")
+async def add_inventory(body: InventoryItemIn, user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Hairdressers only")
+    doc = {
+        "id": str(uuid.uuid4()), "hairdresser_id": user.id,
+        **body.dict(), "last_updated": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.inventory.insert_one(doc)
+    return {"ok": True, "id": doc["id"]}
+
+@api.delete("/hairdressers/me/inventory/{iid}")
+async def delete_inventory(iid: str, user: UserOut = Depends(get_user)):
+    await db.inventory.delete_one({"id": iid, "hairdresser_id": user.id})
     return {"ok": True}
 
 
