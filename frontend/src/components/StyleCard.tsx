@@ -7,11 +7,16 @@
  * Displays: image, style name, avg price, avg duration, difficulty,
  * hair length, trending badge, nearby pros count, saves count, bookmark & share.
  */
+import { useState } from "react";
 import { View, Text, Pressable, StyleSheet, Share } from "react-native";
 import { Image } from "expo-image";
 import { Feather } from "@expo/vector-icons";
 import { colors, spacing, font, radii } from "@/src/theme";
 import { cldTransform } from "@/src/utils/cloudinary";
+
+// Local bundled fallback image (uses a repository asset) — displayed when the
+// remote image URL fails to load. Falls back gracefully to a solid color.
+const FALLBACK_URI: any = require("../../assets/images/icon.png");
 
 export type Hairstyle = {
   id: string;
@@ -47,6 +52,7 @@ const durationLabel = (m: number) => {
 
 export default function StyleCard({ style, variant = "feature", onPress, onSave, onShare }: Props) {
   const isTrending = (style.tags || []).includes("trending");
+  const [imgError, setImgError] = useState(false);
   const w = variant === "feature" ? 240 : variant === "wide" ? 300 : 172;
   const h = variant === "feature" ? 340 : variant === "wide" ? 200 : 240;
   const img = cldTransform(style.cover_photo, { w: w * 2, h: h * 2, c: "fill", g: "auto", q: "auto", f: "auto" });
@@ -61,7 +67,14 @@ export default function StyleCard({ style, variant = "feature", onPress, onSave,
   return (
     <Pressable testID={`style-card-${style.id}`} onPress={onPress} style={[s.card, { width: w }]}>
       <View style={[s.image, { height: h }]}>
-        <Image source={{ uri: img }} style={StyleSheet.absoluteFillObject} contentFit="cover" transition={200} />
+        <Image
+          source={imgError ? FALLBACK_URI : { uri: img }}
+          style={StyleSheet.absoluteFillObject}
+          contentFit="cover"
+          transition={200}
+          placeholder={{ blurhash: "L6PZfSjE.AyE_3t7t7Rj~qofbHof" }}
+          onError={() => setImgError(true)}
+        />
         {/* Top badges */}
         <View style={s.topRow}>
           {isTrending && (

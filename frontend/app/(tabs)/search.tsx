@@ -8,7 +8,7 @@ import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, ActivityIndic
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { api } from "@/src/api";
+import { api, ApiError } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 import StyleCard, { Hairstyle } from "@/src/components/StyleCard";
 import SaveSheet from "@/src/components/SaveSheet";
@@ -48,15 +48,21 @@ export default function Discover() {
   const [tag, setTag] = useState<string>(params.tag || "");
   const [results, setResults] = useState<Hairstyle[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [saveTarget, setSaveTarget] = useState<Hairstyle | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const url = tag ? `/hairstyles?section=${encodeURIComponent(tag)}&limit=80` : `/hairstyles?limit=80`;
       const arr: Hairstyle[] = await api(url);
       const filtered = q.trim() ? arr.filter((h) => (h.name + " " + (h.category || "")).toLowerCase().includes(q.toLowerCase())) : arr;
       setResults(filtered);
+    } catch (e: any) {
+      const msg = e instanceof ApiError ? e.userMessage : "We couldn't load braid styles. Please try again.";
+      setError(msg);
+      setResults([]);
     } finally { setLoading(false); }
   }, [q, tag]);
 
@@ -95,6 +101,15 @@ export default function Discover() {
       <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.xl, paddingBottom: spacing.xxxl + insets.bottom }} showsVerticalScrollIndicator={false}>
         {loading ? (
           <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.xxl }} />
+        ) : error ? (
+          <View style={s.empty}>
+            <Feather name="cloud-off" size={40} color={colors.borderStrong} />
+            <Text style={s.emptyTitle}>Can't load styles</Text>
+            <Text style={s.emptyDesc}>{error}</Text>
+            <Pressable testID="discover-retry" onPress={load} style={{ marginTop: spacing.lg, backgroundColor: colors.brand, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radii.md }}>
+              <Text style={{ color: "#fff", fontFamily: font.bodyBold, fontSize: 13 }}>Try again</Text>
+            </Pressable>
+          </View>
         ) : results.length === 0 ? (
           <View style={s.empty}>
             <Feather name="search" size={40} color={colors.borderStrong} />

@@ -7,7 +7,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet, RefreshControl, Activity
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { api } from "@/src/api";
+import { api, ApiError } from "@/src/api";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
 import StyleCard, { Hairstyle } from "@/src/components/StyleCard";
@@ -55,22 +55,39 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saveTarget, setSaveTarget] = useState<Hairstyle | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const firstName = user?.name?.split(" ")[0] || "there";
 
   const load = useCallback(async () => {
-    // Parallel fetch every section (each request is a light Mongo query — 200 doc limit)
-    const results = await Promise.all(
-      SECTIONS.map(async (s) => {
-        try {
-          const arr: Hairstyle[] = await api(`/hairstyles?section=${s.key}&limit=12`);
-          return [s.key, arr] as const;
-        } catch { return [s.key, [] as Hairstyle[]] as const; }
-      })
-    );
-    const map: Record<string, Hairstyle[]> = {};
-    for (const [k, v] of results) map[k] = v;
-    setByKey(map);
+    setError(null);
+    try {
+      const results = await Promise.all(
+        SECTIONS.map(async (s) => {
+          try {
+            const arr: Hairstyle[] = await api(`/hairstyles?section=${s.key}&limit=12`);
+            return [s.key, arr] as const;
+          } catch { return [s.key, [] as Hairstyle[]] as const; }
+        })
+      );
+      const map: Record<string, Hairstyle[]> = {};
+      for (const [k, v] of results) map[k] = v;
+      // Global failure detection: if every section returned empty AND the first
+      // section (trending) also errored on its own attempt, we surface an error.
+      const hadAny = results.some(([, v]) => v.length > 0);
+      if (!hadAny) {
+        // One retry against the base list to detect real failure vs empty DB
+        try { await api(`/hairstyles?limit=1`); } catch (e: any) {
+          const msg = e instanceof ApiError ? e.userMessage : "We couldn't load braid styles. Please try again.";
+          setError(msg);
+          return;
+        }
+      }
+      setByKey(map);
+    } catch (e: any) {
+      const msg = e instanceof ApiError ? e.userMessage : "We couldn't load braid styles. Please try again.";
+      setError(msg);
+    }
   }, []);
 
   useEffect(() => { (async () => { setLoading(true); await load(); setLoading(false); })(); }, [load]);
@@ -97,6 +114,23 @@ export default function Home() {
 
   if (loading) {
     return <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}><ActivityIndicator color={colors.brand} /></View>;
+  }
+
+  if (error) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, padding: spacing.xl }}>
+        <Feather name="cloud-off" size={48} color={colors.borderStrong} />
+        <Text style={{ fontFamily: font.display, fontSize: 22, color: colors.onSurface, marginTop: spacing.md, textAlign: "center" }}>Can't reach BraidsCommunity</Text>
+        <Text style={{ fontFamily: font.body, fontSize: 13, color: colors.onSurfaceTertiary, marginTop: spacing.xs, textAlign: "center", maxWidth: 320 }}>{error}</Text>
+        <Pressable
+          testID="home-retry"
+          onPress={async () => { setLoading(true); await load(); setLoading(false); }}
+          style={{ marginTop: spacing.xl, backgroundColor: colors.brand, paddingHorizontal: spacing.xxl, paddingVertical: spacing.md, borderRadius: radii.md }}
+        >
+          <Text style={{ color: "#fff", fontFamily: font.bodyBold, fontSize: 14 }}>Try again</Text>
+        </Pressable>
+      </View>
+    );
   }
 
   const heroList = byKey["trending"] || [];

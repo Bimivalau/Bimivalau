@@ -721,11 +721,13 @@ async def list_hairstyles(
         it["nearby_pros_count"] = await db.hairdressers.count_documents({"specialty_ids": it["id"]})
     # Saved flag for the caller
     if user:
-        saved_ids = set(
-            r["hairstyle_id"] async for r in db.style_saves.find(
-                {"user_id": user.id, "hairstyle_id": {"$in": [i["id"] for i in items]}}, {"_id": 0}
+        ids = [i["id"] for i in items]
+        saved_ids = {
+            r["hairstyle_id"]
+            async for r in db.style_saves.find(
+                {"user_id": user.id, "hairstyle_id": {"$in": ids}}, {"_id": 0}
             )
-        )
+        }
         for it in items:
             it["is_saved"] = it["id"] in saved_ids
     return items

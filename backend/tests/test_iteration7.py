@@ -42,6 +42,24 @@ class TestHairstyleEnrichment:
         for k in ("difficulty", "hair_length", "tags", "style_score", "nearby_pros_count"):
             assert k in s0, f"missing {k}"
 
+    def test_list_when_authenticated_does_not_500(self):
+        """Regression: authenticated /hairstyles used to raise TypeError
+        ('async_generator' object is not iterable) due to a bad async set comprehension."""
+        _, tok, _ = _reg()
+        r = requests.get(f"{API}/hairstyles?section=trending", headers=_h(tok), timeout=15)
+        assert r.status_code == 200, r.text
+        data = r.json()
+        assert isinstance(data, list)
+        # is_saved should be included when authed
+        if data:
+            assert "is_saved" in data[0]
+
+    def test_list_no_section_authenticated(self):
+        _, tok, _ = _reg()
+        r = requests.get(f"{API}/hairstyles?limit=5", headers=_h(tok), timeout=15)
+        assert r.status_code == 200
+        assert r.headers.get("content-type", "").startswith("application/json")
+
     def test_section_filter_returns_trending(self):
         r = requests.get(f"{API}/hairstyles?section=trending", timeout=15)
         assert r.status_code == 200

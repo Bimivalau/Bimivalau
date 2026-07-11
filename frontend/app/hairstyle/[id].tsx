@@ -55,7 +55,13 @@ export default function HairstyleDetail() {
       <ScrollView contentContainerStyle={{ paddingBottom: spacing.xxxl + insets.bottom }} showsVerticalScrollIndicator={false}>
         {/* ---------- Hero ---------- */}
         <View style={{ height: 520 }}>
-          <Image source={{ uri: cldTransform(style.cover_photo, { w: 900, q: "auto" }) }} style={StyleSheet.absoluteFill} contentFit="cover" transition={220} />
+          <Image
+            source={{ uri: cldTransform(style.cover_photo, { w: 900, q: "auto" }) }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={220}
+            placeholder={{ blurhash: "L6PZfSjE.AyE_3t7t7Rj~qofbHof" }}
+          />
           <LinearGradient colors={["rgba(0,0,0,0.35)", "transparent", "rgba(0,0,0,0.75)"]} style={StyleSheet.absoluteFill} />
 
           {/* Nav row */}
