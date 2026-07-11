@@ -18,8 +18,14 @@ export default function HairdresserProfile() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportMsg, setReportMsg] = useState<string | null>(null);
+  const [bss, setBss] = useState<{ score: number; tier: string } | null>(null);
 
-  useEffect(() => { api(`/hairdressers/${id}`).then(setH); }, [id]);
+  useEffect(() => {
+    api(`/hairdressers/${id}`).then(setH);
+    api(`/braiders/${id}/business-score`).then(setBss).catch(() => {});
+    // Best-effort profile view tracker — powers the braider's analytics dashboard.
+    api(`/braiders/${id}/view`, { method: "POST" }).catch(() => {});
+  }, [id]);
   const toggleFav = async () => {
     if (!fav) { await api("/favorites", { method: "POST", body: JSON.stringify({ hairdresser_id: id }) }); setFav(true); }
     else { await api(`/favorites/${id}`, { method: "DELETE" }); setFav(false); }
@@ -48,7 +54,13 @@ export default function HairdresserProfile() {
           <View style={{ position: "absolute", left: spacing.xl, right: spacing.xl, bottom: spacing.xl }}>
             <Text style={s.salon}>{h.salon_name.toUpperCase()}</Text>
             <Text testID="hd-name" style={s.name}>{h.name}</Text>
-            <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm, flexWrap: "wrap" }}>
+            <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm, flexWrap: "wrap", alignItems: "center" }}>
+              {bss && (
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 8, paddingVertical: 4, backgroundColor: "rgba(255,255,255,0.9)", borderRadius: 999 }}>
+                  <Feather name="award" size={11} color="#B78141" />
+                  <Text style={{ fontFamily: font.bodyBold, fontSize: 10, color: "#8B5A2B", letterSpacing: 0.5 }}>{bss.tier.toUpperCase()} · {bss.score}/100</Text>
+                </View>
+              )}
               {h.badges?.map((b: string) => (
                 <View key={b} style={s.badge}><Text style={s.badgeText}>{b}</Text></View>
               ))}

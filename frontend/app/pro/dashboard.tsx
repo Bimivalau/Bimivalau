@@ -104,6 +104,10 @@ export default function ProDashboard() {
             <Feather name="shield" size={22} color={colors.brand} />
             <Text style={s.actionText}>Verify</Text>
           </Pressable>
+          <Pressable testID="pro-growth" onPress={() => router.push("/pro/growth")} style={s.actionCard}>
+            <Feather name="trending-up" size={22} color={colors.brand} />
+            <Text style={s.actionText}>Business Growth</Text>
+          </Pressable>
         </View>
 
         <Text style={s.section}>Today's schedule</Text>

@@ -354,14 +354,13 @@ class TestPortfolio:
         assert r.status_code == 200
 
     def test_standard_plan_cap(self, pro_standard_auth):
-        """Kenya has 6 seeded portfolio items on standard plan.
-        Adding until 10 should work; 11th must fail."""
+        """Kenya is a Standard-tier braider — portfolio cap is 25.
+        Attempt to add up to the cap, then verify the (cap+1)th fails with 402."""
         tok = pro_standard_auth["token"]
         items = requests.get(f"{BASE_URL}/api/hairstyles").json()
         current = requests.get(f"{BASE_URL}/api/portfolio/me", headers=auth_headers(tok)).json()
         added = []
-        # Fill up to 10
-        to_add = max(0, 10 - len(current))
+        to_add = max(0, 25 - len(current))
         for _ in range(to_add):
             r = requests.post(f"{BASE_URL}/api/portfolio",
                               json={"hairstyle_id": items[0]["id"],
@@ -370,7 +369,6 @@ class TestPortfolio:
                               headers=auth_headers(tok))
             if r.status_code == 200:
                 added.append(r.json()["id"])
-        # 11th should fail with 402
         r = requests.post(f"{BASE_URL}/api/portfolio",
                           json={"hairstyle_id": items[0]["id"],
                                 "photo_url": "https://images.unsplash.com/TEST.jpg",

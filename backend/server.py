@@ -35,7 +35,7 @@ scheduler = AsyncIOScheduler()
 log = logging.getLogger("braids")
 
 Role = Literal["customer", "hairdresser", "admin"]
-Plan = Literal["standard", "unlimited"]
+Plan = Literal["free", "standard", "unlimited"]
 BookingStatus = Literal["confirmed", "checked_in", "completed", "cancelled", "no_show"]
 
 
@@ -46,7 +46,7 @@ class UserOut(BaseModel):
     email: EmailStr
     name: str
     role: Role
-    plan: Plan = "standard"
+    plan: Plan = "free"
     profile_photo: Optional[str] = None
     phone: Optional[str] = None  # only populated on /auth/me self endpoint
     email_verified: bool = False
@@ -132,7 +132,7 @@ class ReportIn(BaseModel):
     reason: str
 
 class SubscribeIn(BaseModel):
-    plan_type: Literal["standard", "unlimited"]
+    plan_type: Literal["free", "standard", "unlimited"]
     billing_interval: Optional[Literal["monthly", "yearly"]] = None  # required for paid
 
 class OnboardingCompleteIn(BaseModel):
@@ -240,7 +240,7 @@ def clean(doc: dict) -> dict:
 
 async def user_from_doc(u: dict, include_phone: bool = False) -> UserOut:
     return UserOut(id=u["id"], email=u["email"], name=u["name"], role=u["role"],
-                   plan=u.get("plan", "standard"),
+                   plan=u.get("plan", "free"),
                    phone=u.get("phone") if include_phone else None,
                    profile_photo=u.get("profile_photo"),
                    email_verified=bool(u.get("email_verified", False)))
@@ -267,33 +267,141 @@ async def maybe_user(cred: Optional[HTTPAuthorizationCredentials] = Depends(secu
         return None
 
 
-# ---------- Pricing (mocked; no real payment processor yet) ----------
+# ---------- Pricing & Plans catalog ----------
 FOUNDING_PRO_SLOTS = 10
 YEARLY_DISCOUNT = 0.20  # 20% off vs 12x monthly
 PRICING = {
-    "customer": {"monthly": 8.0, "yearly": round(8.0 * 12 * (1 - YEARLY_DISCOUNT), 2)},   # $96/yr
-    "professional": {"monthly": 19.0, "yearly": round(19.0 * 12 * (1 - YEARLY_DISCOUNT), 2)},  # $228/yr
+    # Customer Unlimited — $4.99/mo, $47.88/yr (aggressive launch pricing)
+    "customer": {"monthly": 4.99, "yearly": 47.88},
+    # Braider tiers — Standard $9.99/mo, Unlimited $15.99/mo (upsell-friendly)
+    "professional": {
+        "standard": {"monthly": 9.99, "yearly": 95.88},
+        "unlimited": {"monthly": 15.99, "yearly": 143.88},
+    },
 }
+
+# Portfolio caps per braider plan
+PORTFOLIO_CAPS = {"free": 10, "standard": 25, "unlimited": 40}
+
+# Customer search radius (miles). Unlimited = worldwide (represented as None).
+CUSTOMER_RADIUS_MI = {"free": 10, "unlimited": None, "standard": None}
+
+# Public feature catalog — surfaced to frontend to drive the subscription screen.
+PLANS_CATALOG = {
+    "customer": {
+        "free": {
+            "name": "Free",
+            "price_monthly": 0, "price_yearly": 0,
+            "tagline": "Discover the world of braids — no strings.",
+            "features": [
+                "Unlimited hairstyle discovery",
+                "Unlimited portfolio viewing",
+                "Unlimited style comparisons",
+                "Unlimited price & duration info",
+                "Book professionals within 10 miles",
+            ],
+            "limits": [
+                "Search radius capped at 10 miles",
+                "Traveling pros & luxury filters locked",
+                "Advanced discovery filters locked",
+            ],
+        },
+        "unlimited": {
+            "name": "Unlimited",
+            "price_monthly": PRICING["customer"]["monthly"],
+            "price_yearly": PRICING["customer"]["yearly"],
+            "tagline": "Every braid, everywhere. Powered by AI.",
+            "features": [
+                "Worldwide search — unlimited radius",
+                "Traveling professionals & house calls",
+                "Verified Pros only · Open today · Kids · Bridal",
+                "Hair included · Budget filters",
+                "AI style recommendations",
+                "Price · duration · pro comparison",
+            ],
+            "limits": [],
+        },
+    },
+    "professional": {
+        "free": {
+            "name": "Free",
+            "price_monthly": 0, "price_yearly": 0,
+            "tagline": "Start showing up. No credit card.",
+            "features": [
+                "Professional profile",
+                "Receive bookings",
+                "Calendar & availability",
+                "Reviews & pricing",
+                f"{PORTFOLIO_CAPS['free']} portfolio photos",
+                "Basic business dashboard",
+            ],
+        },
+        "standard": {
+            "name": "Standard",
+            "price_monthly": PRICING["professional"]["standard"]["monthly"],
+            "price_yearly": PRICING["professional"]["standard"]["yearly"],
+            "tagline": "Invest in visibility. Understand your customers.",
+            "features": [
+                f"{PORTFOLIO_CAPS['standard']} portfolio photos",
+                "Profile analytics",
+                "Customer insights",
+                "Trending hairstyle report",
+                "Priority search ranking",
+                "Weekly business reports",
+                "Growth recommendations",
+            ],
+        },
+        "unlimited": {
+            "name": "Unlimited",
+            "price_monthly": PRICING["professional"]["unlimited"]["monthly"],
+            "price_yearly": PRICING["professional"]["unlimited"]["yearly"],
+            "tagline": "The AI business partner for elite braiders.",
+            "features": [
+                f"{PORTFOLIO_CAPS['unlimited']} portfolio photos",
+                "Featured placement",
+                "Homepage recommendations",
+                "AI Business Assistant (coming soon)",
+                "Marketing tools & seasonal campaigns",
+                "Revenue analytics",
+                "Customer retention analytics",
+                "Automatic reminders (coming soon)",
+                "Website · online store · inventory (coming soon)",
+                "Appointment forecasting (coming soon)",
+            ],
+        },
+    },
+    "founding_pro": {
+        "slots": FOUNDING_PRO_SLOTS,
+        "duration_days": 365,
+        "tagline": "Founding Pros — Unlimited free for 1 year. Limited spots.",
+    },
+}
+
 
 async def get_active_subscription(user_id: str) -> Optional[dict]:
     """Return the most-recent active subscription for a user, honoring promo_expires_at."""
     sub = await db.subscriptions.find_one({"user_id": user_id, "status": "active"}, {"_id": 0}, sort=[("start_date", -1)])
     if not sub:
         return None
-    # Auto-downgrade expired founding-pro promo to standard
+    # Auto-downgrade expired founding-pro promo to free
     if sub.get("is_founding_pro") and sub.get("promo_expires_at"):
         if datetime.fromisoformat(sub["promo_expires_at"]) < datetime.now(timezone.utc):
             await db.subscriptions.update_one({"id": sub["id"]}, {"$set": {"status": "expired"}})
-            await db.users.update_one({"id": user_id}, {"$set": {"plan": "standard"}})
+            await db.users.update_one({"id": user_id}, {"$set": {"plan": "free"}})
             return None
     return sub
 
 async def sync_user_plan_from_sub(user_id: str) -> str:
     """Reconciles the user.plan field with their subscription record. Returns the effective plan."""
     sub = await get_active_subscription(user_id)
-    plan = sub["plan_type"] if sub else "standard"
+    plan = sub["plan_type"] if sub else "free"
     await db.users.update_one({"id": user_id}, {"$set": {"plan": plan}})
     return plan
+
+
+@api.get("/plans/catalog")
+async def plans_catalog():
+    return PLANS_CATALOG
 
 
 # ---------- Auth ----------
@@ -305,7 +413,7 @@ async def register(body: RegisterIn):
     now = datetime.now(timezone.utc)
     doc = {
         "id": uid, "email": body.email, "name": body.name, "role": body.role,
-        "phone": body.phone, "plan": "standard",
+        "phone": body.phone, "plan": "free",
         "password_hash": hash_pw(body.password),
         "created_at": now.isoformat(),
         "profile_photo": None,
@@ -564,7 +672,7 @@ async def google_signin(body: GoogleSessionIn):
         uid = str(uuid.uuid4())
         user_doc = {
             "id": uid, "email": email, "name": data.get("name") or email.split("@")[0],
-            "role": "customer", "plan": "standard",
+            "role": "customer", "plan": "free",
             "profile_photo": data.get("picture"),
             "phone": None, "flag_count": 0, "booking_restricted": False,
             "password_hash": None, "google_id": data.get("id"),
@@ -606,11 +714,11 @@ async def update_plan(body: PlanUpdate, user: UserOut = Depends(get_user)):
 # ---------- Subscriptions ----------
 @api.get("/subscriptions/me")
 async def get_my_subscription(user: UserOut = Depends(get_user)):
-    """Returns the active subscription (or None) + pricing options tailored to the user's role."""
+    """Returns the active subscription (or None) + full plans catalog scoped to the user's role."""
     sub = await get_active_subscription(user.id)
     await sync_user_plan_from_sub(user.id)
     account_type = "professional" if user.role == "hairdresser" else "customer"
-    prices = PRICING[account_type]
+    catalog = PLANS_CATALOG[account_type]
     days_left_promo = None
     if sub and sub.get("is_founding_pro") and sub.get("promo_expires_at"):
         delta = datetime.fromisoformat(sub["promo_expires_at"]) - datetime.now(timezone.utc)
@@ -618,11 +726,8 @@ async def get_my_subscription(user: UserOut = Depends(get_user)):
     return {
         "subscription": sub,
         "account_type": account_type,
-        "pricing": {
-            "monthly": prices["monthly"],
-            "yearly": prices["yearly"],
-            "yearly_savings_pct": int(YEARLY_DISCOUNT * 100),
-        },
+        "catalog": catalog,
+        "yearly_savings_pct": int(YEARLY_DISCOUNT * 100),
         "founding_pro_days_left": days_left_promo,
     }
 
@@ -632,14 +737,20 @@ async def subscribe(body: SubscribeIn, user: UserOut = Depends(get_user)):
     account_type = "professional" if user.role == "hairdresser" else "customer"
     now = datetime.now(timezone.utc)
 
-    # Standard = cancel any active paid subscription
-    if body.plan_type == "standard":
+    # Downgrade to Free
+    if body.plan_type == "free":
         await db.subscriptions.update_many({"user_id": user.id, "status": "active"}, {"$set": {"status": "cancelled"}})
-        await db.users.update_one({"id": user.id}, {"$set": {"plan": "standard"}})
-        return {"ok": True, "plan": "standard"}
+        await db.users.update_one({"id": user.id}, {"$set": {"plan": "free"}})
+        return {"ok": True, "plan": "free"}
+
+    # Customers only have free/unlimited
+    if account_type == "customer" and body.plan_type not in ("free", "unlimited"):
+        raise HTTPException(400, "Customers can subscribe to Free or Unlimited only.")
+    if body.plan_type not in ("standard", "unlimited"):
+        raise HTTPException(400, "Invalid plan_type")
 
     if not body.billing_interval:
-        raise HTTPException(400, "billing_interval required for Unlimited")
+        raise HTTPException(400, "billing_interval required")
 
     # Preserve founding-pro promo if it's still valid — don't overwrite with a paid sub
     current = await get_active_subscription(user.id)
@@ -647,15 +758,19 @@ async def subscribe(body: SubscribeIn, user: UserOut = Depends(get_user)):
             and datetime.fromisoformat(current["promo_expires_at"]) > now:
         return {"ok": True, "plan": "unlimited", "note": "You're on the Founding Pro promo — no charge until it expires."}
 
-    price = PRICING[account_type][body.billing_interval]
+    # Resolve price
+    if account_type == "customer":
+        price = PRICING["customer"][body.billing_interval]
+    else:
+        price = PRICING["professional"][body.plan_type][body.billing_interval]
+
     renewal = now + timedelta(days=30 if body.billing_interval == "monthly" else 365)
-    # Cancel prior subs and insert new
     await db.subscriptions.update_many({"user_id": user.id, "status": "active"}, {"$set": {"status": "cancelled"}})
     sub = {
         "id": str(uuid.uuid4()),
         "user_id": user.id,
         "account_type": account_type,
-        "plan_type": "unlimited",
+        "plan_type": body.plan_type,
         "billing_interval": body.billing_interval,
         "price": price,
         "status": "active",
@@ -665,8 +780,8 @@ async def subscribe(body: SubscribeIn, user: UserOut = Depends(get_user)):
         "promo_expires_at": None,
     }
     await db.subscriptions.insert_one(sub)
-    await db.users.update_one({"id": user.id}, {"$set": {"plan": "unlimited"}})
-    return {"ok": True, "plan": "unlimited", "subscription": {k: v for k, v in sub.items() if k != "_id"}}
+    await db.users.update_one({"id": user.id}, {"$set": {"plan": body.plan_type}})
+    return {"ok": True, "plan": body.plan_type, "subscription": {k: v for k, v in sub.items() if k != "_id"}}
 
 
 # ---------- Hairstyles ----------
@@ -1005,8 +1120,9 @@ async def add_portfolio(body: PortfolioItemIn, user: UserOut = Depends(get_user)
     if user.role != "hairdresser":
         raise HTTPException(403, "Only hairdressers")
     count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
-    if user.plan == "standard" and count >= 5:
-        raise HTTPException(402, "Free plan is capped at 5 portfolio photos. Upgrade to Unlimited for more.")
+    cap = PORTFOLIO_CAPS.get(user.plan, 10)
+    if count >= cap:
+        raise HTTPException(402, f"Your {user.plan.title()} plan is capped at {cap} portfolio photos. Upgrade to unlock more.")
     item = {"id": str(uuid.uuid4()), "hairdresser_id": user.id, **body.dict()}
     await db.portfolio_items.insert_one(item)
     return clean(item)
@@ -1058,8 +1174,8 @@ async def media_sign(body: _MediaSignRequest, user: UserOut = Depends(get_user))
             raise HTTPException(403, "Only hairdressers can upload portfolio photos.")
         body.hairdresser_id = user.id
         count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
-        if user.plan == "standard" and count >= 5:
-            raise HTTPException(402, "Free plan is capped at 5 portfolio photos. Upgrade to unlock more.")
+        if user.plan != "unlimited" and count >= PORTFOLIO_CAPS.get(user.plan, 10):
+            raise HTTPException(402, f"Your {user.plan.title()} plan is capped at {PORTFOLIO_CAPS.get(user.plan, 10)} portfolio photos. Upgrade to unlock more.")
     elif body.context == "license":
         if user.role != "hairdresser":
             raise HTTPException(403, "Only hairdressers can upload verification documents.")
@@ -1104,8 +1220,9 @@ async def media_complete(body: _MediaCompleteIn, user: UserOut = Depends(get_use
         if not body.hairstyle_id:
             raise HTTPException(400, "hairstyle_id required for portfolio photos.")
         count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
-        if user.plan == "standard" and count >= 5:
-            raise HTTPException(402, "Free plan is capped at 5 portfolio photos.")
+        cap = PORTFOLIO_CAPS.get(user.plan, 10)
+        if count >= cap:
+            raise HTTPException(402, f"Your {user.plan.title()} plan is capped at {cap} portfolio photos.")
         item = {
             "id": str(uuid.uuid4()),
             "hairdresser_id": user.id,
@@ -1992,12 +2109,216 @@ async def admin_decide(hid: str, body: VerificationDecisionIn, user: UserOut = D
     return {"ok": True}
 
 
-# ---------- Featured Stylist of the Week ----------
+# ---------- Braider Business Growth (Analytics + Success Score) ----------
 def _iso_week_range(now: Optional[datetime] = None) -> tuple[datetime, datetime]:
     now = now or datetime.now(timezone.utc)
     monday = now - timedelta(days=now.weekday())
     monday = monday.replace(hour=0, minute=0, second=0, microsecond=0)
     return monday, monday + timedelta(days=7)
+
+
+async def compute_business_success_score(hairdresser_user_id: str) -> dict:
+    """
+    Business Success Score (0-100) — a proprietary, mission-critical signal used
+    for search ranking AND surfaced to braiders so they know exactly how to grow.
+
+    Formula (each contributes up to the given cap):
+      Profile completeness   (25)  — bio, salon name, avatar, ≥1 specialty, ≥1 availability slot, verified
+      Portfolio strength     (20)  — number of portfolio items (2 pts each up to 10)
+      Customer signals       (25)  — rating_avg × 5   +   reviews_count × 0.25 (capped)
+      Booking activity       (15)  — completed bookings in the last 90 days × 1.5 (capped)
+      Recent engagement      (15)  — profile views in the last 30 days × 0.5 (capped)
+
+    Returned payload includes per-signal contributions so the UI can show
+    "How to improve your score" recommendations.
+    """
+    hd = await db.hairdressers.find_one({"user_id": hairdresser_user_id}, {"_id": 0}) or {}
+    u = await db.users.find_one({"id": hairdresser_user_id}, {"_id": 0}) or {}
+    completeness = 0
+    if hd.get("bio"): completeness += 4
+    if hd.get("salon_name"): completeness += 4
+    if u.get("profile_photo"): completeness += 4
+    if hd.get("specialty_ids"): completeness += 4
+    if hd.get("verification_status") == "approved": completeness += 5
+    has_avail = await db.availability.count_documents({"hairdresser_id": hairdresser_user_id}) > 0
+    if has_avail: completeness += 4
+
+    portfolio_count = await db.portfolio_items.count_documents({"hairdresser_id": hairdresser_user_id})
+    portfolio = min(20, portfolio_count * 2)
+
+    rating = float(hd.get("rating_avg") or 0.0)
+    reviews = int(hd.get("reviews_count") or 0)
+    customer = min(25, rating * 5 + reviews * 0.25)
+
+    since_90d = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
+    completed = await db.bookings.count_documents({
+        "hairdresser_id": hairdresser_user_id, "status": "completed",
+        "appointment_datetime": {"$gte": since_90d},
+    })
+    booking = min(15, completed * 1.5)
+
+    since_30d = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    views = await db.profile_views.count_documents({
+        "hairdresser_id": hairdresser_user_id,
+        "viewed_at": {"$gte": since_30d},
+    })
+    engagement = min(15, views * 0.5)
+
+    total = round(completeness + portfolio + customer + booking + engagement)
+
+    if total >= 90: tier = "Elite"
+    elif total >= 70: tier = "Excellent"
+    elif total >= 40: tier = "Growing"
+    else: tier = "Building"
+
+    # Personalized recommendations to lift the score
+    recs = []
+    if completeness < 25:
+        if not hd.get("bio"): recs.append("Write a warm bio — customers book pros they connect with.")
+        if not u.get("profile_photo"): recs.append("Add a profile photo.")
+        if hd.get("verification_status") != "approved":
+            recs.append("Apply for Verified Pro — verified badges earn 2× the trust.")
+        if not has_avail:
+            recs.append("Set your weekly availability so customers can book you.")
+    if portfolio_count < 10:
+        recs.append(f"Upload more portfolio photos — you have {portfolio_count}, aim for 10+.")
+    if reviews < 10:
+        recs.append("Ask happy clients to leave a review — reviews boost your score fast.")
+    if completed == 0:
+        recs.append("Complete your first booking to start earning booking points.")
+
+    return {
+        "score": total, "tier": tier,
+        "breakdown": {
+            "profile_completeness": {"score": completeness, "max": 25},
+            "portfolio_strength": {"score": portfolio, "max": 20},
+            "customer_signals": {"score": round(customer, 1), "max": 25},
+            "booking_activity": {"score": round(booking, 1), "max": 15},
+            "recent_engagement": {"score": round(engagement, 1), "max": 15},
+        },
+        "recommendations": recs[:5],
+    }
+
+
+@api.get("/braiders/me/business-score")
+async def my_business_score(user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only braiders")
+    return await compute_business_success_score(user.id)
+
+
+@api.get("/braiders/{hid}/business-score")
+async def public_business_score(hid: str):
+    """Public read of a braider's score — used on customer-facing profiles."""
+    hd = await db.hairdressers.find_one({"id": hid}, {"_id": 0, "user_id": 1})
+    if not hd:
+        raise HTTPException(404, "Not found")
+    result = await compute_business_success_score(hd["user_id"])
+    # Only expose score + tier publicly (breakdown stays private to the pro)
+    return {"score": result["score"], "tier": result["tier"]}
+
+
+@api.get("/braiders/me/analytics")
+async def my_analytics(user: UserOut = Depends(get_user)):
+    """
+    Profile analytics gated behind Standard+ plans.
+    Returns view counts, save counts, portfolio clicks, booking pipeline.
+    """
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only braiders")
+    if user.plan == "free":
+        raise HTTPException(402, "Upgrade to Standard to unlock analytics.")
+    now = datetime.now(timezone.utc)
+    since_30d = (now - timedelta(days=30)).isoformat()
+    since_7d = (now - timedelta(days=7)).isoformat()
+
+    views_30d = await db.profile_views.count_documents({"hairdresser_id": user.id, "viewed_at": {"$gte": since_30d}})
+    views_7d = await db.profile_views.count_documents({"hairdresser_id": user.id, "viewed_at": {"$gte": since_7d}})
+    portfolio_saves = 0  # placeholder — extend when portfolio-save telemetry lands
+    # Bookings pipeline
+    booking_q = {"hairdresser_id": user.id}
+    total_bookings = await db.bookings.count_documents(booking_q)
+    completed_30d = await db.bookings.count_documents({**booking_q, "status": "completed", "appointment_datetime": {"$gte": since_30d}})
+    cancelled_30d = await db.bookings.count_documents({**booking_q, "status": "cancelled", "appointment_datetime": {"$gte": since_30d}})
+
+    return {
+        "views_30d": views_30d,
+        "views_7d": views_7d,
+        "portfolio_saves": portfolio_saves,
+        "total_bookings": total_bookings,
+        "completed_30d": completed_30d,
+        "cancelled_30d": cancelled_30d,
+    }
+
+
+@api.get("/braiders/me/trending-report")
+async def my_trending_report(user: UserOut = Depends(get_user)):
+    """Top trending styles inside the braider's specialty categories."""
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only braiders")
+    if user.plan == "free":
+        raise HTTPException(402, "Upgrade to Standard to unlock the trending report.")
+    hd = await db.hairdressers.find_one({"user_id": user.id}, {"_id": 0}) or {}
+    specialty_ids = hd.get("specialty_ids") or []
+    # Pull categories from those specialties
+    if specialty_ids:
+        mine = await db.hairstyles.find({"id": {"$in": specialty_ids}}, {"_id": 0}).to_list(50)
+        categories = list({s["category"] for s in mine})
+        q = {"category": {"$in": categories}}
+    else:
+        q = {}
+    top = await db.hairstyles.find(q, {"_id": 0}).sort([("style_score", -1)]).to_list(5)
+    return {"categories": categories if specialty_ids else [], "top": top}
+
+
+@api.get("/braiders/me/weekly-report")
+async def my_weekly_report(user: UserOut = Depends(get_user)):
+    """Weekly business report — one screen the braider can share with themselves each Monday."""
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only braiders")
+    if user.plan == "free":
+        raise HTTPException(402, "Upgrade to Standard for weekly reports.")
+    now = datetime.now(timezone.utc)
+    week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
+    prev_week_start = week_start - timedelta(days=7)
+    q = {"hairdresser_id": user.id}
+    completed_this = await db.bookings.count_documents({**q, "status": "completed",
+                                                        "appointment_datetime": {"$gte": week_start.isoformat()}})
+    completed_prev = await db.bookings.count_documents({**q, "status": "completed",
+                                                        "appointment_datetime": {"$gte": prev_week_start.isoformat(),
+                                                                                 "$lt": week_start.isoformat()}})
+    views_this = await db.profile_views.count_documents({"hairdresser_id": user.id, "viewed_at": {"$gte": week_start.isoformat()}})
+    views_prev = await db.profile_views.count_documents({"hairdresser_id": user.id,
+                                                          "viewed_at": {"$gte": prev_week_start.isoformat(),
+                                                                        "$lt": week_start.isoformat()}})
+
+    def _growth(cur, prev):
+        if prev == 0: return None if cur == 0 else 100
+        return round(((cur - prev) / prev) * 100)
+
+    return {
+        "week_start": week_start.isoformat(),
+        "bookings_this_week": completed_this,
+        "bookings_growth_pct": _growth(completed_this, completed_prev),
+        "profile_views_this_week": views_this,
+        "views_growth_pct": _growth(views_this, views_prev),
+    }
+
+
+# Track profile view (called when a customer opens a braider profile)
+@api.post("/braiders/{hid}/view")
+async def track_profile_view(hid: str, user: Optional[UserOut] = Depends(maybe_user)):
+    hd = await db.hairdressers.find_one({"id": hid}, {"_id": 0, "user_id": 1})
+    if not hd:
+        return {"ok": False}
+    await db.profile_views.insert_one({
+        "id": str(uuid.uuid4()),
+        "hairdresser_id": hd["user_id"],
+        "viewer_user_id": user.id if user else None,
+        "viewed_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"ok": True}
+
 
 @api.get("/featured-stylist")
 async def featured_stylist():
@@ -2080,8 +2401,19 @@ async def auto_cancel_late():
 # ---------- Seed ----------
 @api.post("/seed")
 async def seed(force: bool = False):
+    # ---- One-time plan migration for existing users (idempotent) ----
+    # Any user with legacy plan="standard" whose role is customer, or who has no
+    # paid subscription, becomes "free" under the new tier scheme. Braiders on
+    # legacy "standard" without a Standard subscription also downgrade to "free".
+    # Founding Pros with an active promo keep their Unlimited access.
+    async for u in db.users.find({"plan": "standard"}):
+        sub = await db.subscriptions.find_one({"user_id": u["id"], "status": "active"})
+        if sub and sub.get("plan_type") in ("standard", "unlimited"):
+            continue  # keep whatever the paid subscription says
+        await db.users.update_one({"id": u["id"]}, {"$set": {"plan": "free"}})
+
     if not force and await db.hairstyles.count_documents({}) > 0:
-        return {"status": "already_seeded"}
+        return {"status": "already_seeded", "migrated": True}
     await db.hairstyles.delete_many({})
     await db.hairdressers.delete_many({})
     await db.portfolio_items.delete_many({})
@@ -2091,6 +2423,7 @@ async def seed(force: bool = False):
     await db.customer_ratings.delete_many({})
     await db.reports.delete_many({})
     await db.featured_stylists.delete_many({})
+    await db.profile_views.delete_many({})
     await db.users.delete_many({"email": {"$regex": "@braids.demo$"}})
     await db.bookings.delete_many({})
 
@@ -2263,7 +2596,7 @@ async def seed(force: bool = False):
         uid = str(uuid.uuid4())
         await db.users.insert_one({
             "id": uid, "email": email, "name": name, "role": "hairdresser",
-            "plan": "unlimited" if i < 2 else "standard",
+            "plan": "unlimited" if i < 2 else ("standard" if i == 2 else "free"),
             "phone": None, "profile_photo": cover,
             "flag_count": 0, "booking_restricted": False,
             "password_hash": hash_pw("demo1234"),
@@ -2304,6 +2637,27 @@ async def seed(force: bool = False):
                 "is_founding_pro": True, "promo_expires_at": promo_expires.isoformat(),
                 "founding_pro_slot": i + 1,
             })
+        elif i == 2:
+            # Pro #3 = paid Standard tier — demonstrates the middle tier
+            await db.subscriptions.insert_one({
+                "id": str(uuid.uuid4()), "user_id": uid,
+                "account_type": "professional", "plan_type": "standard",
+                "billing_interval": "monthly",
+                "price": PRICING["professional"]["standard"]["monthly"],
+                "status": "active",
+                "start_date": datetime.now(timezone.utc).isoformat(),
+                "renewal_date": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+                "is_founding_pro": False,
+            })
+        # Seed some profile views so analytics dashboards have real numbers
+        for k in range(20 - i * 4):
+            days_ago = (k % 21)
+            await db.profile_views.insert_one({
+                "id": str(uuid.uuid4()),
+                "hairdresser_id": uid,
+                "viewer_user_id": None,
+                "viewed_at": (datetime.now(timezone.utc) - timedelta(days=days_ago, hours=k)).isoformat(),
+            })
         # portfolio
         for j, ph in enumerate(portfolio_photos[:6]):
             await db.portfolio_items.insert_one({
@@ -2322,7 +2676,7 @@ async def seed(force: bool = False):
     cust_id = str(uuid.uuid4())
     await db.users.insert_one({
         "id": cust_id, "email": "sara@braids.demo", "name": "Sara Bello",
-        "role": "customer", "plan": "standard", "phone": None, "profile_photo": None,
+        "role": "customer", "plan": "free", "phone": None, "profile_photo": None,
         "flag_count": 0, "booking_restricted": False,
         "password_hash": hash_pw("demo1234"),
         "email_verified": True,

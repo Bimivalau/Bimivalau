@@ -105,38 +105,37 @@ class TestFoundingProPromo:
             sb = sm["subscription"]
             if sb is None or not sb.get("is_founding_pro"):
                 seen_no_promo = True
-                # For that pro, plan should be standard
+                # For that pro, plan should be free (default tier)
                 u = requests.get(f"{BASE_URL}/api/auth/me", headers=auth_headers(t)).json()
-                assert u["plan"] == "standard"
+                assert u["plan"] == "free"
                 break
         assert seen_no_promo, "Expected a non-founding pro after slot 10"
 
 
 # ---------- Subscriptions endpoint ----------
 class TestSubscriptions:
-    def test_get_subscriptions_me_pricing_shape_customer(self):
+    def test_get_subscriptions_me_catalog_shape_customer(self):
         tok = _login("sara@braids.demo", "demo1234")["access_token"]
         r = requests.get(f"{BASE_URL}/api/subscriptions/me", headers=auth_headers(tok))
         assert r.status_code == 200
         d = r.json()
         assert d["account_type"] == "customer"
-        assert d["pricing"]["monthly"] == 8.0
-        assert d["pricing"]["yearly"] == 76.8
-        assert d["pricing"]["yearly_savings_pct"] == 20
+        assert set(d["catalog"].keys()) == {"free", "unlimited"}
+        assert d["catalog"]["unlimited"]["price_monthly"] == 4.99
+        assert d["catalog"]["unlimited"]["price_yearly"] == 47.88
+        assert d["yearly_savings_pct"] == 20
 
-    def test_get_subscriptions_me_pricing_pro(self):
-        # use kenya (standard plan pro, not founding)
+    def test_get_subscriptions_me_catalog_shape_pro(self):
         tok = _login("kenya@braids.demo", "demo1234")["access_token"]
         r = requests.get(f"{BASE_URL}/api/subscriptions/me", headers=auth_headers(tok))
         assert r.status_code == 200
         d = r.json()
         assert d["account_type"] == "professional"
-        assert d["pricing"]["monthly"] == 19.0
-        assert d["pricing"]["yearly"] == 182.4
-        assert d["pricing"]["yearly_savings_pct"] == 20
+        assert set(d["catalog"].keys()) == {"free", "standard", "unlimited"}
+        assert d["catalog"]["standard"]["price_monthly"] == 9.99
+        assert d["catalog"]["unlimited"]["price_monthly"] == 15.99
 
     def test_subscribe_yearly_customer(self):
-        # register fresh customer to avoid disturbing sara
         email = f"test_subcust_{uuid.uuid4().hex[:6]}@example.com"
         r = _register(email=email, role="customer")
         tok = r.json()["access_token"]
@@ -144,14 +143,9 @@ class TestSubscriptions:
                            json={"plan_type": "unlimited", "billing_interval": "yearly"},
                            headers=auth_headers(tok))
         assert r2.status_code == 200, r2.text
-        d = r2.json()
-        assert d["plan"] == "unlimited"
-        sub = d["subscription"]
-        assert sub["price"] == 76.8
-        assert sub["billing_interval"] == "yearly"
-        # GET reconciles
         me = requests.get(f"{BASE_URL}/api/subscriptions/me", headers=auth_headers(tok)).json()
-        assert me["subscription"]["price"] == 76.8
+        assert me["subscription"]["plan_type"] == "unlimited"
+        assert me["subscription"]["price"] == 47.88
 
     def test_subscribe_unlimited_without_interval_400(self):
         email = f"test_nointerval_{uuid.uuid4().hex[:6]}@example.com"
@@ -162,7 +156,6 @@ class TestSubscriptions:
         assert r.status_code == 400, r.text
 
     def test_founding_pro_subscribe_returns_note(self):
-        # Amara is founding pro; subscribing again should return the note and not overwrite
         tok = _login("amara@braids.demo", "demo1234")["access_token"]
         r = requests.post(f"{BASE_URL}/api/subscriptions/subscribe",
                           json={"plan_type": "unlimited", "billing_interval": "monthly"},
@@ -170,23 +163,22 @@ class TestSubscriptions:
         assert r.status_code == 200, r.text
         d = r.json()
         assert "note" in d and "Founding Pro" in d["note"]
-        # ensure founding sub still intact
         s = requests.get(f"{BASE_URL}/api/subscriptions/me", headers=auth_headers(tok)).json()
         assert s["subscription"]["is_founding_pro"] is True
         assert s["subscription"]["price"] == 0.0
 
     def test_subscribe_pro_yearly_price(self):
-        # fresh pro after slot cap (may or may not be founding — force standard first)
         email = f"test_proyearly_{uuid.uuid4().hex[:6]}@example.com"
         tok = _register(email=email, role="hairdresser").json()["access_token"]
-        # downgrade in case they got founding
+        # Cancel any auto-granted Founding Pro promo first
         requests.post(f"{BASE_URL}/api/subscriptions/subscribe",
-                      json={"plan_type": "standard"}, headers=auth_headers(tok))
+                      json={"plan_type": "free"}, headers=auth_headers(tok))
         r = requests.post(f"{BASE_URL}/api/subscriptions/subscribe",
                           json={"plan_type": "unlimited", "billing_interval": "yearly"},
                           headers=auth_headers(tok))
         assert r.status_code == 200, r.text
-        assert r.json()["subscription"]["price"] == 182.4
+        me = requests.get(f"{BASE_URL}/api/subscriptions/me", headers=auth_headers(tok)).json()
+        assert me["subscription"]["price"] == 143.88
 
 
 # ---------- Onboarding ----------
