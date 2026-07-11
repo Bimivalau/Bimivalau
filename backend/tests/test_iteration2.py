@@ -45,12 +45,17 @@ class TestBookingCode:
         pro_id = pro_auth["user"]["id"]
         r = requests.get(f"{BASE_URL}/api/hairdressers/{pro_id}", headers=auth_headers(cust_tok))
         style_id = r.json()["specialties"][0]["id"]
+        # Iterate several future weekdays until we find one with free slots (stale data hardening)
         d = datetime.now() + timedelta(days=35)
-        while d.weekday() > 5:
+        slots = []
+        for _ in range(60):
+            if d.weekday() <= 5:
+                date_str = d.strftime("%Y-%m-%d")
+                slots = requests.get(f"{BASE_URL}/api/hairdressers/{pro_id}/slots?date={date_str}").json().get("slots", [])
+                if len(slots) >= 1:
+                    break
             d += timedelta(days=1)
-        date_str = d.strftime("%Y-%m-%d")
-        slots = requests.get(f"{BASE_URL}/api/hairdressers/{pro_id}/slots?date={date_str}").json()["slots"]
-        # pick a slot far enough to avoid conflicts
+        assert slots, "No free slots found in next 60 days for Amara"
         slot = slots[3] if len(slots) > 3 else slots[0]
         r = requests.post(f"{BASE_URL}/api/bookings",
                           json={"hairdresser_id": pro_id, "hairstyle_id": style_id,

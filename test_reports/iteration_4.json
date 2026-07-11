@@ -1,0 +1,45 @@
+{
+  "summary": "Iteration 4 (Emergent Google Sign-In) verified. Backend: 85/85 pytest PASS (73 regression + 12 new iter4 tests). All iter4 spec items pass end-to-end: POST /api/auth/google with missing session_id -> 422 (pydantic), invalid session_id -> 401 with detail 'Invalid or expired Google session' (endpoint calls Emergent session-data via httpx, no 500 crash), wrong-type session_id -> 422, empty string -> 401 (upstream rejects). POST /api/auth/login regression PASS for sara (customer), amara (pro), admin, and wrong-password still 401 — password_hash gate line 303 also rejects Google-only users (password_hash=None) with 401. Existing endpoints /api/hairstyles, /api/search, /api/bookings/me, /api/auth/me all return 200 and UserOut shape unchanged (id/email/name/role/plan). Frontend (mobile viewport 390x844): /welcome renders welcome-customer/welcome-braider/welcome-existing CTAs + 'OR CONTINUE INSTANTLY' divider + welcome-google 'Continue with Google' button (all testIDs present, no red-screen); /login renders login-email/login-password/login-submit + 'OR' divider + login-google 'Continue with Google' below the password Sign-in button + go-register link. Clicking welcome-google and login-google on web both fire a top-level navigation to 'https://auth.emergentagent.com/?redirect=https%3A%2F%2Fbraid-pro-1.preview.emergentagent.com%2F' — verified by Playwright request interceptor (NAV_REQ log). /pro/onboarding cold-loads fine when authenticated (Simone unverified pro sees 'Let's set up your chair, Simone.' with 3 onboarding cards + Finish setup CTA). No JS crash from new expo-web-browser/expo-linking imports. Backend Google endpoint contract fully clean.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {"flow": "web cold-start Google callback", "issue": "captureSessionIdFromUrl() is defined in /app/frontend/src/google-auth.ts:65 and imported into /app/frontend/src/session.tsx:3 but is NEVER CALLED anywhere. On web, after returning from https://auth.emergentagent.com/?redirect=... with session_id in the URL hash/query, nothing exchanges it for a JWT — user is silently signed out. Fix: call captureSessionIdFromUrl() inside SessionProvider's mount useEffect (before or after refresh()) and, on success, setUser(result.user). Reference: /app/frontend/src/session.tsx:43-48 and /app/frontend/app/_layout.tsx (only calls SplashScreen).", "affected_testIDs": ["welcome-google","login-google"]}
+    ],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration4.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_braids_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/iteration4_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "HIGH: Wire captureSessionIdFromUrl() into SessionProvider mount so the web-side round-trip actually completes. Currently the entire web Google flow is broken end-to-end even though the button correctly navigates outbound (the return leg is missing). Suggested patch in /app/frontend/src/session.tsx useEffect: `const captured = await captureSessionIdFromUrl(); if (captured) { setUser(captured.user); } else { await refresh(); }` (order matters — capture first, then fall back to stored token refresh).",
+    "MEDIUM: SessionCtx type in /app/frontend/src/session.tsx:15-23 is missing signInWithGoogle in the type definition but the Provider does include it in the value at line 76. TS will flag this in strict mode; add `signInWithGoogle: () => Promise<{ is_new_user: boolean; needs_pro_completion: boolean } | null>` to the Ctx type.",
+    "LOW/optional: /api/auth/google could return 400 for empty-string session_id at the pydantic layer (via Field(min_length=1)) instead of relying on the upstream 401. Currently empty string produces a 401 from Emergent — functional but a shade less clear."
+  ],
+  "critical_code_review_comments": [
+    "server.py grew to 1321 lines (was 1256) — still no router split. Add /api/auth/google confirms the auth section is the natural first router extraction candidate (login/register/google/me/plan) ~130 lines.",
+    "server.py:315-322 uses httpx.AsyncClient with timeout=10 and only catches httpx.HTTPError -> 502. Good. r.status_code != 200 -> 401. Missing-email branch returns 400. Clean control flow.",
+    "server.py:336-338 conditional profile_photo update ('...and not existing.get(profile_photo)') protects a manually-uploaded photo from being overwritten by Google's picture on repeat sign-in — nice UX detail.",
+    "server.py:341-351 new-user default role=customer + password_hash=None + google_id caching per spec. Same-email linking works correctly (line 330 matches by email regardless of auth source).",
+    "server.py:303 login gate `not u.get('password_hash')` correctly rejects Google-only users trying password login with 401 — cannot be tested via API without creating a Google-only user, but code path is present and covered.",
+    "google-auth.ts:65 captureSessionIdFromUrl is dead code as of now — see integration issue above.",
+    "PRICING, subscription flow, admin flags — all iter1-3 endpoints untouched and still green in regression."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration4.py (new — 12 tests: Google endpoint contract 4, login regression 4, existing endpoints 4)",
+    "/app/backend/tests/test_iteration2.py (hardened _create_booking helper to iterate up to 60 days searching for a free slot on Amara's calendar — pure test resilience, no product change; fixes 5 stale-data flakes accumulated since iter3)"
+  ],
+  "success_rate": {"backend": "100% (85/85 pytest, incl. 12 new iter4)", "frontend": "100% for iter4 spec items tested: /welcome and /login render new Google buttons with correct testIDs (welcome-google, login-google) + OR divider; clicking each triggers outbound navigation to https://auth.emergentagent.com/?redirect=... (verified via NAV_REQ interception); /welcome, /login, /pro/onboarding all cold-load without JS crash. Return-leg session exchange NOT tested (blocked by missing captureSessionIdFromUrl invocation on web)."},
+  "seed_data_creation": "None new. Reused seeded sara/amara/admin/simone accounts. No test data created via /api/auth/google (would require a real Emergent session_id).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend/tests && python -m pytest -v --junitxml=/app/test_reports/pytest/pytest_results.xml (85 tests, ~33s). Iter4 endpoints/behavior: POST /api/auth/google {session_id} -> TokenOut with is_new_user + needs_pro_completion fields. Endpoint calls https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data with X-Session-ID header. 422 for missing session_id, 401 for invalid, 502 for upstream network fail, 400 for missing-email upstream response. Frontend testIDs added iter4: welcome-google (also welcome-err), login-google. Both buttons on web use window.location.href = 'https://auth.emergentagent.com/?redirect=<encoded-current-origin>/'. On mobile, they use expo-web-browser.openAuthSessionAsync + Linking.createURL. The return-leg helper captureSessionIdFromUrl is imported into session.tsx BUT NOT INVOKED — main agent needs to wire it into SessionProvider useEffect. Same-email linking: existing password users signing in via Google land on the same account (matched by email in db.users). Google-only users cannot use POST /api/auth/login (password_hash=None -> 401).",
+  "rca_of_issue": "Missing invocation of captureSessionIdFromUrl() means the entire web Google Sign-In flow silently no-ops on the return leg: user taps 'Continue with Google' -> full-page redirect to auth.emergentagent.com -> Google auth completes -> Emergent redirects back to preview URL with #session_id=... -> the app cold-starts, SessionProvider useEffect only calls refresh() (which reads localStorage token -> none) -> user lands on /welcome again with the session_id still hanging in the URL fragment (until they reload and it's cleared). Reproduction: Currently un-reproducible end-to-end without a real Google login, but code path inspection confirms. Mitigation: add `const captured = await captureSessionIdFromUrl(); if (captured) setUser(captured.user);` to /app/frontend/src/session.tsx SessionProvider useEffect BEFORE calling refresh(). This is a single-line fix. Mobile flow (openAuthSessionAsync) works because it inline-exchanges before returning to signInWithGoogle."
+}

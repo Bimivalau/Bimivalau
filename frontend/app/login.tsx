@@ -8,7 +8,7 @@ import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
 
 export default function Login() {
-  const { signIn } = useSession();
+  const { signIn, signInWithGoogle } = useSession();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [email, setEmail] = useState("sara@braids.demo");
@@ -22,6 +22,17 @@ export default function Login() {
       await signIn(email.trim(), password);
       router.replace("/");
     } catch (e: any) { setErr(e.message || "Login failed"); }
+    finally { setBusy(false); }
+  };
+
+  const google = async () => {
+    setErr(null); setBusy(true);
+    try {
+      const res = await signInWithGoogle();
+      if (!res) { setBusy(false); return; }
+      if (res.needs_pro_completion) router.replace("/pro/onboarding");
+      else router.replace("/");
+    } catch (e: any) { setErr(e.message || "Google sign-in failed"); }
     finally { setBusy(false); }
   };
 
@@ -45,6 +56,18 @@ export default function Login() {
           <Pressable testID="login-submit" onPress={submit} disabled={busy} style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]}>
             <Text style={styles.btnText}>{busy ? "Signing in…" : "Sign in"}</Text>
           </Pressable>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <Pressable testID="login-google" onPress={google} disabled={busy} style={styles.googleBtn}>
+            <View style={styles.googleG}><Text style={styles.googleGText}>G</Text></View>
+            <Text style={styles.googleBtnText}>Continue with Google</Text>
+          </Pressable>
+
           <Pressable testID="go-register" onPress={() => router.push("/welcome")}>
             <Text style={styles.link}>New here? Get started →</Text>
           </Pressable>
@@ -65,4 +88,11 @@ const styles = StyleSheet.create({
   link: { color: colors.brandSecondary, fontFamily: font.bodyMed, textAlign: "center", marginTop: spacing.md },
   err: { color: colors.error, fontFamily: font.body },
   demo: { color: colors.muted, fontSize: 11, marginTop: spacing.xl, textAlign: "center", fontFamily: font.body, lineHeight: 16 },
+  divider: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.lg, marginBottom: spacing.md },
+  dividerLine: { flex: 1, height: 1, backgroundColor: colors.divider },
+  dividerText: { fontFamily: font.bodyMed, color: colors.muted, fontSize: 11, letterSpacing: 2 },
+  googleBtn: { flexDirection: "row", gap: spacing.md, alignItems: "center", justifyContent: "center", paddingVertical: spacing.lg, borderRadius: radii.md, borderWidth: 1, borderColor: colors.borderStrong, backgroundColor: "#fff" },
+  googleG: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#4285F4" },
+  googleGText: { fontFamily: font.bodyBold, color: "#4285F4", fontSize: 13 },
+  googleBtnText: { fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 15 },
 });

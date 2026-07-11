@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api, clearToken, getToken, setToken } from "./api";
+import { signInWithGoogle as _signInWithGoogle, captureSessionIdFromUrl } from "./google-auth";
 
 export type User = {
   id: string;
@@ -60,13 +61,19 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     await clearToken();
     setUser(null);
   };
+  const signInWithGoogle = async () => {
+    const res = await _signInWithGoogle();
+    if (!res) return null;
+    setUser(res.user);
+    return { is_new_user: res.is_new_user, needs_pro_completion: res.needs_pro_completion };
+  };
   const setPlan = async (plan: "standard" | "unlimited") => {
     const u = await api("/auth/plan", { method: "POST", body: JSON.stringify({ plan }) });
     setUser(u);
   };
 
   return (
-    <SessionCtx.Provider value={{ user, loading, signIn, signUp, signOut, refresh, setPlan }}>
+    <SessionCtx.Provider value={{ user, loading, signIn, signUp, signInWithGoogle, signOut, refresh, setPlan }}>
       {children}
     </SessionCtx.Provider>
   );

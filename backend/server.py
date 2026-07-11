@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Literal
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-import os, uuid, logging, bcrypt, secrets, string
+import os, uuid, logging, bcrypt, secrets, string, httpx
 from jose import jwt, JWTError
 
 def gen_code(n: int = 6) -> str:
@@ -100,10 +100,15 @@ class LoginIn(BaseModel):
     email: EmailStr
     password: str
 
+class GoogleSessionIn(BaseModel):
+    session_id: str
+
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserOut
+    is_new_user: Optional[bool] = None
+    needs_pro_completion: Optional[bool] = None
 
 class HairstyleIn(BaseModel):
     name: str
@@ -295,9 +300,69 @@ async def register(body: RegisterIn):
 @api.post("/auth/login", response_model=TokenOut)
 async def login(body: LoginIn):
     u = await db.users.find_one({"email": body.email})
-    if not u or not verify_pw(body.password, u["password_hash"]):
+    if not u or not u.get("password_hash") or not verify_pw(body.password, u["password_hash"]):
         raise HTTPException(401, "Invalid credentials")
     return TokenOut(access_token=make_token(u["id"], u["role"]), user=await user_from_doc(u))
+
+
+@api.post("/auth/google", response_model=TokenOut)
+async def google_signin(body: GoogleSessionIn):
+    """Exchange an Emergent OAuth session_id for our JWT.
+    - Looks up email via Emergent's session-data endpoint.
+    - Upserts user (matched by email — links to existing password accounts).
+    - New users default to role=customer.
+    - Returns needs_pro_completion=true if the user is a hairdresser whose extended profile is incomplete."""
+    async with httpx.AsyncClient(timeout=10) as client:
+        try:
+            r = await client.get(
+                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                headers={"X-Session-ID": body.session_id},
+            )
+        except httpx.HTTPError:
+            raise HTTPException(502, "Could not reach Google auth provider")
+    if r.status_code != 200:
+        raise HTTPException(401, "Invalid or expired Google session")
+    data = r.json()
+    email = data.get("email")
+    if not email:
+        raise HTTPException(400, "Google session missing email")
+
+    existing = await db.users.find_one({"email": email})
+    is_new = False
+    if existing:
+        uid = existing["id"]
+        # Cache Google id + picture for repeat logins
+        updates: dict = {"google_id": data.get("id")}
+        if data.get("picture") and not existing.get("profile_photo"):
+            updates["profile_photo"] = data["picture"]
+        await db.users.update_one({"id": uid}, {"$set": updates})
+        user_doc = {**existing, **updates}
+    else:
+        uid = str(uuid.uuid4())
+        user_doc = {
+            "id": uid, "email": email, "name": data.get("name") or email.split("@")[0],
+            "role": "customer", "plan": "standard",
+            "profile_photo": data.get("picture"),
+            "phone": None, "flag_count": 0, "booking_restricted": False,
+            "password_hash": None, "google_id": data.get("id"),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        await db.users.insert_one(user_doc)
+        is_new = True
+
+    # Pro-completion check: if this Google account is a hairdresser and hasn't finished pro setup
+    needs_pro_completion = False
+    if user_doc["role"] == "hairdresser":
+        hd = await db.hairdressers.find_one({"user_id": uid}, {"_id": 0})
+        needs_pro_completion = not (hd and hd.get("onboarding_completed"))
+
+    user = await user_from_doc(user_doc, include_phone=True)
+    return TokenOut(
+        access_token=make_token(uid, user_doc["role"]),
+        user=user,
+        is_new_user=is_new,
+        needs_pro_completion=needs_pro_completion,
+    )
 
 @api.get("/auth/me", response_model=UserOut)
 async def me(user: UserOut = Depends(get_user)):

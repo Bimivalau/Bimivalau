@@ -3,12 +3,27 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useState } from "react";
+import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
 
 // The Welcome/Splash. Role choice, not a login form.
 export default function Welcome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { signInWithGoogle } = useSession();
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const google = async () => {
+    setErr(null); setBusy(true);
+    try {
+      const res = await signInWithGoogle();
+      if (!res) { setBusy(false); return; }
+      router.replace(res.needs_pro_completion ? "/pro/onboarding" : "/");
+    } catch (e: any) { setErr(e.message || "Google sign-in failed"); }
+    finally { setBusy(false); }
+  };
   return (
     <View style={{ flex: 1, backgroundColor: colors.surfaceInverse }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
@@ -44,6 +59,17 @@ export default function Welcome() {
           <Pressable testID="welcome-existing" onPress={() => router.push("/login")} style={{ padding: spacing.md, alignItems: "center", marginTop: spacing.md }}>
             <Text style={s.existingLink}>Already have an account? <Text style={{ fontFamily: font.bodyBold, color: "#fff" }}>Sign in</Text></Text>
           </Pressable>
+
+          <View style={s.googleDivider}>
+            <View style={s.gLine} />
+            <Text style={s.gDivText}>OR CONTINUE INSTANTLY</Text>
+            <View style={s.gLine} />
+          </View>
+          <Pressable testID="welcome-google" onPress={google} disabled={busy} style={s.googleBtn}>
+            <View style={s.googleG}><Text style={s.googleGText}>G</Text></View>
+            <Text style={s.googleBtnText}>{busy ? "Opening Google…" : "Continue with Google"}</Text>
+          </Pressable>
+          {err && <Text testID="welcome-err" style={{ color: "#FFB3B0", fontFamily: font.body, textAlign: "center", marginTop: spacing.sm }}>{err}</Text>}
         </View>
       </ScrollView>
     </View>
@@ -61,4 +87,11 @@ const s = StyleSheet.create({
   roleDesc: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 13, marginTop: 2 },
   roleArrow: { fontFamily: font.display, fontSize: 28, color: colors.brand },
   existingLink: { color: "#F9F6F0", opacity: 0.75, fontFamily: font.body, fontSize: 14 },
+  googleDivider: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginTop: spacing.md, marginBottom: spacing.sm },
+  gLine: { flex: 1, height: 1, backgroundColor: "rgba(255,255,255,0.2)" },
+  gDivText: { color: "#F9F6F0", opacity: 0.55, fontFamily: font.bodyMed, fontSize: 10, letterSpacing: 2 },
+  googleBtn: { flexDirection: "row", gap: spacing.md, alignItems: "center", justifyContent: "center", paddingVertical: spacing.lg, borderRadius: radii.md, backgroundColor: "#fff" },
+  googleG: { width: 22, height: 22, borderRadius: 11, backgroundColor: "#fff", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#4285F4" },
+  googleGText: { fontFamily: font.bodyBold, color: "#4285F4", fontSize: 13 },
+  googleBtnText: { fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 15 },
 });
