@@ -10,7 +10,11 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.braidpro.bg3wuf"
+      "bundleIdentifier": "com.emergent.braidpro.bg3wuf",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Upload photos for your portfolio and profile.",
+        "NSCameraUsageDescription": "Take photos for your portfolio and bookings."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +22,11 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.emergent.braidpro.bg3wuf"
+      "package": "com.emergent.braidpro.bg3wuf",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
       "bundler": "metro",

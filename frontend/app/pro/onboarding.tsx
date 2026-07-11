@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -7,6 +7,9 @@ import { api } from "@/src/api";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
 
+// Pro Onboarding — only Weekly Availability is required to activate bookings.
+// Portfolio, Verified Pro, License, Bio, Salon name are all OPTIONAL and never
+// block the "Start Receiving Bookings" button.
 export default function ProOnboarding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -32,44 +35,94 @@ export default function ProOnboarding() {
 
   if (!status) return <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={colors.brand} /></View>;
 
-  const steps: { key: string; testID: string; title: string; desc: string; done: boolean; onPress: () => void; required: boolean }[] = [
-    { key: "avail", testID: "onb-availability", title: "Set your weekly hours", desc: "Tell customers when you're available.", done: status.has_availability, onPress: () => router.push("/pro/availability"), required: true },
-    { key: "port", testID: "onb-portfolio", title: "Upload your first photos", desc: "At least one photo helps customers trust you.", done: status.has_portfolio, onPress: () => router.push("/pro/portfolio"), required: false },
-    { key: "verify", testID: "onb-verify", title: "Earn the Verified Pro badge", desc: "Optional — submit ID/license to build extra trust.", done: false, onPress: () => router.push("/pro/verification"), required: false },
-  ];
-
-  const canFinish = status.has_specialty && status.has_availability;
+  const canFinish = !!status.has_availability;
 
   return (
     <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
       <View style={{ paddingTop: insets.top + spacing.lg, paddingHorizontal: spacing.xl }}>
-        <Text style={s.eyebrow}>WELCOME TO BRAIDSCOMMUNITY</Text>
-        <Text testID="onb-title" style={s.title}>Let's set up{"\n"}your chair, {user?.name?.split(" ")[0]}.</Text>
-        <Text style={s.sub}>You're live in customer search already — finish these to unlock bookings.</Text>
-
-        {steps.map((st, i) => (
-          <Pressable key={st.key} testID={st.testID} onPress={st.onPress} style={s.step}>
-            <View style={[s.stepBadge, st.done && s.stepBadgeDone]}>
-              {st.done ? <Feather name="check" size={16} color="#fff" /> : <Text style={s.stepBadgeNum}>{i + 1}</Text>}
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                <Text style={s.stepTitle}>{st.title}</Text>
-                {st.required && !st.done && <Text style={s.required}>REQUIRED</Text>}
-              </View>
-              <Text style={s.stepDesc}>{st.desc}</Text>
-            </View>
-            <Feather name="chevron-right" size={20} color={colors.muted} />
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md }}>
+          <Pressable testID="onb-back" onPress={() => router.canGoBack() ? router.back() : router.replace("/pro/dashboard")}>
+            <Feather name="arrow-left" size={22} color={colors.onSurface} />
           </Pressable>
-        ))}
+        </View>
+        <View style={s.liveBadge}>
+          <View style={s.dot} />
+          <Text style={s.liveBadgeText}>YOUR PROFILE IS LIVE</Text>
+        </View>
+        <Text testID="onb-title" style={s.title}>Your profile is live.</Text>
+        <Text style={s.sub}>Customers can already discover your profile. Complete these recommendations to attract even more bookings.</Text>
+
+        {/* ---- REQUIRED ---- */}
+        <Text style={s.sectionTitle}>Required</Text>
+        <Pressable
+          testID="onb-availability"
+          onPress={() => router.push("/pro/availability")}
+          style={[s.item, status.has_availability && s.itemDone]}
+        >
+          <View style={[s.check, status.has_availability && s.checkDone]}>
+            {status.has_availability ? <Feather name="check" size={14} color="#fff" /> : <Feather name="clock" size={14} color={colors.brand} />}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.itemTitle}>Set Weekly Availability</Text>
+            <Text style={s.itemDesc}>
+              {status.has_availability
+                ? "You're accepting bookings on your weekly hours."
+                : "Tell customers when you're available so they can book you."}
+            </Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={colors.muted} />
+        </Pressable>
+
+        {/* ---- RECOMMENDED ---- */}
+        <Text style={s.sectionTitle}>Recommended</Text>
+        <Pressable testID="onb-portfolio" onPress={() => router.push("/pro/portfolio")} style={s.item}>
+          <View style={s.bullet}>
+            {status.has_portfolio
+              ? <Feather name="check" size={14} color={colors.success} />
+              : <Feather name="image" size={14} color={colors.brand} />}
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+              <Text style={s.itemTitle}>Showcase Your Work</Text>
+              <Text style={s.optionalTag}>OPTIONAL</Text>
+            </View>
+            <Text style={s.itemDesc}>Upload portfolio photos — improves customer trust and ranking.</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={colors.muted} />
+        </Pressable>
+
+        <Pressable testID="onb-verify" onPress={() => router.push("/pro/verification")} style={s.item}>
+          <View style={s.bullet}>
+            <Feather name="award" size={14} color={colors.brand} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+              <Text style={s.itemTitle}>Apply for Verified Pro</Text>
+              <Text style={s.optionalTag}>OPTIONAL</Text>
+            </View>
+            <Text style={s.itemDesc}>Submit ID or license — earns the Verified badge and stronger visibility.</Text>
+          </View>
+          <Feather name="chevron-right" size={20} color={colors.muted} />
+        </Pressable>
 
         {err && <Text testID="onb-err" style={{ color: colors.error, marginTop: spacing.md, fontFamily: font.body }}>{err}</Text>}
-        <Pressable testID="onb-finish" disabled={!canFinish || busy} onPress={finish} style={[s.finishBtn, (!canFinish || busy) && { opacity: 0.4 }]}>
-          <Text style={s.finishText}>{busy ? "Finishing…" : "Finish setup — take me to my chair"}</Text>
+
+        <Pressable
+          testID="onb-finish"
+          disabled={!canFinish || busy}
+          onPress={finish}
+          style={[s.finishBtn, (!canFinish || busy) && s.finishBtnDisabled]}
+        >
+          <Text style={[s.finishText, (!canFinish || busy) && { color: colors.muted }]}>
+            {busy ? "Finishing…" : "Start Receiving Bookings"}
+          </Text>
         </Pressable>
         {!canFinish && (
-          <Text style={{ color: colors.muted, fontFamily: font.body, fontSize: 12, textAlign: "center", marginTop: spacing.sm }}>
-            Availability is required to receive bookings.
+          <Text testID="onb-hint" style={s.hint}>Set your weekly hours to start receiving bookings.</Text>
+        )}
+        {canFinish && (
+          <Text testID="onb-recs" style={s.recs}>
+            You're all set. Add portfolio photos or apply for Verified Pro anytime from Profile → Improve My Profile.
           </Text>
         )}
       </View>
@@ -78,16 +131,23 @@ export default function ProOnboarding() {
 }
 
 const s = StyleSheet.create({
-  eyebrow: { color: colors.brand, letterSpacing: 3, fontSize: 10, fontFamily: font.bodyMed },
-  title: { fontFamily: font.display, fontSize: 32, lineHeight: 38, color: colors.onSurface, marginTop: spacing.sm },
-  sub: { fontFamily: font.body, color: colors.onSurfaceTertiary, marginTop: spacing.md, marginBottom: spacing.xl },
-  step: { flexDirection: "row", gap: spacing.md, alignItems: "center", padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, marginBottom: spacing.sm },
-  stepBadge: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colors.borderStrong, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceSecondary },
-  stepBadgeDone: { backgroundColor: colors.success, borderColor: colors.success },
-  stepBadgeNum: { fontFamily: font.bodyBold, color: colors.onSurface },
-  stepTitle: { fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 15 },
-  stepDesc: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 12, marginTop: 2 },
-  required: { fontFamily: font.bodyBold, color: colors.warning, fontSize: 9, letterSpacing: 1 },
-  finishBtn: { backgroundColor: colors.brand, padding: spacing.lg, borderRadius: radii.md, alignItems: "center", marginTop: spacing.xl },
+  liveBadge: { flexDirection: "row", alignItems: "center", gap: spacing.sm, alignSelf: "flex-start", paddingHorizontal: spacing.md, paddingVertical: spacing.xs, backgroundColor: colors.brandTertiary, borderRadius: radii.pill },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.success },
+  liveBadgeText: { fontFamily: font.bodyBold, color: colors.brand, fontSize: 10, letterSpacing: 1.5 },
+  title: { fontFamily: font.display, fontSize: 32, lineHeight: 38, color: colors.onSurface, marginTop: spacing.md },
+  sub: { fontFamily: font.body, color: colors.onSurfaceTertiary, marginTop: spacing.md, fontSize: 14, lineHeight: 20 },
+  sectionTitle: { fontFamily: font.bodyBold, color: colors.onSurfaceSecondary, fontSize: 11, letterSpacing: 2, marginTop: spacing.xl, marginBottom: spacing.sm },
+  item: { flexDirection: "row", gap: spacing.md, alignItems: "center", padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, marginBottom: spacing.sm },
+  itemDone: { backgroundColor: colors.brandTertiary, borderColor: colors.brand },
+  check: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: colors.brand, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" },
+  checkDone: { backgroundColor: colors.success, borderColor: colors.success },
+  bullet: { width: 32, height: 32, borderRadius: 16, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceSecondary },
+  itemTitle: { fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 15 },
+  itemDesc: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 12, marginTop: 2, lineHeight: 17 },
+  optionalTag: { fontFamily: font.bodyMed, color: colors.onSurfaceTertiary, fontSize: 9, letterSpacing: 1.5, paddingHorizontal: spacing.xs, paddingVertical: 1, borderRadius: 4, backgroundColor: colors.surfaceSecondary },
+  finishBtn: { backgroundColor: colors.brand, padding: spacing.lg, borderRadius: radii.md, alignItems: "center", marginTop: spacing.xxl },
+  finishBtnDisabled: { backgroundColor: colors.surfaceSecondary },
   finishText: { color: "#fff", fontFamily: font.bodyBold, fontSize: 15 },
+  hint: { color: colors.onSurfaceSecondary, fontFamily: font.body, fontSize: 13, textAlign: "center", marginTop: spacing.md },
+  recs: { color: colors.onSurfaceTertiary, fontFamily: font.body, fontSize: 12, textAlign: "center", marginTop: spacing.md, lineHeight: 18 },
 });

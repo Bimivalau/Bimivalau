@@ -190,6 +190,7 @@ class PortfolioItemIn(BaseModel):
     hairstyle_id: str
     photo_url: str
     caption: Optional[str] = ""
+    public_id: Optional[str] = None  # Cloudinary public_id (populated for new uploads)
 
 class AvailabilityIn(BaseModel):
     day_of_week: int  # 0=Mon..6=Sun
@@ -816,6 +817,166 @@ async def delete_portfolio(item_id: str, user: UserOut = Depends(get_user)):
     return {"ok": True}
 
 
+# ---------- Cloudinary Signed Media ----------
+from media import SignRequest as _MediaSignRequest, build_sign_response as _build_sign, is_configured as _cloudinary_ok, signed_delivery_url as _signed_delivery_url  # noqa: E402
+
+
+class _MediaCompleteIn(BaseModel):
+    context: Literal["portfolio", "style_catalog", "avatar", "license", "booking"]
+    secure_url: str
+    public_id: str
+    # per-context extras
+    hairstyle_id: Optional[str] = None
+    caption: Optional[str] = ""
+    booking_id: Optional[str] = None
+    hairdresser_id: Optional[str] = None
+    bytes: Optional[int] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+
+
+@api.get("/media/config")
+async def media_config():
+    """Public read of what's configured (no secrets)."""
+    return {"cloudinary_configured": _cloudinary_ok()}
+
+
+@api.post("/media/sign")
+async def media_sign(body: _MediaSignRequest, user: UserOut = Depends(get_user)):
+    """
+    Return signed upload params so the mobile client can POST the image
+    directly to Cloudinary. Backend never sees the bytes.
+
+    Free-tier portfolio cap enforced here (5 photos).
+    """
+    if not _cloudinary_ok():
+        raise HTTPException(503, "Image upload is not configured yet. Ask admin to add Cloudinary keys.")
+
+    # Enforce ownership + tier limits based on context
+    if body.context == "portfolio":
+        if user.role != "hairdresser":
+            raise HTTPException(403, "Only hairdressers can upload portfolio photos.")
+        body.hairdresser_id = user.id
+        count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
+        if user.plan == "standard" and count >= 5:
+            raise HTTPException(402, "Free plan is capped at 5 portfolio photos. Upgrade to unlock more.")
+    elif body.context == "license":
+        if user.role != "hairdresser":
+            raise HTTPException(403, "Only hairdressers can upload verification documents.")
+        body.hairdresser_id = user.id
+    elif body.context == "avatar":
+        body.user_id = user.id
+    elif body.context == "style_catalog":
+        if user.role != "admin":
+            raise HTTPException(403, "Only admins can upload catalog style photos.")
+    elif body.context == "booking":
+        if not body.booking_id:
+            raise HTTPException(400, "booking_id required for booking uploads.")
+        b = await db.bookings.find_one({"id": body.booking_id})
+        if not b:
+            raise HTTPException(404, "Booking not found")
+        if user.id not in (b.get("customer_id"), b.get("hairdresser_id")):
+            raise HTTPException(403, "Not your booking.")
+    return _build_sign(body).dict()
+
+
+@api.post("/media/complete")
+async def media_complete(body: _MediaCompleteIn, user: UserOut = Depends(get_user)):
+    """
+    Persist the Cloudinary asset metadata after a successful upload.
+    Called by the client with the JSON that Cloudinary returned.
+    """
+    # Basic validation: the returned public_id must live in the expected folder
+    expected_prefixes = {
+        "portfolio": f"braidscommunity/portfolio/{user.id}/",
+        "avatar": f"braidscommunity/profiles/{user.id}/",
+        "license": f"braidscommunity/verification/{user.id}/",
+        "style_catalog": "braidscommunity/styles/",
+        "booking": "braidscommunity/bookings/",
+    }
+    prefix = expected_prefixes.get(body.context, "")
+    if prefix and not body.public_id.startswith(prefix):
+        raise HTTPException(400, f"public_id must live under {prefix}")
+
+    if body.context == "portfolio":
+        if user.role != "hairdresser":
+            raise HTTPException(403, "Only hairdressers can save portfolio photos.")
+        if not body.hairstyle_id:
+            raise HTTPException(400, "hairstyle_id required for portfolio photos.")
+        count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
+        if user.plan == "standard" and count >= 5:
+            raise HTTPException(402, "Free plan is capped at 5 portfolio photos.")
+        item = {
+            "id": str(uuid.uuid4()),
+            "hairdresser_id": user.id,
+            "hairstyle_id": body.hairstyle_id,
+            "photo_url": body.secure_url,
+            "public_id": body.public_id,
+            "caption": body.caption or "",
+        }
+        await db.portfolio_items.insert_one(item)
+        return clean(item)
+
+    if body.context == "avatar":
+        await db.users.update_one(
+            {"id": user.id},
+            {"$set": {"profile_photo": body.secure_url, "profile_photo_public_id": body.public_id}},
+        )
+        return {"ok": True, "profile_photo": body.secure_url}
+
+    if body.context == "license":
+        if user.role != "hairdresser":
+            raise HTTPException(403, "Only hairdressers.")
+        # License URL is NOT returned publicly — stored as private; admin gets a signed delivery URL.
+        await db.hairdressers.update_one(
+            {"user_id": user.id},
+            {"$set": {
+                "license_url": body.secure_url,  # authenticated — needs signed URL to view
+                "license_public_id": body.public_id,
+                "verification_status": "pending",
+            }},
+        )
+        return {"ok": True, "verification_status": "pending"}
+
+    if body.context == "booking":
+        if not body.booking_id:
+            raise HTTPException(400, "booking_id required.")
+        await db.booking_photos.insert_one({
+            "id": str(uuid.uuid4()),
+            "booking_id": body.booking_id,
+            "uploaded_by": user.id,
+            "photo_url": body.secure_url,
+            "public_id": body.public_id,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        return {"ok": True}
+
+    if body.context == "style_catalog":
+        if user.role != "admin":
+            raise HTTPException(403, "Admins only.")
+        # Style catalog photos are attached to a hairstyle by admin flow (out of scope here — return meta).
+        return {"ok": True, "secure_url": body.secure_url, "public_id": body.public_id}
+
+    raise HTTPException(400, f"Unknown context: {body.context}")
+
+
+@api.get("/admin/license-url/{hairdresser_user_id}")
+async def admin_license_url(hairdresser_user_id: str, user: UserOut = Depends(get_user)):
+    """
+    Return a short-lived SIGNED delivery URL for viewing a hairdresser's uploaded license.
+    Admin-only. Never proxies the image bytes.
+    """
+    _require_admin(user)
+    hd = await db.hairdressers.find_one({"user_id": hairdresser_user_id}, {"_id": 0})
+    if not hd or not hd.get("license_public_id"):
+        raise HTTPException(404, "No license on file.")
+    try:
+        url = _signed_delivery_url(hd["license_public_id"], expires_in=1800)  # 30 min
+    except Exception as e:
+        raise HTTPException(500, str(e))
+    return {"url": url, "expires_in": 1800}
+
+
 # ---------- Specialties ----------
 @api.put("/specialties/me")
 async def update_specialties(body: SpecialtyIn, user: UserOut = Depends(get_user)):
@@ -1143,12 +1304,11 @@ async def create_report(body: ReportIn, user: UserOut = Depends(get_user)):
 async def mark_onboarding_complete(user: UserOut = Depends(get_user)):
     if user.role != "hairdresser":
         raise HTTPException(403, "Only hairdressers")
-    # Minimum onboarding = at least one specialty + one availability slot
-    hd = await db.hairdressers.find_one({"user_id": user.id}, {"_id": 0}) or {}
-    has_specialty = bool(hd.get("specialty_ids"))
+    # Only weekly availability is required to activate bookings.
+    # Portfolio, verification, bio, salon name, license — all optional (never block onboarding).
     has_avail = await db.availability.count_documents({"hairdresser_id": user.id}) > 0
-    if not (has_specialty and has_avail):
-        raise HTTPException(400, "Add at least one specialty and one weekly availability window before finishing setup.")
+    if not has_avail:
+        raise HTTPException(400, "Set your weekly hours to start receiving bookings.")
     await db.hairdressers.update_one({"user_id": user.id}, {"$set": {"onboarding_completed": True}})
     return {"ok": True}
 
