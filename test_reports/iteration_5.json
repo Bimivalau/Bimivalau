@@ -1,0 +1,46 @@
+{
+  "summary": "Iteration 5 Part 1 (Welcome/Sign-in/Register/Verify-email/Navigation) verified end-to-end. Backend: 102/102 pytest PASS (85 prior regression + 17 new iter5 in test_iteration5.py). All spec items verified: (1) POST /auth/register with accept_terms=true stores email_verified=false + terms_accepted_at ISO timestamp (verified via direct Mongo read); with accept_terms=false terms_accepted_at is null; still returns TokenOut. (2) POST /auth/send-verification returns dev_code (6-digit numeric) + resend_after_sec=45 + delivered_via_email=false when SENDGRID_API_KEY unset; second immediate call returns 429 with 'wait Ns' detail (cooldown honored). (3) POST /auth/verify-email with wrong code -> 400 'Incorrect code — please double-check and try again.'; correct code -> {ok:true, email_verified:true} and /auth/me now shows email_verified=true; expired code (backdated via Mongo) -> 400 with 'expired' in detail; non-numeric/short code -> 400. (4) POST /auth/change-email lowercases new email, invalidates prior codes (subsequent verify -> 400 'No active verification code'), sets email_verified=false, updates users.email. (5) POST /customers/me/profile stores country+city+profile_completed=true; hairdressers -> 403. (6) POST /hairdressers/me/basics stores country/service_area/salon_name/bio and updates user.name when display_name provided; customers -> 403. (7) Regression: sara/amara/admin login all 200 with email_verified=true (backfill confirmed). All existing bookings/subscriptions/admin/google/hairstyles endpoints still pass (73 regression tests all green). Frontend (mobile viewport 390x844): /welcome renders hero + 'How do you want to start?' + lang-picker (English · Français coming soon) + explain paragraph + welcome-customer + welcome-braider + welcome-existing + welcome-google. Demo credentials NOT visible on /welcome or /login. /login: login-email starts empty (no pre-fill), login-toggle-pw eye works, forgot-password reveals forgot-msg 'coming soon' copy, go-register routes to /welcome (Path C ✓). Customer register (/register?role=customer) has NO reg-phone field, has register-back arrow, terms checkbox, submit routes to /verify-email (Path A ✓). Braider register (/register?role=hairdresser) shows reg-phone with privacy note (Path B form ✓). /verify-email shows 6 digit boxes (digit-0..5), dev-code-banner with actual 6-digit code (extracted '091556' in this run), wrong code -> verify-err 'Incorrect code — please double-check and try again.', correct code -> routes customer to /customer/profile (cp-country/cp-city). Resend countdown 'Resend in 44s' visible after send. Note: MOCKED SendGrid — dev_code exposed in banner (working as designed).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "verify-email.tsx", "issue": "When user is already email_verified and re-visits /verify-email, backend returns {already_verified: true} (no 'email' field) but frontend still shows `Code sent to ${r.email}` -> renders 'Code sent to undefined'. Also sets cooldown to 45 unnecessarily. Should early-return / navigate away instead. Reference: /app/frontend/app/verify-email.tsx:24-35.", "testID": "verify-email", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration5.py",
+    "/app/backend/tests/test_iteration4.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_braids_api.py",
+    "/app/test_reports/pytest/iteration5_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "LOW: In /app/frontend/app/verify-email.tsx sendCode(), if response.already_verified === true, skip setting info/cooldown and router.replace to the correct next screen (customer -> /customer/profile if no country, else /(tabs)/home; hairdresser -> /pro/onboarding). Fixes 'Code sent to undefined' cosmetic bug when returning to /verify-email after verification.",
+    "LOW: Consider surfacing dev_code copy affordance (tap-to-copy) in dev-code-banner to speed up manual QA. Current copy is fine but not selectable easily on mobile web.",
+    "INFO: /welcome lang-picker (globe pill) is a no-op — that's OK per spec ('language selector placeholder')."
+  ],
+  "critical_code_review_comments": [
+    "server.py:280 stores terms_accepted_at only when accept_terms=true, null otherwise — matches spec.",
+    "server.py:339-355 _send_verification_email correctly falls back to dev-mode log + returns False when SENDGRID_KEY empty; caller adds dev_code to response only when delivered==False. Clean.",
+    "server.py:363-368 resend cooldown reads most-recent code by created_at DESC — correct. Elapsed math uses timezone-aware datetimes consistently.",
+    "server.py:391-403 verify-email guards order is correct: format -> active-code exists -> expiry -> match. Only mutates users.email_verified on match. Attempts counter increments on wrong code (good for future rate-limiting).",
+    "server.py:407-414 change-email lowercases new email, checks collision (excludes self), invalidates codes via consumed=true. However it does NOT auto-send a new code — frontend re-triggers send-verification in the finally branch of changeEmail(). Works, but a nicer server-side behavior would be to auto-generate a fresh code on change and return it. Minor.",
+    "server.py:430-440 pro-basics also mirrors service_area into 'city' on the hairdresser doc (see line 434) — this is by design since service_area is the public-facing city. Confirmed.",
+    "Frontend /register.tsx correctly gates submit with (!isPro || phone.trim().length >= 4) — phone required only for pros.",
+    "verify-email.tsx setCooldown default of 45 when server omits resend_after_sec is safe fallback but hides the already_verified case — see action item above.",
+    "Path H (Sign Out -> /welcome) not directly tested in this run but Sign Out handlers on customer profile/pro dashboard/admin were unchanged from iter4 which was verified. No code change to signOut path in iter5."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration5.py (new — 17 tests covering register+terms, send-verification cooldown+dev_code, verify wrong/correct/expired/format, change-email, customer profile completion, pro basics, seeded login regression)"
+  ],
+  "success_rate": {"backend": "100% (102/102 pytest, incl. 17 new iter5)", "frontend": "100% for iter5 spec items tested: /welcome, /login, /register?role=customer, /register?role=hairdresser, /verify-email (dev banner, wrong/correct code, route to /customer/profile), Path A/B form/Path C nav all PASS. One LOW-priority cosmetic bug on repeat visit to /verify-email after already verified."},
+  "seed_data_creation": "17 TEST_*@iter5.example.com users created by pytest; all cleaned up via session-scoped autouse fixture in test_iteration5.py. One e2e_<ts>@iter5.example.com user created by Playwright frontend run (not auto-cleaned but harmless — email_verified=true customer with no profile).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend/tests && python -m pytest -v --junitxml=/app/test_reports/pytest/pytest_results.xml (102 tests, ~42s). Iter5 endpoints: POST /auth/register (accept_terms bool, phone optional, sets email_verified=false + terms_accepted_at); POST /auth/send-verification (auth required, returns dev_code+resend_after_sec=45 in dev mode, 429 on rapid retry); POST /auth/verify-email {code:'6digits'} (400 for wrong/expired/short); POST /auth/change-email {new_email} (lowercases, invalidates codes, resets email_verified); POST /customers/me/profile {country,city} (customers only); POST /hairdressers/me/basics {display_name?,country,service_area,salon_name?,bio?} (pros only, updates users.name if display_name given). Frontend testIDs: welcome-{customer,braider,existing,google}, lang-picker, register-back, reg-{name,email,password,confirm,phone,toggle-pw,accept,submit,error}, verify-{back,submit,resend,err}, dev-code-banner, digit-0..5, change-email-{open,input,save,cancel}, cp-{back,country,city,submit,err}. Path routing: Register->/verify-email; verify (customer)->/customer/profile->/(tabs)/home; verify (hairdresser)->/pro/onboarding->/pro/dashboard. Login (sara)->/(tabs)/home direct (email_verified=true+customer). SENDGRID_API_KEY intentionally unset — dev_code banner is expected UX. Do NOT flag the yellow dev-mode banner as a bug — it's spec.",
+  "rca_of_issue": "'Code sent to undefined' bug: /app/frontend/app/verify-email.tsx line 27-29 `setInfo(\\`Code sent to ${r.email}\\`)` — when backend early-returns `{already_verified: true}` (server.py:361-362) the `r.email` is undefined, template literal renders 'undefined'. Reproduction: 1) Register a fresh customer, 2) enter correct dev_code and complete verification, 3) manually navigate back to /verify-email (or refresh) -> banner shows 'Code sent to undefined' and idle Resend countdown. Mitigation: guard `if (r.already_verified) { router.replace(...) ; return; }` at the top of sendCode() before setting info/cooldown. Single-line fix, safe."
+}

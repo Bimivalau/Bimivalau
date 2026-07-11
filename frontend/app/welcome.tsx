@@ -4,6 +4,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState } from "react";
+import { Feather } from "@expo/vector-icons";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
 
@@ -38,9 +39,15 @@ export default function Welcome() {
         </View>
 
         <View style={{ padding: spacing.xl, gap: spacing.md, backgroundColor: colors.surfaceInverse }}>
+          <Pressable testID="lang-picker" onPress={() => { /* language switching coming soon */ }} style={s.langRow}>
+            <Feather name="globe" size={14} color="#F9F6F0" />
+            <Text style={s.langText}>English</Text>
+            <Text style={s.langHint}>· Français coming soon</Text>
+          </Pressable>
           <Text style={s.chooseTitle}>How do you want to start?</Text>
+          <Text style={s.explain}>BraidsCommunity is a booking marketplace for braid artists — discover portfolios, reserve a chair, pay at the salon. Simple.</Text>
 
-          <Pressable testID="welcome-customer" onPress={() => router.push("/login?role=customer")} style={s.roleCard}>
+          <Pressable testID="welcome-customer" onPress={() => router.push("/register?role=customer")} style={s.roleCard}>
             <View style={{ flex: 1 }}>
               <Text style={s.roleTitle}>I'm a Customer</Text>
               <Text style={s.roleDesc}>Find braid artists near you and book your next appointment.</Text>
@@ -81,6 +88,10 @@ const s = StyleSheet.create({
   hero: { color: "#F9F6F0", fontFamily: font.display, fontSize: 48, lineHeight: 52 },
   sub: { color: "#F9F6F0", opacity: 0.85, fontFamily: font.body, fontSize: 15, marginTop: spacing.md, maxWidth: 320 },
   chooseTitle: { color: "#F9F6F0", fontFamily: font.displayIt, fontSize: 20, marginTop: spacing.lg, marginBottom: spacing.md },
+  explain: { color: "#F9F6F0", opacity: 0.7, fontFamily: font.body, fontSize: 13, lineHeight: 19, marginBottom: spacing.md },
+  langRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center", alignSelf: "flex-start", paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderWidth: 1, borderColor: "rgba(255,255,255,0.25)", borderRadius: radii.pill },
+  langText: { color: "#F9F6F0", fontFamily: font.bodyMed, fontSize: 12, letterSpacing: 1 },
+  langHint: { color: "#F9F6F0", opacity: 0.5, fontFamily: font.body, fontSize: 11 },
   roleCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.lg, backgroundColor: "#F9F6F0", borderRadius: radii.md },
   roleCardBraider: { backgroundColor: colors.brand },
   roleTitle: { fontFamily: font.display, fontSize: 22, color: colors.onSurface },

@@ -49,6 +49,7 @@ class UserOut(BaseModel):
     plan: Plan = "standard"
     profile_photo: Optional[str] = None
     phone: Optional[str] = None  # only populated on /auth/me self endpoint
+    email_verified: bool = False
 
 class VerificationSubmitIn(BaseModel):
     # Either a URL or a base64 data-URI string (e.g. "data:image/jpeg;base64,....")
@@ -67,13 +68,35 @@ class RegisterIn(BaseModel):
     name: str
     role: Literal["customer", "hairdresser"] = "customer"
     phone: Optional[str] = None
-    # Pro-only extended fields (required for hairdressers, ignored for customers)
+    accept_terms: bool = False
+    # Pro extended fields — now OPTIONAL at register time (collected during onboarding)
     bio: Optional[str] = None
     service_area: Optional[str] = None
     salon_name: Optional[str] = None
     address: Optional[str] = None
     city: Optional[str] = None
     specialty_ids: Optional[List[str]] = None
+
+class SendVerificationIn(BaseModel):
+    pass  # uses caller's identity
+
+class VerifyEmailIn(BaseModel):
+    code: str
+
+class ChangeEmailIn(BaseModel):
+    new_email: EmailStr
+
+class CustomerProfileIn(BaseModel):
+    country: str
+    city: str
+    profile_photo: Optional[str] = None  # base64 or URL
+
+class ProBasicsIn(BaseModel):
+    display_name: Optional[str] = None
+    country: str
+    service_area: str
+    salon_name: Optional[str] = None
+    bio: Optional[str] = None
 
 class CustomerRatingIn(BaseModel):
     booking_id: str
@@ -185,7 +208,8 @@ async def user_from_doc(u: dict, include_phone: bool = False) -> UserOut:
     return UserOut(id=u["id"], email=u["email"], name=u["name"], role=u["role"],
                    plan=u.get("plan", "standard"),
                    phone=u.get("phone") if include_phone else None,
-                   profile_photo=u.get("profile_photo"))
+                   profile_photo=u.get("profile_photo"),
+                   email_verified=bool(u.get("email_verified", False)))
 
 async def get_user(cred: Optional[HTTPAuthorizationCredentials] = Depends(security)) -> UserOut:
     if not cred:
@@ -252,6 +276,8 @@ async def register(body: RegisterIn):
         "created_at": now.isoformat(),
         "profile_photo": None,
         "flag_count": 0, "booking_restricted": False,
+        "email_verified": False,
+        "terms_accepted_at": now.isoformat() if body.accept_terms else None,
     }
     await db.users.insert_one(doc)
 
@@ -303,6 +329,117 @@ async def login(body: LoginIn):
     if not u or not u.get("password_hash") or not verify_pw(body.password, u["password_hash"]):
         raise HTTPException(401, "Invalid credentials")
     return TokenOut(access_token=make_token(u["id"], u["role"]), user=await user_from_doc(u))
+
+# ---------- Email verification ----------
+EMAIL_CODE_TTL_MIN = 10
+RESEND_COOLDOWN_SEC = 45
+SENDGRID_KEY = os.environ.get("SENDGRID_API_KEY", "").strip()
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "noreply@braidscommunity.app").strip()
+
+async def _send_verification_email(to: str, code: str) -> bool:
+    """Deliver via SendGrid if configured; otherwise log to console.
+    Returns True on actual email delivery; caller decides dev-fallback behaviour."""
+    if not SENDGRID_KEY:
+        log.warning(f"[MOCKED EMAIL] Verification code for {to}: {code} (SENDGRID_API_KEY not set)")
+        return False
+    try:
+        from sendgrid import SendGridAPIClient
+        from sendgrid.helpers.mail import Mail
+        msg = Mail(from_email=SENDER_EMAIL, to_emails=to,
+                   subject="Your BraidsCommunity verification code",
+                   html_content=f"<p>Your code:</p><p style='font-size:28px;letter-spacing:6px'><strong>{code}</strong></p><p>Expires in 10 minutes.</p>")
+        SendGridAPIClient(SENDGRID_KEY).send(msg)
+        return True
+    except Exception as e:
+        log.error(f"SendGrid delivery failed: {e}")
+        return False
+
+
+@api.post("/auth/send-verification")
+async def send_verification(user: UserOut = Depends(get_user)):
+    u = await db.users.find_one({"id": user.id}, {"_id": 0})
+    if u.get("email_verified"):
+        return {"already_verified": True}
+    now = datetime.now(timezone.utc)
+    last = await db.email_verification_codes.find_one({"user_id": user.id}, sort=[("created_at", -1)])
+    if last:
+        elapsed = (now - datetime.fromisoformat(last["created_at"])).total_seconds()
+        if elapsed < RESEND_COOLDOWN_SEC:
+            raise HTTPException(429, f"Please wait {int(RESEND_COOLDOWN_SEC - elapsed)}s before requesting another code.")
+    code = "".join(secrets.choice(string.digits) for _ in range(6))
+    await db.email_verification_codes.insert_one({
+        "id": str(uuid.uuid4()), "user_id": user.id, "email": u["email"],
+        "code": code, "attempts": 0,
+        "created_at": now.isoformat(),
+        "expires_at": (now + timedelta(minutes=EMAIL_CODE_TTL_MIN)).isoformat(),
+        "consumed": False,
+    })
+    delivered = await _send_verification_email(u["email"], code)
+    resp: dict = {"sent": True, "email": u["email"], "expires_in_sec": EMAIL_CODE_TTL_MIN * 60,
+                  "resend_after_sec": RESEND_COOLDOWN_SEC, "delivered_via_email": delivered}
+    if not delivered:
+        resp["dev_code"] = code
+        resp["dev_notice"] = "SendGrid not configured — set SENDGRID_API_KEY + SENDER_EMAIL to deliver real emails."
+    return resp
+
+
+@api.post("/auth/verify-email")
+async def verify_email(body: VerifyEmailIn, user: UserOut = Depends(get_user)):
+    code = body.code.strip()
+    if not code.isdigit() or len(code) != 6:
+        raise HTTPException(400, "Enter the 6-digit code from your email.")
+    entry = await db.email_verification_codes.find_one(
+        {"user_id": user.id, "consumed": False}, sort=[("created_at", -1)]
+    )
+    if not entry:
+        raise HTTPException(400, "No active verification code. Tap Resend to get a new one.")
+    if datetime.fromisoformat(entry["expires_at"]) < datetime.now(timezone.utc):
+        raise HTTPException(400, "That code has expired. Tap Resend to get a fresh code.")
+    if entry["code"] != code:
+        await db.email_verification_codes.update_one({"id": entry["id"]}, {"$inc": {"attempts": 1}})
+        raise HTTPException(400, "Incorrect code — please double-check and try again.")
+    await db.email_verification_codes.update_one({"id": entry["id"]}, {"$set": {"consumed": True}})
+    await db.users.update_one({"id": user.id}, {"$set": {"email_verified": True}})
+    return {"ok": True, "email_verified": True}
+
+
+@api.post("/auth/change-email")
+async def change_email(body: ChangeEmailIn, user: UserOut = Depends(get_user)):
+    new_email = body.new_email.lower().strip()
+    existing = await db.users.find_one({"email": new_email})
+    if existing and existing["id"] != user.id:
+        raise HTTPException(400, "That email is already in use.")
+    await db.users.update_one({"id": user.id}, {"$set": {"email": new_email, "email_verified": False}})
+    await db.email_verification_codes.update_many({"user_id": user.id, "consumed": False}, {"$set": {"consumed": True}})
+    return {"ok": True, "email": new_email}
+
+
+# ---------- Post-verify profile completion ----------
+@api.post("/customers/me/profile")
+async def complete_customer_profile(body: CustomerProfileIn, user: UserOut = Depends(get_user)):
+    if user.role != "customer":
+        raise HTTPException(403, "Customers only")
+    await db.users.update_one({"id": user.id}, {"$set": {
+        "country": body.country, "city": body.city,
+        "profile_photo": body.profile_photo or None,
+        "profile_completed": True,
+    }})
+    return {"ok": True}
+
+
+@api.post("/hairdressers/me/basics")
+async def save_pro_basics(body: ProBasicsIn, user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Hairdressers only")
+    updates = {"country": body.country, "service_area": body.service_area, "city": body.service_area}
+    if body.salon_name is not None: updates["salon_name"] = body.salon_name
+    if body.bio is not None: updates["bio"] = body.bio
+    if body.display_name:
+        await db.users.update_one({"id": user.id}, {"$set": {"name": body.display_name}})
+    await db.hairdressers.update_one({"user_id": user.id}, {"$set": updates})
+    return {"ok": True}
+
+
 
 
 @api.post("/auth/google", response_model=TokenOut)

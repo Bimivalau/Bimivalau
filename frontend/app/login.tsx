@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
 
@@ -11,10 +12,12 @@ export default function Login() {
   const { signIn, signInWithGoogle } = useSession();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [email, setEmail] = useState("sara@braids.demo");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [forgot, setForgot] = useState(false);
 
   const submit = async () => {
     setErr(null); setBusy(true);
@@ -51,7 +54,20 @@ export default function Login() {
           <Text style={styles.label}>Email</Text>
           <TextInput testID="login-email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={styles.input} placeholderTextColor={colors.muted} />
           <Text style={styles.label}>Password</Text>
-          <TextInput testID="login-password" value={password} onChangeText={setPassword} secureTextEntry style={styles.input} placeholderTextColor={colors.muted} />
+          <View style={{ flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderColor: colors.borderStrong }}>
+            <TextInput testID="login-password" value={password} onChangeText={setPassword} secureTextEntry={!showPw} style={[styles.input, { flex: 1, borderBottomWidth: 0 }]} placeholderTextColor={colors.muted} />
+            <Pressable testID="login-toggle-pw" onPress={() => setShowPw(v => !v)} style={{ padding: spacing.sm }}>
+              <Feather name={showPw ? "eye-off" : "eye"} size={18} color={colors.muted} />
+            </Pressable>
+          </View>
+          <Pressable testID="forgot-password" onPress={() => setForgot(true)} style={{ alignSelf: "flex-end", padding: spacing.xs }}>
+            <Text style={{ fontFamily: font.bodyMed, color: colors.brand, fontSize: 12 }}>Forgot password?</Text>
+          </Pressable>
+          {forgot && (
+            <Text testID="forgot-msg" style={{ color: colors.muted, fontFamily: font.body, fontSize: 12 }}>
+              Password reset via email is coming soon. For now, contact support@braidscommunity.app.
+            </Text>
+          )}
           {err && <Text testID="login-error" style={styles.err}>{err}</Text>}
           <Pressable testID="login-submit" onPress={submit} disabled={busy} style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]}>
             <Text style={styles.btnText}>{busy ? "Signing in…" : "Sign in"}</Text>
@@ -71,7 +87,6 @@ export default function Login() {
           <Pressable testID="go-register" onPress={() => router.push("/welcome")}>
             <Text style={styles.link}>New here? Get started →</Text>
           </Pressable>
-          <Text style={styles.demo}>Customer: sara@braids.demo · demo1234{"\n"}Pro: amara@braids.demo · demo1234{"\n"}Admin: admin@braids.demo · demo1234{"\n"}(All accounts use password: demo1234)</Text>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
