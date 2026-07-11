@@ -163,6 +163,15 @@ class HairstyleIn(BaseModel):
     avg_price: float
     avg_duration_min: int
     cover_photo: str
+    # New Sprint 2 fields (all optional so existing records remain valid)
+    difficulty: Optional[Literal["Easy", "Medium", "Advanced", "Expert"]] = "Medium"
+    hair_length: Optional[Literal["Short", "Mid-length", "Long", "Extra Long"]] = "Long"
+    maintenance: Optional[Literal["Low", "Medium", "High"]] = "Low"
+    lasts_weeks: Optional[int] = 6
+    tags: Optional[List[str]] = []           # ["trending","new","bridal","vacation","kids","office","event","most_loved","protective","luxury","natural","celebrity","color","quick"]
+    style_score: Optional[float] = 0.0       # 0..100 aggregated popularity
+    saves_count: Optional[int] = 0
+    recommended_for: Optional[List[str]] = []  # ["Children","Adults","Natural Hair","Relaxed Hair","Vacation","Wedding","Office"]
 
 class Hairstyle(HairstyleIn):
     id: str
@@ -660,10 +669,65 @@ async def subscribe(body: SubscribeIn, user: UserOut = Depends(get_user)):
 
 
 # ---------- Hairstyles ----------
-@api.get("/hairstyles", response_model=List[Hairstyle])
-async def list_hairstyles(category: Optional[str] = None):
-    q = {"category": category} if category else {}
-    items = await db.hairstyles.find(q, {"_id": 0}).to_list(200)
+@api.get("/hairstyles")
+async def list_hairstyles(
+    category: Optional[str] = None,
+    tag: Optional[str] = None,
+    section: Optional[str] = None,
+    limit: int = 200,
+    user: Optional[UserOut] = Depends(maybe_user),
+):
+    """
+    List hairstyles with optional filters:
+      - category:  exact category name
+      - tag:       any tag in `tags[]` (trending, new, bridal, kids, vacation, office, event, most_loved, ...)
+      - section:   canonical section name — mapped to a tag or sort
+    Adds computed fields per row: nearby_pros_count, is_saved (if user).
+    """
+    q: dict = {}
+    if category:
+        q["category"] = category
+    if tag:
+        q["tags"] = tag
+    # Section aliases → tag or sort strategy
+    sort = [("style_score", -1)]
+    if section:
+        alias = {
+            "trending": "trending",
+            "new": "new",
+            "most_loved": "most_loved",
+            "vacation": "vacation",
+            "bridal": "bridal",
+            "kids": "kids",
+            "office": "office",
+            "event": "event",
+            "protective": "protective",
+            "luxury": "luxury",
+            "celebrity": "celebrity",
+            "natural": "natural",
+            "color": "color",
+            "quick": "quick",
+        }
+        if section in alias:
+            q["tags"] = alias[section]
+        if section == "new":
+            sort = [("created_at", -1)]
+        if section == "most_loved":
+            sort = [("saves_count", -1)]
+
+    items = await db.hairstyles.find(q, {"_id": 0}).sort(sort).to_list(limit)
+    # Per-style nearby pros count (approximate — count of pros whose specialties include this style id)
+    for it in items:
+        it["nearby_pros_count"] = await db.hairdressers.count_documents({"specialty_ids": it["id"]})
+    # Saved flag for the caller
+    if user:
+        saved_ids = set(
+            r["hairstyle_id"] async for r in db.style_saves.find(
+                {"user_id": user.id, "hairstyle_id": {"$in": [i["id"] for i in items]}}, {"_id": 0}
+            )
+        )
+        for it in items:
+            it["is_saved"] = it["id"] in saved_ids
     return items
 
 @api.get("/hairstyles/categories")
@@ -671,11 +735,19 @@ async def hairstyle_categories():
     cats = await db.hairstyles.distinct("category")
     return {"categories": cats}
 
-@api.get("/hairstyles/{hid}", response_model=Hairstyle)
-async def get_hairstyle(hid: str):
+@api.get("/hairstyles/{hid}")
+async def get_hairstyle(hid: str, user: Optional[UserOut] = Depends(maybe_user)):
     h = await db.hairstyles.find_one({"id": hid}, {"_id": 0})
     if not h:
         raise HTTPException(404, "Not found")
+    h["nearby_pros_count"] = await db.hairdressers.count_documents({"specialty_ids": hid})
+    if user:
+        h["is_saved"] = await db.style_saves.count_documents({"user_id": user.id, "hairstyle_id": hid}) > 0
+    # Similar styles = same category, excluding self, top by score, 6 max
+    sim_cursor = db.hairstyles.find(
+        {"category": h.get("category"), "id": {"$ne": hid}}, {"_id": 0}
+    ).sort([("style_score", -1)]).limit(6)
+    h["similar"] = await sim_cursor.to_list(6)
     return h
 
 @api.get("/hairstyles/{hid}/hairdressers")
@@ -1163,6 +1235,171 @@ async def cancel_booking(bid: str, user: UserOut = Depends(get_user)):
     if not b or (b["customer_id"] != user.id and b["hairdresser_id"] != user.id):
         raise HTTPException(404, "Not found")
     await db.bookings.update_one({"id": bid}, {"$set": {"status": "cancelled"}})
+    return {"ok": True}
+
+
+# ---------- Style Saves & Collections ----------
+# A "collection" is an inspiration board owned by a customer. Every user gets
+# a set of default boards on first read. Saves are (user_id, hairstyle_id) with
+# an optional collection_id.
+
+DEFAULT_COLLECTIONS = ["Favorites", "Vacation", "Wedding", "Birthday", "Kids", "Next Appointment", "Summer"]
+
+async def _ensure_default_collections(user_id: str):
+    existing = await db.style_collections.count_documents({"user_id": user_id})
+    if existing:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    for name in DEFAULT_COLLECTIONS:
+        await db.style_collections.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user_id,
+            "name": name,
+            "created_at": now,
+            "is_default": True,
+        })
+
+
+class CollectionCreate(BaseModel):
+    name: str
+
+
+@api.get("/collections/me")
+async def list_my_collections(user: UserOut = Depends(get_user)):
+    await _ensure_default_collections(user.id)
+    cols = await db.style_collections.find({"user_id": user.id}, {"_id": 0}).sort([("is_default", -1), ("created_at", 1)]).to_list(100)
+    # attach count + preview cover
+    for c in cols:
+        saves = await db.style_saves.find({"user_id": user.id, "collection_ids": c["id"]}, {"_id": 0}).to_list(5)
+        c["saves_count"] = await db.style_saves.count_documents({"user_id": user.id, "collection_ids": c["id"]})
+        cover = None
+        if saves:
+            st = await db.hairstyles.find_one({"id": saves[0]["hairstyle_id"]}, {"_id": 0, "cover_photo": 1})
+            if st:
+                cover = st.get("cover_photo")
+        c["cover"] = cover
+    return cols
+
+
+@api.post("/collections/me")
+async def create_collection(body: CollectionCreate, user: UserOut = Depends(get_user)):
+    name = (body.name or "").strip()
+    if not name:
+        raise HTTPException(400, "Name required")
+    doc = {"id": str(uuid.uuid4()), "user_id": user.id, "name": name, "created_at": datetime.now(timezone.utc).isoformat(), "is_default": False}
+    await db.style_collections.insert_one(doc)
+    return clean(doc)
+
+
+@api.delete("/collections/me/{cid}")
+async def delete_collection(cid: str, user: UserOut = Depends(get_user)):
+    col = await db.style_collections.find_one({"id": cid, "user_id": user.id})
+    if not col:
+        raise HTTPException(404, "Not found")
+    if col.get("is_default"):
+        raise HTTPException(400, "Default boards cannot be deleted")
+    await db.style_collections.delete_one({"id": cid})
+    await db.style_saves.update_many({"user_id": user.id}, {"$pull": {"collection_ids": cid}})
+    return {"ok": True}
+
+
+class SaveIn(BaseModel):
+    hairstyle_id: str
+    collection_ids: Optional[List[str]] = None  # empty = save to Favorites default
+
+
+@api.post("/style-saves")
+async def toggle_save(body: SaveIn, user: UserOut = Depends(get_user)):
+    """Save (or add to more boards) a hairstyle. Idempotent."""
+    st = await db.hairstyles.find_one({"id": body.hairstyle_id}, {"_id": 0, "id": 1})
+    if not st:
+        raise HTTPException(404, "Hairstyle not found")
+    await _ensure_default_collections(user.id)
+    # Resolve collections
+    cols = body.collection_ids or []
+    if not cols:
+        fav = await db.style_collections.find_one({"user_id": user.id, "name": "Favorites"}, {"_id": 0})
+        if fav:
+            cols = [fav["id"]]
+    existing = await db.style_saves.find_one({"user_id": user.id, "hairstyle_id": body.hairstyle_id})
+    if existing:
+        merged = list({*(existing.get("collection_ids") or []), *cols})
+        await db.style_saves.update_one({"_id": existing["_id"]}, {"$set": {"collection_ids": merged}})
+    else:
+        await db.style_saves.insert_one({
+            "id": str(uuid.uuid4()),
+            "user_id": user.id,
+            "hairstyle_id": body.hairstyle_id,
+            "collection_ids": cols,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        await db.hairstyles.update_one({"id": body.hairstyle_id}, {"$inc": {"saves_count": 1}})
+    return {"ok": True, "saved": True}
+
+
+@api.delete("/style-saves/{hairstyle_id}")
+async def unsave(hairstyle_id: str, user: UserOut = Depends(get_user)):
+    r = await db.style_saves.delete_one({"user_id": user.id, "hairstyle_id": hairstyle_id})
+    if r.deleted_count:
+        await db.hairstyles.update_one({"id": hairstyle_id}, {"$inc": {"saves_count": -1}})
+    return {"ok": True, "saved": False}
+
+
+@api.get("/style-saves/me")
+async def my_saves(collection_id: Optional[str] = None, user: UserOut = Depends(get_user)):
+    q: dict = {"user_id": user.id}
+    if collection_id:
+        q["collection_ids"] = collection_id
+    saves = await db.style_saves.find(q, {"_id": 0}).sort([("created_at", -1)]).to_list(500)
+    if not saves:
+        return []
+    ids = [s["hairstyle_id"] for s in saves]
+    styles = await db.hairstyles.find({"id": {"$in": ids}}, {"_id": 0}).to_list(500)
+    by_id = {s["id"]: s for s in styles}
+    out = []
+    for s in saves:
+        st = by_id.get(s["hairstyle_id"])
+        if st:
+            st = {**st, "collection_ids": s.get("collection_ids") or [], "saved_at": s.get("created_at")}
+            out.append(st)
+    return out
+
+
+# ---------- Inspiration Photos (My Inspiration board) ----------
+class InspirationIn(BaseModel):
+    photo_url: str
+    public_id: Optional[str] = None
+    note: Optional[str] = ""
+
+
+@api.get("/inspiration/me")
+async def list_inspiration(user: UserOut = Depends(get_user)):
+    items = await db.inspiration_photos.find({"user_id": user.id}, {"_id": 0}).sort([("created_at", -1)]).to_list(200)
+    return items
+
+
+@api.post("/inspiration")
+async def add_inspiration(body: InspirationIn, user: UserOut = Depends(get_user)):
+    if not body.photo_url:
+        raise HTTPException(400, "photo_url required")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": user.id,
+        "photo_url": body.photo_url,
+        "public_id": body.public_id,
+        "note": body.note or "",
+        "ai_match_pending": True,  # future AI hook
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.inspiration_photos.insert_one(doc)
+    return clean(doc)
+
+
+@api.delete("/inspiration/{ins_id}")
+async def delete_inspiration(ins_id: str, user: UserOut = Depends(get_user)):
+    r = await db.inspiration_photos.delete_one({"id": ins_id, "user_id": user.id})
+    if not r.deleted_count:
+        raise HTTPException(404, "Not found")
     return {"ok": True}
 
 
@@ -1730,26 +1967,127 @@ async def seed(force: bool = False):
     await db.bookings.delete_many({})
 
     styles = [
-        ("Box Braids", "Braids", "Classic long box braids with sleek partings.", 180, 300,
-         "https://images.unsplash.com/photo-1709672262859-68cb9b39ae4f?w=800&q=85"),
-        ("Knotless Braids", "Braids", "Gentle knotless technique — feather-light finish.", 220, 360,
-         "https://images.unsplash.com/photo-1592520113018-180c8bc831c9?w=800&q=85"),
-        ("Cornrows", "Braids", "Sleek straight-back cornrows.", 90, 120,
-         "https://images.unsplash.com/photo-1762810548877-63512759805e?w=800&q=85"),
-        ("Fulani Braids", "Braids", "Signature Fulani-style with beads.", 200, 300,
-         "https://images.unsplash.com/photo-1580618672591-eb180b1a973f?w=800&q=85"),
-        ("Locs", "Locs", "Traditional locs — retwist & style.", 140, 240,
-         "https://images.unsplash.com/photo-1620331311520-246422fd82f9?w=800&q=85"),
-        ("Twists", "Twists", "Two-strand twists with defined ends.", 130, 210,
-         "https://images.unsplash.com/photo-1595475207225-428b62bda831?w=800&q=85"),
+        # (name, category, description, price, duration_min, cover, difficulty, hair_length, maintenance, lasts_weeks, tags, style_score, saves, recommended_for)
+        ("Box Braids", "Box Braids", "Classic long box braids with sleek partings. A protective staple.",
+         180, 300,
+         "https://images.unsplash.com/photo-1594254773847-9fce26e950bc?w=800&q=85",
+         "Medium", "Long", "Low", 8,
+         ["trending", "most_loved", "protective"], 92.4, 3120, ["Adults", "Natural Hair", "Relaxed Hair", "Vacation"]),
+
+        ("Knotless Braids", "Knotless Braids", "Gentle knotless technique — feather-light finish, no tension at the root.",
+         240, 420,
+         "https://images.unsplash.com/photo-1572955304332-bf714bd49add?w=800&q=85",
+         "Advanced", "Extra Long", "Low", 8,
+         ["trending", "most_loved", "luxury", "protective", "office"], 96.8, 4890, ["Adults", "Natural Hair", "Relaxed Hair", "Office", "Wedding"]),
+
+        ("Cornrows", "Cornrows", "Sleek straight-back cornrows — quick, timeless and workout-friendly.",
+         90, 120,
+         "https://images.unsplash.com/photo-1481385694031-f2b14f8621d5?w=800&q=85",
+         "Easy", "Short", "Low", 3,
+         ["quick", "office", "protective", "new"], 78.2, 1420, ["Children", "Adults", "Office"]),
+
+        ("Feed-in Braids", "Cornrows", "Perfectly parted feed-in cornrows with natural gradient hair addition.",
+         120, 180,
+         "https://images.unsplash.com/photo-1673470907547-1c0c6a996095?w=800&q=85",
+         "Medium", "Mid-length", "Low", 4,
+         ["office", "trending", "protective"], 84.5, 2010, ["Adults", "Office", "Vacation"]),
+
+        ("Fulani Braids", "Fulani Braids", "Signature Fulani-style parts, side braid, beads and gold cuffs.",
+         200, 300,
+         "https://images.unsplash.com/photo-1623038455007-891466ff6016?w=800&q=85",
+         "Advanced", "Long", "Medium", 6,
+         ["trending", "luxury", "celebrity", "event"], 91.0, 2790, ["Adults", "Vacation", "Wedding", "Event"]),
+
+        ("Goddess Boho Braids", "Goddess Braids", "Bohemian curls flowing through soft knotless braids.",
+         260, 480,
+         "https://images.unsplash.com/photo-1663851071150-b6617bbee927?w=800&q=85",
+         "Expert", "Extra Long", "Medium", 6,
+         ["luxury", "bridal", "vacation", "trending"], 94.1, 3610, ["Adults", "Vacation", "Wedding"]),
+
+        ("Passion Twists", "Twists", "Boho passion twists — soft, wavy, and endlessly photogenic.",
+         210, 360,
+         "https://images.unsplash.com/photo-1653263169788-9332cdbf07f5?w=800&q=85",
+         "Medium", "Long", "Low", 6,
+         ["vacation", "new", "most_loved", "protective"], 88.6, 2340, ["Adults", "Natural Hair", "Vacation"]),
+
+        ("Bantu Knots", "Bantu Knots", "Sculptural Bantu knots — cultural, striking, editorial.",
+         100, 150,
+         "https://images.unsplash.com/photo-1781274054513-6dad85ab6f20?w=800&q=85",
+         "Easy", "Short", "Low", 2,
+         ["quick", "new", "event", "natural"], 72.4, 840, ["Adults", "Natural Hair", "Event"]),
+
+        ("Sculpted Bantu Set", "Bantu Knots", "Editorial Bantu set — perfect for photoshoots and events.",
+         140, 180,
+         "https://images.unsplash.com/photo-1584897149326-536f40649b38?w=800&q=85",
+         "Medium", "Short", "Low", 2,
+         ["event", "luxury", "celebrity"], 81.3, 1120, ["Adults", "Event", "Wedding"]),
+
+        ("Kids Box Braids", "Kids Braids", "Gentle, size-appropriate box braids designed for kids' scalps.",
+         120, 180,
+         "https://images.unsplash.com/photo-1535043883-2548fb805573?w=800&q=85",
+         "Medium", "Mid-length", "Low", 6,
+         ["kids", "protective", "new"], 79.7, 1560, ["Children"]),
+
+        ("Colorful Vacation Braids", "Box Braids", "Ocean-ready ombre color braids — bold, playful and sun-safe.",
+         260, 420,
+         "https://images.unsplash.com/photo-1774773131630-a89d57efa2dc?w=800&q=85",
+         "Advanced", "Long", "Medium", 6,
+         ["vacation", "color", "luxury", "trending"], 87.9, 2140, ["Adults", "Vacation"]),
+
+        ("Pastel Braids Set", "Box Braids", "Soft pastel color-melt braids for a dreamy, editorial finish.",
+         280, 480,
+         "https://images.unsplash.com/photo-1774773133706-5b79160e90a7?w=800&q=85",
+         "Expert", "Extra Long", "Medium", 5,
+         ["color", "luxury", "celebrity"], 89.4, 1890, ["Adults", "Vacation", "Event"]),
+
+        ("Micro Tribal Braids", "Micro Braids", "Ultra-fine micro braids — meticulous, delicate craftsmanship.",
+         320, 600,
+         "https://images.unsplash.com/photo-1709342548703-a675702f19ef?w=800&q=85",
+         "Expert", "Extra Long", "Medium", 10,
+         ["luxury", "celebrity", "trending"], 90.2, 1650, ["Adults", "Wedding", "Event"]),
+
+        ("Faux Locs", "Locs", "Beautiful faux locs — protective, lightweight, versatile.",
+         220, 360,
+         "https://images.unsplash.com/photo-1535146981003-d37e3e2428c3?w=800&q=85",
+         "Advanced", "Long", "Low", 8,
+         ["protective", "natural", "new"], 85.6, 1980, ["Adults", "Natural Hair", "Vacation"]),
+
+        ("Braided Ponytail", "Cornrows", "Sleek cornrowed base blending into a luxurious high ponytail.",
+         160, 240,
+         "https://images.unsplash.com/photo-1547547700-b3954043b1b8?w=800&q=85",
+         "Medium", "Long", "Low", 4,
+         ["office", "quick", "event"], 82.8, 1310, ["Adults", "Office", "Event"]),
+
+        ("Butterfly Locs", "Locs", "Fluttery butterfly locs — the softest, most romantic protective style.",
+         240, 420,
+         "https://images.unsplash.com/photo-1619981871676-ea8e24a8ff46?w=800&q=85",
+         "Advanced", "Long", "Low", 8,
+         ["trending", "vacation", "protective", "new"], 93.5, 3410, ["Adults", "Vacation", "Wedding"]),
+
+        ("Boho Bridal Braids", "Goddess Braids", "Loose curls and soft braids woven into a dreamy bridal updo.",
+         320, 540,
+         "https://images.unsplash.com/photo-1614173968962-0e61c5ed196f?w=800&q=85",
+         "Expert", "Long", "Low", 2,
+         ["bridal", "luxury", "event"], 88.0, 1420, ["Adults", "Wedding", "Event"]),
+
+        ("Sleek Bun Cornrows", "Cornrows", "Refined cornrow bun — polished for the office or an evening out.",
+         100, 150,
+         "https://images.unsplash.com/photo-1616166183781-0fdd2ef83374?w=800&q=85",
+         "Easy", "Short", "Low", 3,
+         ["office", "quick", "new"], 76.4, 970, ["Adults", "Office"]),
     ]
     style_ids = []
-    for name, cat, desc, price, dur, cover in styles:
+    for row in styles:
+        name, cat, desc, price, dur, cover, diff, hlen, maint, lasts, tags, score, saves, rec = row
         sid = str(uuid.uuid4())
         style_ids.append(sid)
         await db.hairstyles.insert_one({
             "id": sid, "name": name, "category": cat, "description": desc,
             "avg_price": price, "avg_duration_min": dur, "cover_photo": cover,
+            "difficulty": diff, "hair_length": hlen, "maintenance": maint,
+            "lasts_weeks": lasts, "tags": tags, "style_score": score, "saves_count": saves,
+            "recommended_for": rec,
+            "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
     # demo hairdressers
@@ -1783,6 +2121,7 @@ async def seed(force: bool = False):
             "phone": None, "profile_photo": cover,
             "flag_count": 0, "booking_restricted": False,
             "password_hash": hash_pw("demo1234"),
+            "email_verified": True,
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
         # each pro specializes in 3 random styles (deterministic)
@@ -1840,6 +2179,7 @@ async def seed(force: bool = False):
         "role": "customer", "plan": "standard", "phone": None, "profile_photo": None,
         "flag_count": 0, "booking_restricted": False,
         "password_hash": hash_pw("demo1234"),
+        "email_verified": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     # demo admin
@@ -1848,6 +2188,7 @@ async def seed(force: bool = False):
         "role": "admin", "plan": "unlimited", "phone": None, "profile_photo": None,
         "flag_count": 0, "booking_restricted": False,
         "password_hash": hash_pw("demo1234"),
+        "email_verified": True,
         "created_at": datetime.now(timezone.utc).isoformat(),
     })
     # Clear any prior featured-stylist picks so weighted rotation runs fresh

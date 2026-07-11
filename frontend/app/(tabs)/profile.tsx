@@ -34,7 +34,9 @@ export default function Profile() {
   const initial = (name.trim().charAt(0) || "?").toUpperCase();
 
   const items: { icon: any; label: string; testID: string; onPress: () => void; badge?: string }[] = [
-    { icon: "heart", label: "Favorites", testID: "menu-favorites", onPress: () => router.push("/favorites") },
+    { icon: "bookmark", label: "My Saved Styles", testID: "menu-saves", onPress: () => router.push("/collections") },
+    { icon: "image", label: "My Inspiration Photos", testID: "menu-inspiration", onPress: () => router.push("/inspiration") },
+    { icon: "heart", label: "Favorite Braiders", testID: "menu-favorites", onPress: () => router.push("/favorites") },
     {
       icon: "star",
       label: "Subscription",
