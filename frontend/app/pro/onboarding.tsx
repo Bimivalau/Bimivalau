@@ -187,7 +187,7 @@ export default function ProOnboarding() {
         )}
         {canFinish && (
           <Text testID="onb-recs" style={s.recs}>
-            You&apos;re all set. Add portfolio photos or apply for Verified Pro anytime from Dashboard → Improve My Studio.
+            You&apos;re all set. Add portfolio photos or apply for Verified Pro anytime from the <Text style={{ fontFamily: font.bodyBold, color: colors.brand }}>My Studio</Text> tab.
           </Text>
         )}
 

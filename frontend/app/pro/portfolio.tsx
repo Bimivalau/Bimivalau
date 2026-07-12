@@ -112,7 +112,7 @@ export default function ProPortfolio() {
           </Pressable>
 
           {err && <Text testID="port-err" style={{ color: colors.error, fontFamily: font.body, marginTop: spacing.sm }}>{err}</Text>}
-          {atCap && <Text style={s.capMsg}>You've reached your {FREE_CAP}-photo cap. Delete one to add another, or upgrade for more.</Text>}
+          {atCap && <Text style={s.capMsg}>You&apos;ve reached your {FREE_CAP}-photo cap. Delete one to add another, or upgrade for more.</Text>}
         </View>
 
         <View style={s.grid}>

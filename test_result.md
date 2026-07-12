@@ -259,3 +259,243 @@ agent_communication:
       Existing seeded pros (amara/zara/kenya/simone @braids.demo) already
       have onboarding_completed=true — good for regression check that
       they never see /pro/onboarding at cold start.
+
+## Iteration 12 — Architecture Refinement + Responsive Foundation
+
+user_problem_statement: |
+  Big architectural pass:
+  - Onboarding must be strictly ONE-TIME. After completion, never route back.
+  - Introduce permanent Professional bottom tab bar: Dashboard · Bookings · Growth · My Studio.
+  - Create My Studio as the single source of truth for portfolio, availability,
+    pricing/services, verification, studio info, business health, Braider DNA.
+  - "Improve My Studio" always goes to My Studio (never onboarding), auto-
+    focusing the first incomplete section.
+  - Add real Services model (each Studio owns its own catalog with starting
+    price, price_max, duration, hair_included, hair brands, hair lengths).
+  - Global responsive UI primitives (PageContainer, SafeScrollView,
+    ResponsiveHeading, Card, Badge, SectionTitle, BottomCTA, EmptyState,
+    ErrorState, LoadingState, useResponsive).
+  - Test at 320 / 360 / 390 / 412 / 430 widths for the 12 priority screens.
+
+backend:
+  - task: "ProfessionalServiceIn extended with price_max, hair_brands, hair_lengths, difficulty"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Existing model extended. Existing endpoints (/hairdressers/me/services GET/POST/DELETE) accept the new fields with sensible defaults."
+  - task: "GET /api/hairdressers/me — returns own hairdresser profile"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "New endpoint. Auth required, role must be hairdresser."
+  - task: "GET /api/hairdressers/me/studio-status — per-section completion"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Returns {onboarding_completed, sections[], first_incomplete, progress}.
+          Sections: availability(required), services, portfolio(>=3), info(bio+salon+city), verification.
+  - task: "GET /api/studios/{hid}/services — public read-only Studio catalog"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Public endpoint; supports active_only=true|false query. Enriches each row with hairstyle_name + cover."
+  - task: "POST /api/services/{sid}/toggle — flip active flag"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Only owner can toggle. Returns updated ServiceOut."
+
+frontend:
+  - task: "Professional bottom tab bar (Dashboard·Bookings·Growth·My Studio)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/_layout.tsx"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          New Tabs layout under /pro/. Default tab is dashboard. Non-tab pages
+          (onboarding, availability, portfolio, verification, services, studio-info)
+          are hidden via href:null. Onboarding also hides the tab bar entirely.
+  - task: "My Studio hub (permanent business home)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/studio.tsx"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Reads /hairdressers/me/studio-status; renders progress card and section
+          rows (Availability, Services & Pricing, Portfolio, Studio Info,
+          Verification). Auto-scrolls + highlights the section from ?focus= param
+          or the backend's first_incomplete. Includes Business Insights deep-links
+          to Growth. Subscription + Sign out live here (Studio replaces Profile
+          permanently for pros).
+  - task: "Bookings tab (calendar-style list)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/bookings.tsx"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Renders Today + Upcoming with responsive Card rows. Availability shortcut. Requests tile marked Coming soon."
+  - task: "Services & Pricing CRUD (/pro/services)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/services.tsx"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          New screen. Modal editor for hairstyle + custom name + starting price +
+          optional max + duration + hair lengths + hair-included switch + notes.
+          Live active/inactive toggle. Delete with confirmation. Uses new UI kit.
+  - task: "Studio Info screen (/pro/studio-info)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/studio-info.tsx"
+    priority: "medium"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Bio, salon name, city, address form. Uses PUT /api/hairdressers/me."
+  - task: "Pro Dashboard rebuilt as command center"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/dashboard.tsx"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Complete rewrite. Removes old action grid + "Improve My Studio" row.
+          Uses SafeScrollView, ResponsiveHeading, Card, Badge, SectionTitle.
+          Shows: Complete Studio banner (routes to /pro/studio?focus=<key>),
+          Verification banner (only pending/rejected), Today at a glance stats,
+          Today's schedule + Upcoming lists. Sign out moved to My Studio.
+  - task: "Global responsive UI primitives under src/ui/"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/ui/"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          New library: useResponsive, PageContainer, SafeScrollView,
+          ResponsiveHeading, Card, Badge, SectionTitle, BottomCTA, EmptyState,
+          ErrorState, LoadingState. Central handling of safe-area, font scaling,
+          narrow-phone padding, and content max-width. Used by all new pro screens.
+
+metadata:
+  test_sequence: 12
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Professional bottom tab bar (Dashboard·Bookings·Growth·My Studio)"
+    - "My Studio hub (permanent business home)"
+    - "Services & Pricing CRUD (/pro/services)"
+    - "Pro Dashboard rebuilt as command center"
+    - "GET /api/hairdressers/me/studio-status — per-section completion"
+    - "ProfessionalServiceIn extended with price_max, hair_brands, hair_lengths, difficulty"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Iteration 12 delivers the architectural refinement + responsive foundation.
+
+      KEY CHANGES:
+      1. New Tabs layout at /app/pro/_layout.tsx (Dashboard·Bookings·Growth·My Studio).
+      2. My Studio (/pro/studio) is the permanent hub. Onboarding is one-time only.
+      3. Dashboard rewritten; no more "Improve My Studio" row (removed to prevent
+         duplicates with the My Studio tab).
+      4. Services & Pricing (/pro/services) is a full CRUD screen.
+      5. Studio Info (/pro/studio-info) form.
+      6. Bookings tab shows today + upcoming appointments.
+      7. Backend: ProfessionalServiceIn extended (price_max, hair_brands,
+         hair_lengths, difficulty). New endpoints: GET /hairdressers/me,
+         GET /hairdressers/me/studio-status, GET /studios/{hid}/services,
+         POST /services/{sid}/toggle.
+      8. New global UI primitives at /app/frontend/src/ui/ used by all new
+         screens (SafeScrollView, PageContainer, Card, Badge, ResponsiveHeading,
+         SectionTitle, BottomCTA, Loading/Empty/ErrorState, useResponsive).
+
+      BACKEND TESTS:
+      - GET /api/hairdressers/me/studio-status as amara — expect completed=true,
+        5 sections, first_incomplete=services, percent=80.
+      - POST /api/hairdressers/me/services with new payload including price_max,
+        hair_brands, hair_lengths, difficulty → expect ok:true.
+      - GET /api/hairdressers/me/services → expect the new fields to persist.
+      - GET /api/studios/{hid}/services?active_only=false → public read.
+      - POST /api/services/{sid}/toggle → flips active.
+      - Regression: onboarding-complete + onboarding-status still work as
+        before. All other endpoints unchanged.
+
+      FRONTEND TESTS (Expo web at localhost:3000):
+      1. Sign in as amara@braids.demo. Lands on /pro/dashboard (with tab bar).
+      2. Verify tab bar has 4 tabs: Dashboard, Bookings, Growth, My Studio.
+      3. Dashboard shows setup banner ("Complete your Studio setup — Services &
+         Pricing"). Tap banner → /pro/studio, "Services & Pricing" row is
+         highlighted momentarily.
+      4. In My Studio, tap Services & Pricing → /pro/services opens. Add a
+         service (Box Braids, $180, 240 min, Long) → save → visible in list.
+      5. Toggle it off/on → active flag flips.
+      6. Delete it → row disappears.
+      7. Tap Growth tab → business score + charts render.
+      8. Tap Bookings tab → Today + Upcoming lists render.
+      9. Tap My Studio → Studio Information row → studio-info screen shows
+         bio/salon/city; save.
+      10. Register a NEW hairdresser → lands on /pro/onboarding (no tab bar).
+          Set availability → Start Receiving Bookings → /pro/dashboard.
+          Tab bar reappears. Dashboard shows Complete Setup banner (progress
+          less than 100%).
+      11. On the dashboard, tap the Complete Setup banner → /pro/studio with
+          services focused (or whichever is first_incomplete).
+      12. Sign out from My Studio → back to /welcome.
+      13. Sign in as seeded amara → land on Dashboard (never on onboarding).
+      14. Narrow width test at 320 × 680: dashboard, my studio, services list
+          all render without overflow or clipped badges.
+
+      TEST CREDENTIALS: /app/memory/test_credentials.md (amara/zara/kenya/simone
+      @braids.demo password demo1234).

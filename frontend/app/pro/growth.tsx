@@ -71,11 +71,7 @@ export default function BusinessGrowth() {
   return (
     <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={{ paddingBottom: spacing.xxxl + insets.bottom }}>
       <View style={[s.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable testID="bg-back" onPress={() => router.back()} hitSlop={10}>
-          <Feather name="arrow-left" size={22} color={colors.onSurface} />
-        </Pressable>
         <Text style={s.headerTitle}>Business Growth</Text>
-        <View style={{ width: 22 }} />
       </View>
 
       <View style={{ paddingHorizontal: spacing.xl }}>

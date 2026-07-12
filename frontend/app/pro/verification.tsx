@@ -59,7 +59,7 @@ export default function ProVerification() {
               </View>
               <Text style={s.optionalTitle}>Get the “Verified Pro” badge</Text>
               <Text style={s.optionalSub}>
-                Verification is <Text style={{ fontFamily: font.bodyBold }}>optional</Text> — you're already live in customer search. Verified stylists get a badge on their profile and tend to earn more bookings.
+                Verification is <Text style={{ fontFamily: font.bodyBold }}>optional</Text> — you&apos;re already live in customer search. Verified stylists get a badge on their profile and tend to earn more bookings.
               </Text>
             </View>
 
@@ -100,7 +100,7 @@ export default function ProVerification() {
               </View>
               <Text style={s.rejectedTitle}>Application needs attention</Text>
               <Text style={s.rejectedSub}>
-                Your last submission wasn't approved. Fix the issues below and resubmit — you'll go back into the queue with a fresh 3-day SLA.
+                Your last submission wasn&apos;t approved. Fix the issues below and resubmit — you&apos;ll go back into the queue with a fresh 3-day SLA.
               </Text>
             </View>
 
@@ -122,7 +122,7 @@ export default function ProVerification() {
             </View>
 
             <Text style={[s.section, { marginTop: spacing.xl }]}>Upload a new document</Text>
-            <Text style={s.help}>We've kept your previous URL so you can adjust it — replace with the new photo before resubmitting.</Text>
+            <Text style={s.help}>We&apos;ve kept your previous URL so you can adjust it — replace with the new photo before resubmitting.</Text>
             <TextInput
               testID="ver-url"
               value={url}
@@ -142,7 +142,7 @@ export default function ProVerification() {
               <Text style={s.btnText}>{busy ? "Resubmitting…" : "Resubmit for review"}</Text>
             </Pressable>
             {url && url === v.license_url && (
-              <Text style={s.hintInline}>Change the URL before resubmitting — otherwise you'll upload the same document that was rejected.</Text>
+              <Text style={s.hintInline}>Change the URL before resubmitting — otherwise you&apos;ll upload the same document that was rejected.</Text>
             )}
           </>
         )}
@@ -151,8 +151,8 @@ export default function ProVerification() {
         {isPending && justResubmitted && (
           <View testID="resubmitted-success" style={s.successBox}>
             <Feather name="check-circle" size={28} color={colors.success} />
-            <Text style={s.successTitle}>You're back in the queue</Text>
-            <Text style={s.successMsg}>Admin has 3 business days to re-review. You'll get a notification with the outcome.</Text>
+            <Text style={s.successTitle}>You&apos;re back in the queue</Text>
+            <Text style={s.successMsg}>Admin has 3 business days to re-review. You&apos;ll get a notification with the outcome.</Text>
           </View>
         )}
 
@@ -169,7 +169,7 @@ export default function ProVerification() {
               )}
             </View>
             <Text style={[s.help, { marginTop: spacing.lg }]}>
-              Your profile stays hidden from customer search while pending. We'll notify you as soon as an admin reviews.
+              Your profile stays hidden from customer search while pending. We&apos;ll notify you as soon as an admin reviews.
             </Text>
           </>
         )}
@@ -178,7 +178,7 @@ export default function ProVerification() {
         {isApproved && (
           <View style={[s.status, { borderColor: colors.success }]}>
             <Text style={[s.statusLabel, { color: colors.success }]}>APPROVED</Text>
-            <Text style={s.statusMsg}>You're verified. Your profile is live in customer search.</Text>
+            <Text style={s.statusMsg}>You&apos;re verified. Your profile is live in customer search.</Text>
             {v.decided_at && <Text style={s.statusMeta}>Approved {new Date(v.decided_at).toLocaleDateString()}</Text>}
           </View>
         )}

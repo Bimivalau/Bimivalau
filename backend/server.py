@@ -52,12 +52,21 @@ class UserOut(BaseModel):
     email_verified: bool = False
 
 class ProfessionalServiceIn(BaseModel):
+    """A Studio's own service offering. Each Studio defines its own catalog on
+    top of the shared hairstyle taxonomy — with its own starting price,
+    optional range, duration, hair-included flag, hair brands/lengths, and
+    difficulty. Prices shown to customers as \"Starting at $X\".
+    """
     hairstyle_id: str
     custom_name: Optional[str] = None
     price: float = Field(ge=0)
+    price_max: Optional[float] = Field(default=None, ge=0)
     currency: str = "USD"
     duration_minutes: int = Field(ge=15)
     hair_included: bool = False
+    hair_brands: List[str] = []
+    hair_lengths: List[str] = []  # e.g. ["Short","Mid-length","Long","Extra Long"]
+    difficulty: Optional[Literal["Easy", "Medium", "Advanced", "Expert"]] = None
     consultation_required: bool = False
     description: Optional[str] = None
     inventory_required: bool = False
@@ -1004,6 +1013,13 @@ async def hairdressers_for_style(hid: str, user: Optional[UserOut] = Depends(may
 
 
 # ---------- Hairdressers ----------
+@api.get("/hairdressers/me")
+async def get_my_pro_profile(user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only hairdressers")
+    hd = await db.hairdressers.find_one({"user_id": user.id}, {"_id": 0}) or {}
+    return hd
+
 @api.get("/hairdressers/{hid}")
 async def hairdresser_detail(hid: str, user: Optional[UserOut] = Depends(maybe_user)):
     h = await db.hairdressers.find_one({"id": hid}, {"_id": 0})
@@ -1801,6 +1817,121 @@ async def onboarding_status(user: UserOut = Depends(get_user)):
         "has_availability": has_avail,
         "has_portfolio": has_portfolio,
     }
+
+
+@api.get("/hairdressers/me/studio-status")
+async def studio_status(user: UserOut = Depends(get_user)):
+    """Per-section completion status for the My Studio hub. Drives the
+    "focus first incomplete" behaviour and the progress card at the top of
+    the Studio screen. Every section returns { complete, label, sub, key }
+    so the frontend can render without a schema."""
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only hairdressers")
+    hd = await db.hairdressers.find_one({"user_id": user.id}, {"_id": 0}) or {}
+    has_avail = await db.availability.count_documents({"hairdresser_id": user.id}) > 0
+    has_portfolio_count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
+    has_services_count = await db.professional_services.count_documents({"hairdresser_id": user.id, "active": True})
+    verification_status = hd.get("verification_status") or "unverified"
+    has_bio = bool((hd.get("bio") or "").strip())
+    has_salon_name = bool((hd.get("salon_name") or "").strip())
+    has_city = bool((hd.get("city") or "").strip())
+    info_complete = has_bio and has_salon_name and has_city
+
+    sections = [
+        {
+            "key": "availability",
+            "label": "Weekly Availability",
+            "sub": "Set the days and hours you accept bookings.",
+            "complete": has_avail,
+            "required": True,
+        },
+        {
+            "key": "services",
+            "label": "Services & Pricing",
+            "sub": "Add the styles you offer with your own prices and durations.",
+            "complete": has_services_count > 0,
+            "required": False,
+            "count": has_services_count,
+        },
+        {
+            "key": "portfolio",
+            "label": "Portfolio",
+            "sub": "Showcase your best work. Aim for at least 5 photos.",
+            "complete": has_portfolio_count >= 3,
+            "required": False,
+            "count": has_portfolio_count,
+        },
+        {
+            "key": "info",
+            "label": "Studio Information",
+            "sub": "Bio, salon name, city — helps customers trust you.",
+            "complete": info_complete,
+            "required": False,
+        },
+        {
+            "key": "verification",
+            "label": "Verification",
+            "sub": {
+                "approved": "You're a Verified Pro.",
+                "pending": "Under review — you'll be notified.",
+                "rejected": "Application needs your attention.",
+                "unverified": "Optional — earns you a Verified badge.",
+            }.get(verification_status, "Optional — earns you a Verified badge."),
+            "complete": verification_status == "approved",
+            "required": False,
+            "state": verification_status,
+        },
+    ]
+    first_incomplete = next((s["key"] for s in sections if not s["complete"]), None)
+    total = len(sections)
+    done = sum(1 for s in sections if s["complete"])
+    return {
+        "onboarding_completed": bool(hd.get("onboarding_completed")),
+        "sections": sections,
+        "first_incomplete": first_incomplete,
+        "progress": {"done": done, "total": total, "percent": int(round((done / total) * 100))},
+    }
+
+
+# ---------- Services (Braider-owned catalog) ----------
+# NOTE: Legacy CRUD lives further below under `/hairdressers/me/services`.
+# We add a `/hairdressers/{hid}/services` public-read alias here so customers
+# can view a Studio's own pricing without touching the private me/ endpoints.
+async def _service_to_out(doc: dict) -> dict:
+    doc = dict(doc)
+    doc.pop("_id", None)
+    st = await db.hairstyles.find_one({"id": doc.get("hairstyle_id")}, {"_id": 0, "name": 1, "cover_photo": 1, "category": 1})
+    if st:
+        doc["hairstyle_name"] = st.get("name")
+        doc["hairstyle_category"] = st.get("category")
+        doc["hairstyle_cover"] = st.get("cover_photo")
+    return doc
+
+
+@api.get("/studios/{hid}/services")
+async def public_hairdresser_services(hid: str, active_only: bool = True):
+    """Public — anyone can view a Studio's services (Starting at prices)."""
+    q: dict = {"hairdresser_id": hid}
+    if active_only:
+        q["active"] = True
+    docs = await db.professional_services.find(q, {"_id": 0}).to_list(200)
+    return [await _service_to_out(d) for d in docs]
+
+
+@api.post("/services/{sid}/toggle")
+async def toggle_service_active(sid: str, user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only hairdressers")
+    doc = await db.professional_services.find_one({"id": sid, "hairdresser_id": user.id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Service not found")
+    new_active = not bool(doc.get("active", True))
+    await db.professional_services.update_one(
+        {"id": sid, "hairdresser_id": user.id},
+        {"$set": {"active": new_active, "updated_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    doc["active"] = new_active
+    return await _service_to_out(doc)
 
 
 # ---------- Admin: Customer Flag Queue ----------
