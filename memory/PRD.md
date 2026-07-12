@@ -137,3 +137,34 @@ Every iteration ends with:
 4. Performance (API, rendering, images)
 5. Security (authz on new endpoints, isolation of user resources)
 6. Release readiness score
+
+---
+
+## v14 Update — Subscription Architecture (Mock now, RevenueCat-ready)
+
+### Backend
+- `subscription_service.py`: entitlements matrix, launch mode override, trial-aware plan resolution, portfolio caps (max(base, trial)), Founding Pro state, upgrade CTAs.
+- `notification_engine.py`: channel-agnostic emit (in-app active, push/email/sms/whatsapp stubbed). Per-user preferences. Every notification records status + timestamp per channel.
+- `platform_config` singleton doc holds: `launch_mode`, `trials`, `founding_pro`, `portfolio_caps`, `notification_channels`, `pricing`. Admin-editable via `PUT /api/subscription/admin/config`.
+- Daily maintenance (6-hourly): Founding Pro reminders 30/14/7/1 day, expiration → free, trial-ending reminders, cancel-at-period-end downgrade.
+
+### Frontend
+- `EntitlementsProvider` + `useEntitlements()` — one call, full snapshot.
+- `PaywallSheet` — elegant modal, monthly/yearly, trial CTA, restore purchases, legal.
+- `Gated` — inline lock card that opens the paywall.
+- `PurchaseProvider` interface — MockProvider active, RevenueCatProvider stubbed and gated by env keys.
+- `/subscription` rewritten with launch-mode banner, Founding Studio CTA, per-role plans, savings badges.
+- `/pro/founding` — spots counter, benefits, apply flow with eligibility gate.
+
+### Business rules
+- Launch mode ON: `customer.ai.*` unlocked for FREE customers. Braider plans unaffected.
+- Trials: 30 days for Braider Standard/Unlimited, 0 for Customer Unlimited (all config-driven).
+- Founding Pro: first 100 braiders w/ admin approval, 1 year Unlimited, auto-downgrade to Free after (never charged).
+- Portfolio caps: 10 / 25 / 40 for Free / Standard / Unlimited. Excess photos hidden but never deleted on downgrade.
+
+### Store-submission checklist
+When ready to activate real purchases:
+1. `yarn expo install react-native-purchases`
+2. Uncomment RevenueCat provider (`src/purchase/revenuecatProvider.ts`).
+3. Set `EXPO_PUBLIC_REVENUECAT_IOS_KEY` and `EXPO_PUBLIC_REVENUECAT_ANDROID_KEY`.
+4. Admin: `PUT /api/subscription/admin/config {"launch_mode": false}` to activate paid customer plans.

@@ -180,11 +180,14 @@ def portfolio_cap(user: dict, config: Optional[dict] = None) -> int:
     cfg = (config or {}).get("portfolio_caps", DEFAULT_CONFIG["portfolio_caps"])
     if user.get("founding_pro") and _founding_pro_active(user):
         return int(cfg.get("founding_pro", 40))
+    plan = (user.get("plan") or "free").lower()
+    base_cap = int(cfg.get(plan, cfg.get("free", 10)))
+    # Trial grants at least the paid plan's cap — but never lowers the user's cap.
     trial_slug = _active_trial_slug(user)
     if trial_slug and trial_slug.startswith("braider_"):
-        return int(cfg.get(trial_slug.split("_", 1)[1], 10))
-    plan = (user.get("plan") or "free").lower()
-    return int(cfg.get(plan, cfg.get("free", 10)))
+        trial_cap = int(cfg.get(trial_slug.split("_", 1)[1], base_cap))
+        return max(base_cap, trial_cap)
+    return base_cap
 
 
 def days_remaining(iso_dt: Optional[str]) -> Optional[int]:

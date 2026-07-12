@@ -3100,6 +3100,10 @@ async def mock_purchase(body: SubscriptionMockPurchaseIn, user: UserOut = Depend
         "plan_started_at": now.isoformat(),
         "plan_renewal_at": (now + timedelta(days=365 if body.cycle == "yearly" else 30)).isoformat(),
         "plan_cancel_at_period_end": False,
+        # Default: clear any lingering trial so a full purchase supersedes it.
+        "trial_plan": None,
+        "trial_ends_at": None,
+        "trial_reminded_days": [],
     }
     if body.start_trial and role == "hairdresser":
         trial_days = int(cfg["trials"].get(target, 0))
