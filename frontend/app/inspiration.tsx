@@ -61,7 +61,7 @@ export default function Inspiration() {
         <View style={s.aiIcon}><Feather name="zap" size={16} color="#fff" /></View>
         <View style={{ flex: 1 }}>
           <Text style={s.aiTitle}>AI Style Match — Coming Soon</Text>
-          <Text style={s.aiDesc}>Upload photos of braids you love. Once AI is ready, we'll auto-match them to styles + pros.</Text>
+          <Text style={s.aiDesc}>Upload photos of braids you love. Once AI is ready, we&apos;ll auto-match them to styles + pros.</Text>
         </View>
       </View>
 
@@ -82,7 +82,7 @@ export default function Inspiration() {
         <View style={s.empty}>
           <Feather name="camera" size={40} color={colors.borderStrong} />
           <Text style={s.emptyTitle}>No inspiration yet</Text>
-          <Text style={s.emptyDesc}>Screenshot or snap braids you love. They'll live here until AI Match arrives.</Text>
+          <Text style={s.emptyDesc}>Screenshot or snap braids you love. They&apos;ll live here until AI Match arrives.</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: spacing.md, paddingBottom: insets.bottom + spacing.xxxl }} showsVerticalScrollIndicator={false}>

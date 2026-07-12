@@ -39,31 +39,30 @@ export default function Welcome() {
         </View>
 
         <View style={{ padding: spacing.xl, gap: spacing.md, backgroundColor: colors.surfaceInverse }}>
-          <Pressable testID="lang-picker" onPress={() => { /* language switching coming soon */ }} style={s.langRow}>
+          <View style={s.langRow}>
             <Feather name="globe" size={14} color="#F9F6F0" />
             <Text style={s.langText}>English</Text>
-            <Text style={s.langHint}>· Français coming soon</Text>
-          </Pressable>
+          </View>
           <Text style={s.chooseTitle}>How do you want to start?</Text>
           <Text style={s.explain}>BraidsCommunity is where you discover braid styles and the studios that create them.</Text>
 
-          <Pressable testID="welcome-customer" onPress={() => router.push("/register?role=customer")} style={s.roleCard}>
+          <Pressable testID="welcome-customer" onPress={() => router.push("/register?role=customer")} style={s.roleCard} accessibilityRole="button" accessibilityLabel="Continue as customer">
             <View style={{ flex: 1 }}>
-              <Text style={s.roleTitle}>I'm a Customer</Text>
+              <Text style={s.roleTitle}>I&apos;m a Customer</Text>
               <Text style={s.roleDesc}>Find braid artists near you and book your next appointment.</Text>
             </View>
             <Text style={s.roleArrow}>→</Text>
           </Pressable>
 
-          <Pressable testID="welcome-braider" onPress={() => router.push("/register?role=hairdresser")} style={[s.roleCard, s.roleCardBraider]}>
+          <Pressable testID="welcome-braider" onPress={() => router.push("/register?role=hairdresser")} style={[s.roleCard, s.roleCardBraider]} accessibilityRole="button" accessibilityLabel="Continue as braider">
             <View style={{ flex: 1 }}>
-              <Text style={[s.roleTitle, { color: "#fff" }]}>I'm a Braider</Text>
+              <Text style={[s.roleTitle, { color: "#fff" }]}>I&apos;m a Braider</Text>
               <Text style={[s.roleDesc, { color: "#F9F6F0" }]}>Show your work, take bookings, get paid in person.</Text>
             </View>
             <Text style={[s.roleArrow, { color: "#fff" }]}>→</Text>
           </Pressable>
 
-          <Pressable testID="welcome-existing" onPress={() => router.push("/login")} style={{ padding: spacing.md, alignItems: "center", marginTop: spacing.md }}>
+          <Pressable testID="welcome-existing" onPress={() => router.push("/login")} style={{ padding: spacing.md, alignItems: "center", marginTop: spacing.md }} accessibilityRole="button">
             <Text style={s.existingLink}>Already have an account? <Text style={{ fontFamily: font.bodyBold, color: "#fff" }}>Sign in</Text></Text>
           </Pressable>
 

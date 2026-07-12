@@ -1,12 +1,13 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { LogBox } from "react-native";
+import { LogBox, StatusBar } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { SessionProvider } from "@/src/session";
+import { RootErrorBoundary } from "@/src/components/RootErrorBoundary";
 
 LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();
@@ -21,9 +22,19 @@ export default function RootLayout() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <SessionProvider>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#FCFAF8" } }} />
-        </SessionProvider>
+        <RootErrorBoundary>
+          <SessionProvider>
+            {/* Dark status-bar icons on our light surface. Auto-updates per screen if needed. */}
+            <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: "#FCFAF8" },
+                animation: "slide_from_right",
+              }}
+            />
+          </SessionProvider>
+        </RootErrorBoundary>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

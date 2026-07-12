@@ -1,36 +1,28 @@
-import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { useEffect } from "react";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
+import { SafeScrollView, ResponsiveHeading, Card, Badge, LoadingState } from "@/src/ui";
 
+/**
+ * Customer profile / account tab. Braiders never see this — they use My Studio.
+ */
 export default function Profile() {
   const { user, loading, signOut } = useSession();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
 
-  // If session finished loading and there is still no user, bounce to /login
-  // (defensive — normally the root /index redirect handles this).
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
 
-  // Session is still hydrating from SecureStore (async on native) — show a spinner
-  // instead of blank so we never render an empty page on Expo Go.
-  if (loading || !user) {
-    return (
-      <View testID="profile-loading" style={{ flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", paddingTop: insets.top }}>
-        <ActivityIndicator color={colors.brand} />
-      </View>
-    );
-  }
+  if (loading || !user) return <LoadingState label="Loading your account…" />;
 
   const name = user.name || "You";
   const email = user.email || "";
   const role = (user.role || "customer").toString();
-  const plan = (user.plan || "standard").toString();
+  const plan = (user.plan || "free").toString();
   const initial = (name.trim().charAt(0) || "?").toUpperCase();
 
   const items: { icon: any; label: string; testID: string; onPress: () => void; badge?: string }[] = [
@@ -42,54 +34,75 @@ export default function Profile() {
       label: "Subscription",
       testID: "menu-subscription",
       onPress: () => router.push("/subscription"),
-      badge: plan === "unlimited" ? "Unlimited" : "Standard",
+      badge: plan === "unlimited" ? "UNLIMITED" : "FREE",
     },
     { icon: "bell", label: "Notifications", testID: "menu-notifications", onPress: () => router.push("/notifications") },
   ];
 
   return (
-    <ScrollView testID="profile-screen" style={{ backgroundColor: colors.surface }} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
-      <View style={{ paddingTop: insets.top + spacing.lg, paddingHorizontal: spacing.xl }}>
-        <Text style={s.header}>Profile</Text>
-        <View style={s.card}>
+    <SafeScrollView testID="profile-screen">
+      <View style={{ paddingTop: spacing.md }}>
+        <ResponsiveHeading size={30}>Profile</ResponsiveHeading>
+
+        <Card padding={spacing.lg} style={s.card}>
           <View style={s.avatar}>
             <Text style={s.avatarText}>{initial}</Text>
           </View>
-          <View style={{ flex: 1 }}>
-            <Text testID="profile-name" style={s.name}>{name}</Text>
-            <Text testID="profile-email" style={s.email}>{email}</Text>
-            <Text style={s.role}>{role.toUpperCase()} · {plan.toUpperCase()}</Text>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text testID="profile-name" style={s.name} numberOfLines={1}>{name}</Text>
+            <Text testID="profile-email" style={s.email} numberOfLines={1}>{email}</Text>
+            <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: 6, flexWrap: "wrap" }}>
+              <Badge label={role.toUpperCase()} tone="brand" />
+              <Badge label={plan.toUpperCase()} tone={plan === "unlimited" ? "success" : "neutral"} />
+            </View>
           </View>
-        </View>
+        </Card>
+
         <View style={{ marginTop: spacing.xl }}>
-          {items.map(i => (
-            <Pressable key={i.label} testID={i.testID} onPress={i.onPress} style={s.row}>
-              <Feather name={i.icon} size={20} color={colors.onSurface} />
-              <Text style={s.rowText}>{i.label}</Text>
-              {i.badge && <Text style={s.badge}>{i.badge}</Text>}
-              <Feather name="chevron-right" size={20} color={colors.muted} />
+          {items.map((i, idx) => (
+            <Pressable
+              key={i.label}
+              testID={i.testID}
+              onPress={i.onPress}
+              style={[s.row, idx === items.length - 1 && { borderBottomWidth: 0 }]}
+              accessibilityRole="button"
+              accessibilityLabel={i.label}
+              android_ripple={{ color: "rgba(0,0,0,0.04)" }}
+            >
+              <View style={s.rowIcon}><Feather name={i.icon} size={16} color={colors.brand} /></View>
+              <Text style={s.rowText} numberOfLines={1}>{i.label}</Text>
+              {i.badge ? <Badge label={i.badge} tone="brand" variant="soft" /> : null}
+              <Feather name="chevron-right" size={18} color={colors.muted} />
             </Pressable>
           ))}
         </View>
-        <Pressable testID="signout-btn" onPress={async () => { await signOut(); router.replace("/welcome"); }} style={s.signOut}>
+
+        <Pressable
+          testID="signout-btn"
+          onPress={async () => { await signOut(); router.replace("/welcome"); }}
+          style={s.signOut}
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+        >
           <Text style={s.signOutText}>Sign out</Text>
         </Pressable>
+
+        <Text style={s.legal}>BraidsCommunity · Built for braid lovers.</Text>
       </View>
-    </ScrollView>
+    </SafeScrollView>
   );
 }
 
 const s = StyleSheet.create({
-  header: { fontFamily: font.display, fontSize: 32, color: colors.onSurface, marginBottom: spacing.lg },
-  card: { flexDirection: "row", gap: spacing.md, padding: spacing.lg, backgroundColor: colors.surfaceSecondary, borderRadius: radii.md, alignItems: "center" },
+  card: { flexDirection: "row", gap: spacing.md, alignItems: "center", marginTop: spacing.lg },
   avatar: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.brand, alignItems: "center", justifyContent: "center" },
   avatarText: { color: "#fff", fontFamily: font.display, fontSize: 26 },
   name: { fontFamily: font.display, fontSize: 22, color: colors.onSurface },
-  email: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 13 },
-  role: { fontFamily: font.bodyMed, color: colors.brand, fontSize: 11, letterSpacing: 2, marginTop: 2 },
-  row: { flexDirection: "row", alignItems: "center", gap: spacing.md, paddingVertical: spacing.lg, borderBottomWidth: 1, borderColor: colors.divider },
-  rowText: { flex: 1, fontFamily: font.bodyMed, color: colors.onSurface, fontSize: 15 },
-  badge: { fontFamily: font.bodyBold, color: colors.brand, fontSize: 11, letterSpacing: 1, marginRight: spacing.sm },
-  signOut: { marginTop: spacing.xxl, padding: spacing.lg, alignItems: "center", borderWidth: 1, borderColor: colors.error, borderRadius: radii.md },
-  signOutText: { fontFamily: font.bodyBold, color: colors.error },
+  email: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 13, marginTop: 2 },
+  row: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 56, borderBottomWidth: 1, borderColor: colors.divider, paddingVertical: spacing.sm },
+  rowIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.brandTertiary, alignItems: "center", justifyContent: "center" },
+  rowText: { flex: 1, fontFamily: font.bodyMed, color: colors.onSurface, fontSize: 15, flexShrink: 1 },
+  signOut: { marginTop: spacing.xxl, minHeight: 52, borderRadius: radii.md, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.error },
+  signOutText: { fontFamily: font.bodyBold, color: colors.error, fontSize: 14 },
+  legal: { textAlign: "center", marginTop: spacing.xxl, fontFamily: font.body, fontSize: 11, color: colors.muted },
 });

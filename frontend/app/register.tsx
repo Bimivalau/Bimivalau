@@ -49,7 +49,14 @@ export default function Register() {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, backgroundColor: colors.surface }}>
       <ScrollView contentContainerStyle={{ padding: spacing.xl, paddingTop: insets.top + spacing.xl, paddingBottom: spacing.xxxl }} keyboardShouldPersistTaps="handled">
-        <Pressable testID="register-back" onPress={() => router.back()}>
+        <Pressable
+          testID="register-back"
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/welcome"))}
+          hitSlop={12}
+          style={{ minHeight: 44, width: 44, justifyContent: "center" }}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <Feather name="arrow-left" size={22} color={colors.onSurface} />
         </Pressable>
         <Text style={s.title}>{isPro ? "Create your\nbraider account" : "Create your\naccount"}</Text>

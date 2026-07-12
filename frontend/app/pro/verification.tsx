@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, ActivityIndicator } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -39,13 +39,17 @@ export default function ProVerification() {
   const isUnverified = v.status === "unverified";
 
   return (
-    <ScrollView
-      style={{ backgroundColor: colors.surface }}
-      contentContainerStyle={{ paddingBottom: spacing.xxxl }}
-      keyboardShouldPersistTaps="handled"
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.surface }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
+      <ScrollView
+        style={{ backgroundColor: colors.surface }}
+        contentContainerStyle={{ paddingBottom: spacing.xxxl + insets.bottom }}
+        keyboardShouldPersistTaps="handled"
+      >
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.xl }}>
-        <Pressable testID="ver-back" onPress={() => router.back()}>
+        <Pressable testID="ver-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/pro/studio"))} hitSlop={12} style={{ minHeight: 44, width: 44, justifyContent: "center" }} accessibilityRole="button" accessibilityLabel="Back">
           <Feather name="arrow-left" size={22} color={colors.onSurface} />
         </Pressable>
         <Text style={s.title}>License verification</Text>
@@ -205,6 +209,7 @@ export default function ProVerification() {
         )}
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

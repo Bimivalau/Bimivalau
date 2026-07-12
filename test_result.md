@@ -499,3 +499,194 @@ agent_communication:
 
       TEST CREDENTIALS: /app/memory/test_credentials.md (amara/zara/kenya/simone
       @braids.demo password demo1234).
+
+## Iteration 13 — Production Quality Audit Sprint
+
+user_problem_statement: |
+  Complete end-to-end audit of the entire application before Iterations 14–16.
+  - No dead ends, no navigation loops, no broken routes
+  - Retrofit priority screens to /src/ui/ primitives
+  - Safe-area top+bottom on every screen
+  - KeyboardAvoidingView on every form (login, register, availability, portfolio,
+    verification, booking detail, hairdresser detail report, AI note)
+  - Hide unfinished operational features (Requests tile, forgot password, language picker,
+    hairstyle share button); keep aspirational AI as elegant Coming Soon
+  - Verify at 320/360/390/412/430 widths on iOS + Android
+  - Global ErrorBoundary + StatusBar
+
+frontend:
+  - task: "Global root layout — ErrorBoundary + StatusBar + Stack animation"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/_layout.tsx"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "New RootErrorBoundary catches uncaught render errors with a friendly Try Again screen. StatusBar dark-content translucent."
+  - task: "Welcome — removed dead-end language picker, added a11y labels"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/welcome.tsx"
+    priority: "medium"
+    needs_retesting: true
+  - task: "Login — removed dead-end 'Forgot password' link"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/login.tsx"
+    priority: "medium"
+    needs_retesting: true
+  - task: "Register — safer back button + hit slop"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/register.tsx"
+    priority: "medium"
+    needs_retesting: true
+  - task: "Hairstyle detail — removed dead-end share icon, safer back"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/hairstyle/[id].tsx"
+    priority: "medium"
+    needs_retesting: true
+  - task: "Pro Bookings — removed dead 'Requests' tile, added 'Services' quick tile"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/bookings.tsx"
+    priority: "medium"
+    needs_retesting: true
+  - task: "Pro Availability — retrofitted to responsive kit, KeyboardAvoidingView, safer back, min touch targets"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/availability.tsx"
+    priority: "high"
+    needs_retesting: true
+  - task: "Pro Portfolio — KeyboardAvoidingView + safer back + hit slop"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/portfolio.tsx"
+    priority: "medium"
+    needs_retesting: true
+  - task: "Pro Verification — KeyboardAvoidingView + safer back"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/verification.tsx"
+    priority: "medium"
+    needs_retesting: true
+  - task: "Booking detail — KeyboardAvoidingView + safer back"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/booking/[id].tsx"
+    priority: "medium"
+    needs_retesting: true
+  - task: "Customer Profile tab — retrofit to responsive kit with Badges"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/profile.tsx"
+    priority: "high"
+    needs_retesting: true
+  - task: "Notifications — retrofit to responsive kit, EmptyState, ErrorState, LoadingState"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/notifications.tsx"
+    priority: "medium"
+    needs_retesting: true
+  - task: "Favorites — retrofit to responsive kit + placeholder image fallback + safer back"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/favorites.tsx"
+    priority: "medium"
+    needs_retesting: true
+  - task: "AIComingSoon component — retrofit to responsive kit + KeyboardAvoidingView"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/AIComingSoon.tsx"
+    priority: "high"
+    needs_retesting: true
+
+test_plan:
+  current_focus:
+    - "Global root layout — ErrorBoundary + StatusBar + Stack animation"
+    - "Pro Availability — retrofitted to responsive kit, KeyboardAvoidingView, safer back, min touch targets"
+    - "Customer Profile tab — retrofit to responsive kit with Badges"
+    - "Notifications — retrofit to responsive kit"
+    - "Favorites — retrofit to responsive kit"
+    - "AIComingSoon component — retrofit to responsive kit + KeyboardAvoidingView"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Iteration 13 = Production Quality Audit sprint. No new features.
+
+      SUMMARY OF CHANGES:
+      1. New global `RootErrorBoundary` — catches uncaught render errors.
+      2. `_layout.tsx` — StatusBar dark-content translucent; slide_from_right stack anim.
+      3. Retrofitted with /src/ui/ primitives (Card, Badge, SafeScrollView,
+         ResponsiveHeading, LoadingState, EmptyState, ErrorState, BottomCTA):
+         - (tabs)/profile.tsx (customer)
+         - notifications.tsx
+         - favorites.tsx
+         - pro/availability.tsx (also fixed time input overflow at 320px)
+         - AIComingSoon component (Style Match/Coach/Beauty Journal/Recommendations/Recreate Look/Price Alerts/Travel Planning)
+      4. Added KeyboardAvoidingView to forms:
+         - pro/availability.tsx, pro/portfolio.tsx, pro/verification.tsx
+         - booking/[id].tsx
+      5. Hardened all back buttons — router.canGoBack() ? router.back() : safe fallback.
+      6. Added accessibility labels + hitSlop 12 + min touch target 44 on icon buttons.
+      7. Hidden dead-end operational features:
+         - welcome.tsx: dead language picker
+         - login.tsx: "Forgot password" (backend not built)
+         - hairstyle/[id].tsx: share button
+         - pro/bookings.tsx: Requests tile (now shows Services shortcut instead)
+      8. Escaped all unescaped apostrophes across the codebase (lint clean, no
+         eslint errors — only warnings for unused vars).
+
+      TEST BATTERY:
+
+      Regression (BACKEND, must remain 189/189):
+      - All existing pytest suites (iteration11 onboarding, iteration12 studio,
+        iteration12_delete_fix, all previous 170 regression).
+
+      FRONTEND FLOWS (Expo web at localhost:3000):
+      Customer flow:
+      1. Register a NEW customer at /welcome → email verification screen → skip.
+      2. Sign in as sara@braids.demo → land on /home (tabs visible).
+      3. Tab through Home → Discover → Bookings → Profile.
+      4. Profile shows updated card with CUSTOMER + FREE badges. Menu rows have icons in circles. Tap Notifications → renders EmptyState or list.
+      5. Tap Favorites → renders empty state with "Browse studios" CTA.
+      6. Tap My Saved Styles → collections.
+      7. Sign out → returns to /welcome.
+      8. /welcome — verify NO language picker; only English chip static.
+      9. Hairstyle detail — verify NO share button; only back + save.
+      10. Login — verify NO "Forgot password" link.
+
+      Pro flow:
+      1. Sign in as amara@braids.demo → /pro/dashboard with tab bar.
+      2. Tap Bookings → verify NO "Requests" tile; there IS a "Services" tile that opens /pro/services.
+      3. Tap Growth → renders (no back arrow, it's a tab).
+      4. Tap My Studio → tap Availability row → /pro/availability at 390px shows day toggles + time inputs; at 320px times still fit (was clipped, now fixed).
+      5. Save availability → success message.
+      6. Tap My Studio → Portfolio → renders; upload button visible.
+      7. Tap My Studio → Verification → renders "Live Studio, Verified adds..." pitch.
+      8. Tap /ai/style-match (deep link) — hero renders, waitlist form is not clipped by keyboard, "Notify me" button minHeight ≥48.
+      9. Regression: onboarding one-time flow still self-heals; Services CRUD still works; My Studio focus scroll still fires; Studio Info save still works.
+
+      Responsive matrix (320/360/390/412/430):
+      Please verify on 320×680 and 430×860 that:
+      - No horizontal overflow anywhere
+      - No clipped badges on My Studio rows
+      - Bottom CTAs never hidden behind Android nav bar
+      - Time inputs in Availability show fully
+      - Setup banner "Complete your Studio setup" wraps properly
+      - Profile menu rows fit with icon+label+badge+chevron
+
+      Report:
+      - Any dead-end button or route
+      - Any content trapped below safe area
+      - Any keyboard-overlap on forms
+      - Any layout defect at 320px
+
+      Credentials: /app/memory/test_credentials.md. Amara has full setup. Sara is a customer.

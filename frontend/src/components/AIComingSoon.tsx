@@ -2,16 +2,20 @@
  * Beautiful reusable AI "Coming Soon" screen with join-waitlist CTA.
  * Every AI module (Style Match, Recreate Look, Coach, Recommendations, etc.)
  * shares this shell. Real AI ships in a later pass.
+ *
+ * Uses the responsive UI kit so it looks correct on 320–430px devices,
+ * respects safe-area top/bottom, and avoids keyboard overlap on the
+ * "Tell us what you'd love this to do" note field.
  */
 import { useCallback, useState } from "react";
-import { View, Text, Pressable, StyleSheet, ScrollView, Alert, TextInput } from "react-native";
+import { View, Text, Pressable, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { api, ApiError } from "@/src/api";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
+import { SafeScrollView, ResponsiveHeading, Card, Badge, useResponsive } from "@/src/ui";
 
 export interface AIComingSoonProps {
   module: string;                // key sent to /ai/waitlist
@@ -21,13 +25,13 @@ export interface AIComingSoonProps {
   description: string;           // longer paragraph explaining value
   bullets: string[];             // 3-6 lines describing what the AI will do
   gradient?: [string, string, string];
-  requiresUnlimited?: boolean;   // shows upgrade hint if user is not unlimited
+  requiresUnlimited?: boolean;
 }
 
 export function AIComingSoonScreen(p: AIComingSoonProps) {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { user } = useSession();
+  const { scaleFont } = useResponsive();
   const [joined, setJoined] = useState(false);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -55,50 +59,67 @@ export function AIComingSoonScreen(p: AIComingSoonProps) {
   const upgradeHint = p.requiresUnlimited && !isUnlimited;
 
   return (
-    <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={{ paddingBottom: spacing.xxxl + insets.bottom }}>
-      <View style={[s.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable testID="ai-back" onPress={() => router.back()} hitSlop={10}>
-          <Feather name="arrow-left" size={22} color={colors.onSurface} />
-        </Pressable>
-      </View>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.surface }}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
+      keyboardVerticalOffset={0}
+    >
+      <SafeScrollView>
+        <View style={s.headerRow}>
+          <Pressable
+            testID="ai-back"
+            onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+            hitSlop={12}
+            style={s.backBtn}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+          >
+            <Feather name="arrow-left" size={22} color={colors.onSurface} />
+          </Pressable>
+        </View>
 
-      <View style={{ paddingHorizontal: spacing.xl }}>
         <LinearGradient colors={gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
-          <View style={s.heroEmoji}><Text style={{ fontSize: 36 }}>{p.emoji}</Text></View>
+          <View style={s.heroEmoji}><Text style={{ fontSize: scaleFont(34), lineHeight: scaleFont(40) }}>{p.emoji}</Text></View>
           <Text style={s.eyebrow}>{p.eyebrow}</Text>
-          <Text style={s.title}>{p.title}</Text>
+          <ResponsiveHeading size={28} color="#fff" style={{ textAlign: "center", marginTop: 6 }}>{p.title}</ResponsiveHeading>
           <Text style={s.desc}>{p.description}</Text>
-          <View style={s.soonPill}><Text style={s.soonText}>COMING SOON</Text></View>
+          <Badge label="COMING SOON" tone="brand" variant="solid" style={{ marginTop: spacing.md, backgroundColor: "rgba(255,255,255,0.25)" }} />
         </LinearGradient>
 
         <Text style={s.sectionTitle}>What it does</Text>
         <View style={{ gap: spacing.sm }}>
           {p.bullets.map((b, i) => (
-            <View key={i} style={s.bullet}>
-              <View style={s.dot} />
-              <Text style={s.bulletText}>{b}</Text>
-            </View>
+            <Card key={i} variant="tinted" padding={spacing.md}>
+              <View style={s.bullet}>
+                <View style={s.dot} />
+                <Text style={s.bulletText}>{b}</Text>
+              </View>
+            </Card>
           ))}
         </View>
 
         {upgradeHint && (
-          <View style={s.upgradeCard}>
-            <Feather name="lock" size={14} color={colors.brand} />
-            <Text style={s.upgradeText}>Unlimited members get first access when this launches.</Text>
-            <Pressable testID="ai-upgrade" onPress={() => router.push("/subscription")} hitSlop={6}>
-              <Text style={s.upgradeLink}>See plans →</Text>
-            </Pressable>
-          </View>
+          <Pressable testID="ai-upgrade" onPress={() => router.push("/subscription")} style={{ marginTop: spacing.lg }}>
+            <Card variant="outline" padding={spacing.md} style={{ borderColor: colors.brand, backgroundColor: colors.brandTertiary }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" }}>
+                <Feather name="lock" size={14} color={colors.brand} />
+                <Text style={s.upgradeText}>Unlimited members get first access when this launches.</Text>
+                <Text style={s.upgradeLink}>See plans →</Text>
+              </View>
+            </Card>
+          </Pressable>
         )}
 
         {joined ? (
-          <View style={s.joinedCard}>
-            <Feather name="check-circle" size={20} color={colors.success} />
-            <View style={{ flex: 1 }}>
-              <Text style={s.joinedTitle}>You're on the waitlist ✨</Text>
-              <Text style={s.joinedDesc}>We'll notify you the moment {p.eyebrow.toLowerCase()} launches.</Text>
+          <Card style={s.joinedCard} padding={spacing.lg}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+              <Feather name="check-circle" size={20} color={colors.success} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.joinedTitle}>You&apos;re on the waitlist ✨</Text>
+                <Text style={s.joinedDesc} numberOfLines={3}>We&apos;ll notify you the moment {p.eyebrow.toLowerCase()} launches.</Text>
+              </View>
             </View>
-          </View>
+          </Card>
         ) : (
           <View style={{ marginTop: spacing.xxl }}>
             <Text style={s.sectionTitle}>Join the waitlist</Text>
@@ -110,48 +131,45 @@ export function AIComingSoonScreen(p: AIComingSoonProps) {
               placeholderTextColor={colors.muted}
               style={s.noteInput}
               multiline
+              accessibilityLabel="Optional note about what you want this AI to do"
+              maxLength={280}
             />
             <Pressable
               testID="ai-join"
               onPress={join}
               disabled={busy}
               style={[s.joinBtn, busy && { opacity: 0.5 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Notify me when this feature launches"
             >
               <Text style={s.joinText}>{busy ? "Joining…" : "Notify me when it's ready"}</Text>
             </Pressable>
-            <Text style={s.privacy}>We'll only email you about this feature.</Text>
+            <Text style={s.privacy}>We&apos;ll only email you about this feature.</Text>
           </View>
         )}
-      </View>
-    </ScrollView>
+      </SafeScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const s = StyleSheet.create({
-  header: { flexDirection: "row", alignItems: "center", paddingHorizontal: spacing.xl, paddingBottom: spacing.md },
-  hero: { padding: spacing.xl, borderRadius: 28, marginTop: spacing.md, alignItems: "center" },
+  headerRow: { paddingBottom: spacing.md, minHeight: 44, justifyContent: "center" },
+  backBtn: { minHeight: 44, width: 44, alignItems: "flex-start", justifyContent: "center" },
+  hero: { padding: spacing.xl, borderRadius: 28, alignItems: "center" },
   heroEmoji: { width: 76, height: 76, borderRadius: 38, backgroundColor: "rgba(255,255,255,0.25)", alignItems: "center", justifyContent: "center", marginBottom: spacing.md },
   eyebrow: { color: "rgba(255,255,255,0.85)", fontFamily: font.bodyBold, fontSize: 10, letterSpacing: 2.5 },
-  title: { color: "#fff", fontFamily: font.display, fontSize: 30, lineHeight: 34, marginTop: 6, textAlign: "center" },
-  desc: { color: "rgba(255,255,255,0.9)", fontFamily: font.body, fontSize: 13, lineHeight: 19, marginTop: spacing.md, textAlign: "center" },
-  soonPill: { marginTop: spacing.md, paddingHorizontal: 10, paddingVertical: 4, borderRadius: radii.pill, backgroundColor: "rgba(255,255,255,0.25)" },
-  soonText: { color: "#fff", fontFamily: font.bodyBold, fontSize: 10, letterSpacing: 1.5 },
-
-  sectionTitle: { fontFamily: font.display, fontSize: 20, color: colors.onSurface, marginTop: spacing.xxl, marginBottom: spacing.md },
-  bullet: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.surfaceSecondary },
+  desc: { color: "rgba(255,255,255,0.9)", fontFamily: font.body, fontSize: 13, lineHeight: 19, marginTop: spacing.md, textAlign: "center", flexShrink: 1 },
+  sectionTitle: { fontFamily: font.display, fontSize: 20, color: colors.onSurface, marginTop: spacing.xxl, marginBottom: spacing.md, flexShrink: 1 },
+  bullet: { flexDirection: "row", alignItems: "flex-start", gap: spacing.md, flexShrink: 1 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.brand, marginTop: 8 },
-  bulletText: { flex: 1, fontFamily: font.body, fontSize: 13, color: colors.onSurfaceSecondary, lineHeight: 18 },
-
-  upgradeCard: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.md, borderRadius: radii.md, backgroundColor: colors.brandTertiary, marginTop: spacing.lg },
-  upgradeText: { flex: 1, fontFamily: font.bodyMed, fontSize: 12, color: colors.onBrandTertiary },
+  bulletText: { flex: 1, fontFamily: font.body, fontSize: 13, color: colors.onSurfaceSecondary, lineHeight: 18, flexShrink: 1 },
+  upgradeText: { flex: 1, fontFamily: font.bodyMed, fontSize: 12, color: colors.onSurfaceSecondary, minWidth: 180, flexShrink: 1 },
   upgradeLink: { fontFamily: font.bodyBold, fontSize: 13, color: colors.brand },
-
-  noteInput: { minHeight: 80, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, padding: spacing.md, fontFamily: font.body, fontSize: 14, color: colors.onSurface, textAlignVertical: "top" },
-  joinBtn: { marginTop: spacing.md, backgroundColor: colors.brand, padding: spacing.md, borderRadius: radii.md, alignItems: "center" },
+  noteInput: { minHeight: 96, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, padding: spacing.md, fontFamily: font.body, fontSize: 14, color: colors.onSurface, textAlignVertical: "top" },
+  joinBtn: { marginTop: spacing.md, backgroundColor: colors.brand, minHeight: 52, borderRadius: radii.md, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   joinText: { color: "#fff", fontFamily: font.bodyBold, fontSize: 14 },
   privacy: { fontFamily: font.body, fontSize: 10, color: colors.muted, textAlign: "center", marginTop: spacing.sm },
-
-  joinedCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.lg, borderRadius: radii.lg, backgroundColor: "#EFFDF5", borderWidth: 1, borderColor: "#B7E4C7", marginTop: spacing.xxl },
+  joinedCard: { marginTop: spacing.xxl, backgroundColor: "#EFFDF5", borderWidth: 1, borderColor: "#B7E4C7" },
   joinedTitle: { fontFamily: font.bodyBold, fontSize: 14, color: "#207449" },
   joinedDesc: { fontFamily: font.body, fontSize: 12, color: "#38875D", marginTop: 3, lineHeight: 17 },
 });

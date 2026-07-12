@@ -83,7 +83,7 @@ export default function BookFlow() {
 
         <View style={s.policy}>
           <Feather name="info" size={16} color={colors.brand} />
-          <Text style={s.policyText}>You'll pay <Text style={{ fontFamily: font.bodyBold }}>at the counter</Text> at the appointment. If you don't check in within 15 min of the scheduled time, the booking is auto-cancelled.</Text>
+          <Text style={s.policyText}>You&apos;ll pay <Text style={{ fontFamily: font.bodyBold }}>at the counter</Text> at the appointment. If you don&apos;t check in within 15 min of the scheduled time, the booking is auto-cancelled.</Text>
         </View>
         {err && <Text testID="book-err" style={{ color: colors.error, marginTop: spacing.md, fontFamily: font.body }}>{err}</Text>}
       </ScrollView>

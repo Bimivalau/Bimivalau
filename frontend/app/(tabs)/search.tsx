@@ -104,7 +104,7 @@ export default function Discover() {
         ) : error ? (
           <View style={s.empty}>
             <Feather name="cloud-off" size={40} color={colors.borderStrong} />
-            <Text style={s.emptyTitle}>Can't load styles</Text>
+            <Text style={s.emptyTitle}>Can&apos;t load styles</Text>
             <Text style={s.emptyDesc}>{error}</Text>
             <Pressable testID="discover-retry" onPress={load} style={{ marginTop: spacing.lg, backgroundColor: colors.brand, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radii.md }}>
               <Text style={{ color: "#fff", fontFamily: font.bodyBold, fontSize: 13 }}>Try again</Text>

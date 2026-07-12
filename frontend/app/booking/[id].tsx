@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, TextInput } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -62,9 +62,12 @@ export default function BookingDetail() {
   };
 
   return (
-    <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.surface }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={{ paddingBottom: spacing.xxxl + insets.bottom }} keyboardShouldPersistTaps="handled">
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.xl, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingBottom: spacing.md }}>
-        <Pressable testID="bd-back" onPress={() => router.back()}><Feather name="arrow-left" size={22} color={colors.onSurface} /></Pressable>
+        <Pressable testID="bd-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} hitSlop={12} accessibilityRole="button" accessibilityLabel="Back">
+          <Feather name="arrow-left" size={22} color={colors.onSurface} />
+        </Pressable>
         <Text style={s.header}>Booking</Text>
       </View>
       {confirmed && (
@@ -177,6 +180,7 @@ export default function BookingDetail() {
         {proRated && <Text style={{ color: colors.success, marginTop: spacing.md, fontFamily: font.bodyBold }}>Rating recorded{flagged ? " · Customer flagged for admin review" : ""}.</Text>}
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 

@@ -17,7 +17,6 @@ export default function Login() {
   const [showPw, setShowPw] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [forgot, setForgot] = useState(false);
 
   const submit = async () => {
     setErr(null); setBusy(true);
@@ -60,16 +59,8 @@ export default function Login() {
               <Feather name={showPw ? "eye-off" : "eye"} size={18} color={colors.muted} />
             </Pressable>
           </View>
-          <Pressable testID="forgot-password" onPress={() => setForgot(true)} style={{ alignSelf: "flex-end", padding: spacing.xs }}>
-            <Text style={{ fontFamily: font.bodyMed, color: colors.brand, fontSize: 12 }}>Forgot password?</Text>
-          </Pressable>
-          {forgot && (
-            <Text testID="forgot-msg" style={{ color: colors.muted, fontFamily: font.body, fontSize: 12 }}>
-              Password reset via email is coming soon. For now, contact support@braidscommunity.app.
-            </Text>
-          )}
           {err && <Text testID="login-error" style={styles.err}>{err}</Text>}
-          <Pressable testID="login-submit" onPress={submit} disabled={busy} style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]}>
+          <Pressable testID="login-submit" onPress={submit} disabled={busy} style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]} accessibilityRole="button">
             <Text style={styles.btnText}>{busy ? "Signing in…" : "Sign in"}</Text>
           </Pressable>
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, ActivityIndicator, Alert } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, ActivityIndicator, Alert, KeyboardAvoidingView, Platform } from "react-native";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -68,9 +68,12 @@ export default function ProPortfolio() {
   const del = async (id: string) => { await api(`/portfolio/${id}`, { method: "DELETE" }); await load(); };
 
   return (
-    <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.surface }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+    <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={{ paddingBottom: spacing.xxxl + insets.bottom }} keyboardShouldPersistTaps="handled">
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.xl }}>
-        <Pressable testID="port-back" onPress={() => router.back()}><Feather name="arrow-left" size={22} color={colors.onSurface} /></Pressable>
+        <Pressable testID="port-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/pro/studio"))} hitSlop={12} style={{ minHeight: 44, width: 44, justifyContent: "center" }} accessibilityRole="button" accessibilityLabel="Back">
+          <Feather name="arrow-left" size={22} color={colors.onSurface} />
+        </Pressable>
         <Text style={s.title}>Portfolio</Text>
         <Text style={s.sub}>{items.length}/{FREE_CAP} photos — free plan cap.</Text>
 
@@ -129,6 +132,7 @@ export default function ProPortfolio() {
         </View>
       </View>
     </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 const s = StyleSheet.create({

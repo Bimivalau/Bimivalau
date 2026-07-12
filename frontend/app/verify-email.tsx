@@ -127,7 +127,7 @@ export default function VerifyEmail() {
         </Pressable>
 
         <View style={{ flexDirection: "row", justifyContent: "center", gap: spacing.sm, marginTop: spacing.lg }}>
-          <Text style={{ fontFamily: font.body, color: colors.muted, fontSize: 13 }}>Didn't get it?</Text>
+          <Text style={{ fontFamily: font.body, color: colors.muted, fontSize: 13 }}>Didn&apos;t get it?</Text>
           <Pressable testID="verify-resend" onPress={sendCode} disabled={cooldown > 0}>
             <Text style={{ fontFamily: font.bodyBold, color: cooldown > 0 ? colors.muted : colors.brand, fontSize: 13 }}>
               {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}

@@ -67,14 +67,11 @@ export default function HairstyleDetail() {
 
           {/* Nav row */}
           <View style={[s.navRow, { paddingTop: insets.top + spacing.sm }]}>
-            <Pressable testID="hs-back" onPress={() => router.back()} style={s.iconBtn}>
+            <Pressable testID="hs-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} style={s.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
               <Feather name="arrow-left" size={20} color="#fff" />
             </Pressable>
             <View style={{ flex: 1 }} />
-            <Pressable testID="hs-share" onPress={() => {}} style={s.iconBtn}>
-              <Feather name="share-2" size={18} color="#fff" />
-            </Pressable>
-            <Pressable testID="hs-save" onPress={() => setSaveOpen(true)} style={[s.iconBtn, { marginLeft: spacing.sm }]}>
+            <Pressable testID="hs-save" onPress={() => setSaveOpen(true)} style={s.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={isSaved ? "Remove from collections" : "Save style"}>
               <Feather name="bookmark" size={18} color={isSaved ? colors.brand : "#fff"} />
             </Pressable>
           </View>
@@ -126,7 +123,7 @@ export default function HairstyleDetail() {
               </LinearGradient>
               <View style={{ flex: 1 }}>
                 <Text style={si.title}>Style Intelligence</Text>
-                <Text style={si.desc}>BraidsCommunity's proprietary score — powered by real customer signals.</Text>
+                <Text style={si.desc}>BraidsCommunity&apos;s proprietary score — powered by real customer signals.</Text>
               </View>
             </View>
             <View style={si.chipRow}>
@@ -206,7 +203,7 @@ export default function HairstyleDetail() {
         {/* ---------- Similar styles ---------- */}
         {(style.similar || []).length > 0 && (
           <View style={{ marginTop: spacing.xxl }}>
-            <Text style={[s.section, { paddingHorizontal: spacing.xl }]}>You'll also love</Text>
+            <Text style={[s.section, { paddingHorizontal: spacing.xl }]}>You&apos;ll also love</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}

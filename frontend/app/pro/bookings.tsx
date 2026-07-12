@@ -41,18 +41,18 @@ export default function ProBookings() {
         <Text style={s.sub}>Your calendar of appointments and booking requests.</Text>
 
         <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.lg }}>
-          <Pressable testID="bk-avail" onPress={() => router.push("/pro/availability")} style={{ flex: 1 }}>
+          <Pressable testID="bk-avail" onPress={() => router.push("/pro/availability")} style={{ flex: 1 }} accessibilityRole="button">
             <Card padding={spacing.md} variant="tinted">
               <Feather name="clock" size={18} color={colors.brand} />
               <Text style={s.quickTitle}>Availability</Text>
               <Text style={s.quickSub}>Weekly hours</Text>
             </Card>
           </Pressable>
-          <Pressable testID="bk-requests" onPress={() => {}} style={{ flex: 1 }} disabled>
-            <Card padding={spacing.md} variant="tinted" style={{ opacity: 0.6 }}>
-              <Feather name="mail" size={18} color={colors.brand} />
-              <Text style={s.quickTitle}>Requests</Text>
-              <Text style={s.quickSub}>Coming soon</Text>
+          <Pressable testID="bk-services" onPress={() => router.push("/pro/services")} style={{ flex: 1 }} accessibilityRole="button">
+            <Card padding={spacing.md} variant="tinted">
+              <Feather name="tag" size={18} color={colors.brand} />
+              <Text style={s.quickTitle}>Services</Text>
+              <Text style={s.quickSub}>Prices & durations</Text>
             </Card>
           </Pressable>
         </View>
