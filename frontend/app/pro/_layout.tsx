@@ -73,6 +73,7 @@ export default function ProTabsLayout() {
       <Tabs.Screen name="verification" options={{ href: null }} />
       <Tabs.Screen name="services" options={{ href: null }} />
       <Tabs.Screen name="studio-info" options={{ href: null }} />
+      <Tabs.Screen name="founding" options={{ href: null }} />
     </Tabs>
   );
 }

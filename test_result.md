@@ -690,3 +690,195 @@ agent_communication:
       - Any layout defect at 320px
 
       Credentials: /app/memory/test_credentials.md. Amara has full setup. Sara is a customer.
+
+## Iteration 14 — Subscription Architecture (mocked purchases, RevenueCat-ready)
+
+user_problem_statement: |
+  Production subscription architecture:
+  - Backend: platform_config singleton, subscription_service (entitlements + trial + founding pro + portfolio caps), notification_engine (channel-agnostic).
+  - Frontend: EntitlementsProvider + useEntitlements hook, PaywallSheet, Gated component, PurchaseProvider abstraction (mock now, RevenueCat when keys are activated).
+  - Launch mode: while true, all customer premium features are free.
+  - 30-day trials for Braider Standard and Braider Unlimited (configurable).
+  - Founding Pro program: first 100 braiders with admin approval, 1-year Unlimited.
+  - Notifications engine: in_app active, push/email/sms/whatsapp channels stubbed and future-ready.
+
+backend:
+  - task: "Subscription service — entitlements + launch mode + trials + portfolio cap"
+    implemented: true
+    working: "NA"
+    file: "backend/subscription_service.py"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "resolve_plan_slug, has_entitlement, portfolio_cap, upgrade_reason, summarize_entitlements. All feature keys defined."
+  - task: "Notification engine — channel-agnostic"
+    implemented: true
+    working: "NA"
+    file: "backend/notification_engine.py"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "emit() stores per-channel docs, provider stubs for push/email/sms/whatsapp. bootstrap_platform_config seeds singleton."
+  - task: "Endpoints — /api/subscription/{config,me}, mock-purchase/cancel/restore, /api/subscription/admin/config"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "All endpoints registered ABOVE include_router(api). Verified curl returns config. Mock purchase flips plan + emits notif."
+  - task: "Endpoints — /api/founding-pro/status, /apply, admin/founding-pro/queue, decide"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Eligibility gates: availability + portfolio min + studio info. Slots configurable. Admin decides approve/reject with reason."
+  - task: "Endpoints — /api/notifications/preferences GET/PUT, /api/notifications/{id}/read POST, /api/entitlements/{key}"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    priority: "medium"
+    needs_retesting: true
+  - task: "Daily maintenance job (6-hourly): expiration, reminders, cancel-at-period-end"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    priority: "medium"
+    needs_retesting: true
+
+frontend:
+  - task: "EntitlementsProvider + useEntitlements hook"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/entitlements.tsx"
+    priority: "high"
+    needs_retesting: true
+  - task: "PurchaseProvider abstraction (MockProvider + RevenueCat stub)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/purchase/"
+    priority: "high"
+    needs_retesting: true
+  - task: "PaywallSheet component — elegant modal, monthly/yearly toggle, trial CTA, restore"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/PaywallSheet.tsx"
+    priority: "high"
+    needs_retesting: true
+  - task: "Gated component — locks premium features with polished unlock card"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/Gated.tsx"
+    priority: "medium"
+    needs_retesting: true
+  - task: "Subscription screen rewrite — launch mode banner, per-role plans, trials, savings badges"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/subscription.tsx"
+    priority: "high"
+    needs_retesting: true
+  - task: "Founding Pro screen (/pro/founding)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/founding.tsx"
+    priority: "high"
+    needs_retesting: true
+  - task: "AIComingSoon wired to entitlements + PaywallSheet + launch mode messaging"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/components/AIComingSoon.tsx"
+    priority: "medium"
+    needs_retesting: true
+  - task: "Root layout wraps app in EntitlementsProvider"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/_layout.tsx"
+    priority: "high"
+    needs_retesting: true
+
+test_plan:
+  current_focus:
+    - "Subscription service — entitlements + launch mode + trials + portfolio cap"
+    - "Endpoints — /api/subscription/{config,me}, mock-purchase/cancel/restore"
+    - "Endpoints — /api/founding-pro/status, /apply, admin/founding-pro/queue, decide"
+    - "PaywallSheet component"
+    - "Subscription screen rewrite"
+    - "Founding Pro screen"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Iteration 14 delivers full production subscription architecture with mocked purchases.
+
+      NEW BACKEND FILES:
+      - /app/backend/subscription_service.py (entitlements matrix, plan resolution, upgrade CTAs)
+      - /app/backend/notification_engine.py (channel-agnostic emit, provider stubs)
+
+      NEW BACKEND ENDPOINTS (all registered above app.include_router):
+      - GET  /api/subscription/config — public runtime config
+      - GET  /api/subscription/me — plan + entitlements + trial + founding pro
+      - GET  /api/entitlements/{key} — single-feature check with upgrade_reason
+      - POST /api/subscription/mock-purchase — mock buy, supports start_trial
+      - POST /api/subscription/mock-cancel — cancel at period end
+      - POST /api/subscription/mock-restore — no-op mock
+      - PUT  /api/subscription/admin/config — admin config merge-patch
+      - GET  /api/founding-pro/status — spots + user's state
+      - POST /api/founding-pro/apply — braider applies (with eligibility gate)
+      - GET  /api/admin/founding-pro/queue
+      - POST /api/admin/founding-pro/{app_id}/decide — approve/reject
+      - GET  /api/notifications/preferences, PUT /api/notifications/preferences
+      - POST /api/notifications/{nid}/read
+
+      NEW FRONTEND FILES:
+      - src/entitlements.tsx (Provider + hook)
+      - src/purchase/{provider,mockProvider,revenuecatProvider,index}.ts
+      - src/components/PaywallSheet.tsx
+      - src/components/Gated.tsx
+      - app/pro/founding.tsx
+
+      UPDATED:
+      - app/_layout.tsx (wraps app in EntitlementsProvider)
+      - app/subscription.tsx (rewritten — elegant launch-mode-aware paywall)
+      - src/components/AIComingSoon.tsx (uses PaywallSheet + entitlements)
+      - app/pro/_layout.tsx (adds founding as hidden route)
+
+      BACKEND TESTS:
+      1. GET /api/subscription/config as anon → 200 with launch_mode=true.
+      2. Login as sara → GET /api/subscription/me → plan_slug=customer_free, launch_mode=true, entitlements[customer.ai.style_match]=true (launch override).
+      3. Login as amara → GET /api/subscription/me → plan_slug=braider_unlimited, portfolio_cap=40, entitlements[braider.ai.business_coach]=true.
+      4. amara: POST /api/subscription/mock-purchase {plan:braider_standard, cycle:monthly, start_trial:true} → 200, plan_status=trialing, trial_ends_at set 30d out.
+      5. amara: GET /api/subscription/me → trial_days_left=29-30, trial_plan=standard.
+      6. amara: POST /api/subscription/mock-cancel → 200 with cancel_at.
+      7. amara: POST /api/subscription/mock-restore → 200 with snapshot.
+      8. Login as new pro (register fresh hairdresser). Complete Studio (availability + 3 portfolio + bio/city). POST /api/founding-pro/apply {intro:'…'} → 200 status=pending.
+      9. Login as sat@braids.demo (admin) → GET /api/admin/founding-pro/queue → returns the pending app. POST /api/admin/founding-pro/{app_id}/decide {approve:true} → 200. Verify new pro's user.founding_pro=true, plan=unlimited, has notification "Welcome, Founding Pro".
+      10. Fresh braider with NO availability → POST /api/founding-pro/apply → 400 "Set your Weekly Availability first."
+      11. Non-hairdresser (sara) → POST /api/founding-pro/apply → 403.
+      12. GET /api/notifications/preferences → default prefs. PUT with custom → 200. GET again → returns custom.
+      13. Regression: all 189 previous pytest tests still pass.
+
+      FRONTEND TESTS (localhost:3000, viewport 390x844):
+      1. Login as sara → /subscription → verify launch mode banner "All premium customer features are free during launch", Unlimited card has "FREE DURING LAUNCH" badge, Current plan is Free.
+      2. Toggle Yearly ↔ Monthly. Yearly shows SAVE 28%.
+      3. Login as amara → /subscription → sees Free/Standard/Unlimited braider plans. "Most popular" on Unlimited. If not Founding Pro: Founding Studio spots CTA visible at top.
+      4. Tap Standard "Start 30-day free trial" → mock purchase → refreshed status shows "Trial started ✨" alert; card now says "CURRENT".
+      5. Log out. Log in as amara → /pro/founding → hero gradient, 99/100 spots remaining, benefits list, textarea + "Apply for Founding Studio" button.
+      6. Deep-link /ai/style-match as sara → customer_ai.style_match has entitlement due to launch mode → NO upgrade card shown, "Included free during BraidsCommunity's launch" chip visible.
+      7. Deep-link /ai/coach as sara (customer) → coach is a braider feature → upgrade card visible with "See plans" → tap opens PaywallSheet.
+      8. Restore purchases button on /subscription → mock returns ok, no crash.
+      9. Log in as amara → /subscription → tap Free "Switch to Free" → confirm dialog → confirm → cancels at period end.
+
+      TEST CREDENTIALS: /app/memory/test_credentials.md. Admin: sat@braids.demo password demo1234.

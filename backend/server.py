@@ -5,11 +5,23 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from pydantic import BaseModel, Field, EmailStr
-from typing import List, Optional, Literal
+from typing import List, Optional, Literal, Dict, Any
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 import os, uuid, logging, bcrypt, secrets, string, httpx
 from jose import jwt, JWTError
+
+from subscription_service import (
+    DEFAULT_CONFIG,
+    ENTITLEMENTS,
+    has_entitlement,
+    portfolio_cap as sub_portfolio_cap,
+    resolve_plan_slug,
+    summarize_entitlements,
+    upgrade_reason,
+    days_remaining as sub_days_remaining,
+)
+import notification_engine as notif
 
 def gen_code(n: int = 6) -> str:
     alphabet = string.ascii_uppercase + string.digits
@@ -2982,6 +2994,393 @@ async def seed(force: bool = False):
     return {"status": "seeded"}
 
 
+# ----------------------------------------------------------------------
+# Subscription v2 — production architecture (v14)
+# ----------------------------------------------------------------------
+async def _get_config() -> dict:
+    doc = await db.platform_config.find_one({"_id": "singleton"}, {"_id": 0}) or {}
+    return {**DEFAULT_CONFIG, **doc}
+
+
+async def _user_doc(user_id: str) -> dict:
+    return await db.users.find_one({"id": user_id}, {"_id": 0}) or {}
+
+
+class SubscriptionMockPurchaseIn(BaseModel):
+    plan: Literal["customer_unlimited", "braider_standard", "braider_unlimited"]
+    cycle: Literal["monthly", "yearly"] = "monthly"
+    start_trial: bool = False
+
+
+class NotificationPrefsIn(BaseModel):
+    prefs: dict  # notif_type -> channel -> bool
+
+
+@api.get("/subscription/config")
+async def public_subscription_config():
+    """Public runtime config: launch mode, pricing, trial durations, founding
+    pro state. Consumed by the frontend to render plan cards and paywalls
+    without a redeploy."""
+    cfg = await _get_config()
+    fp = cfg.get("founding_pro", {})
+    approved_count = await db.users.count_documents({"founding_pro": True})
+    return {
+        "launch_mode": bool(cfg.get("launch_mode", True)),
+        "pricing": cfg.get("pricing", DEFAULT_CONFIG["pricing"]),
+        "trials": cfg.get("trials", DEFAULT_CONFIG["trials"]),
+        "portfolio_caps": cfg.get("portfolio_caps", DEFAULT_CONFIG["portfolio_caps"]),
+        "founding_pro": {
+            "slots": int(fp.get("slots", 100)),
+            "duration_days": int(fp.get("duration_days", 365)),
+            "spots_taken": approved_count,
+            "spots_remaining": max(0, int(fp.get("slots", 100)) - approved_count),
+        },
+        "notification_channels": cfg.get("notification_channels", DEFAULT_CONFIG["notification_channels"]),
+    }
+
+
+@api.get("/subscription/me")
+async def my_subscription(user: UserOut = Depends(get_user)):
+    """Complete subscription snapshot for the current user, plus entitlements
+    map — one call, no waterfalls."""
+    cfg = await _get_config()
+    u = await _user_doc(user.id)
+    slug = resolve_plan_slug(u)
+    entitlements = summarize_entitlements(u, cfg)
+    # Launch-mode override for customer entitlements is reported honestly.
+    launch = bool(cfg.get("launch_mode")) and slug.startswith("customer_")
+    return {
+        "plan_slug": slug,
+        "plan": u.get("plan", "free"),
+        "role": u.get("role", "customer"),
+        "plan_source": u.get("plan_source"),
+        "plan_status": u.get("plan_status", "active"),
+        "plan_cycle": u.get("plan_cycle"),
+        "plan_renewal_at": u.get("plan_renewal_at"),
+        "plan_cancel_at_period_end": bool(u.get("plan_cancel_at_period_end", False)),
+        "trial_plan": u.get("trial_plan"),
+        "trial_ends_at": u.get("trial_ends_at"),
+        "trial_days_left": sub_days_remaining(u.get("trial_ends_at")),
+        "founding_pro": bool(u.get("founding_pro")),
+        "founding_pro_expires_at": u.get("founding_pro_expires_at"),
+        "founding_pro_days_left": sub_days_remaining(u.get("founding_pro_expires_at")),
+        "launch_mode": launch,
+        "portfolio_cap": sub_portfolio_cap(u, cfg),
+        "entitlements": entitlements,
+    }
+
+
+@api.get("/entitlements/{feature_key}")
+async def check_entitlement(feature_key: str, user: UserOut = Depends(get_user)):
+    """Explicit gate for a single feature — used by frontend `<Gated>`."""
+    cfg = await _get_config()
+    u = await _user_doc(user.id)
+    return {"feature_key": feature_key, "allowed": has_entitlement(u, feature_key, cfg), "reason": upgrade_reason(feature_key)}
+
+
+@api.post("/subscription/mock-purchase")
+async def mock_purchase(body: SubscriptionMockPurchaseIn, user: UserOut = Depends(get_user)):
+    """Development-time purchase. Replaced by RevenueCat when EXPO_PUBLIC_REVENUECAT_* keys
+    are activated. Sets plan immediately and stamps plan_source='mock'."""
+    cfg = await _get_config()
+    u = await _user_doc(user.id)
+    role = u.get("role", "customer")
+    target = body.plan
+    if role != "hairdresser" and target != "customer_unlimited":
+        raise HTTPException(400, "This plan is not available for your account.")
+    if role == "hairdresser" and target == "customer_unlimited":
+        raise HTTPException(400, "Braiders subscribe to a Braider plan.")
+    plan_name = target.split("_", 1)[1] if target.startswith("customer_") else target.split("_", 1)[1]
+    now = datetime.now(timezone.utc)
+    updates: Dict[str, Any] = {
+        "plan": plan_name,
+        "plan_source": "mock",
+        "plan_status": "active",
+        "plan_cycle": body.cycle,
+        "plan_started_at": now.isoformat(),
+        "plan_renewal_at": (now + timedelta(days=365 if body.cycle == "yearly" else 30)).isoformat(),
+        "plan_cancel_at_period_end": False,
+    }
+    if body.start_trial and role == "hairdresser":
+        trial_days = int(cfg["trials"].get(target, 0))
+        if trial_days > 0:
+            updates.update({
+                "trial_plan": plan_name,
+                "trial_ends_at": (now + timedelta(days=trial_days)).isoformat(),
+                "plan_status": "trialing",
+            })
+    await db.users.update_one({"id": user.id}, {"$set": updates})
+    await notif.emit_subscription_transition(db, user_id=user.id, from_plan=u.get("plan", "free"), to_plan=plan_name)
+    return {"ok": True, **updates}
+
+
+@api.post("/subscription/mock-cancel")
+async def mock_cancel(user: UserOut = Depends(get_user)):
+    """Cancel at the end of the current billing period. Keeps entitlements
+    until then. Never deletes user data."""
+    u = await _user_doc(user.id)
+    if (u.get("plan") or "free") == "free":
+        return {"ok": True, "message": "You're already on Free."}
+    await db.users.update_one({"id": user.id}, {"$set": {"plan_cancel_at_period_end": True}})
+    return {"ok": True, "cancel_at": u.get("plan_renewal_at")}
+
+
+@api.post("/subscription/mock-restore")
+async def mock_restore(user: UserOut = Depends(get_user)):
+    """Reserved for the RevenueCat restore-purchases flow. Mock impl is a no-op
+    but returns the current entitlements so the client can refresh."""
+    return await my_subscription(user=user)
+
+
+@api.put("/subscription/admin/config")
+async def admin_update_config(body: dict, user: UserOut = Depends(get_user)):
+    """Admin-only. Merge-patch platform config (launch mode, trials, caps,
+    channels, founding_pro settings)."""
+    if user.role != "admin":
+        raise HTTPException(403, "Admin only")
+    allowed_keys = {"launch_mode", "launch_mode_thresholds", "trials", "founding_pro",
+                    "portfolio_caps", "notification_channels", "pricing"}
+    patch = {k: v for k, v in body.items() if k in allowed_keys}
+    if patch:
+        await db.platform_config.update_one({"_id": "singleton"}, {"$set": patch}, upsert=True)
+    return await _get_config()
+
+
+# ---- Founding Pro program (v14) ----
+class FoundingProApplyIn(BaseModel):
+    intro: Optional[str] = None
+
+
+@api.get("/founding-pro/status")
+async def founding_pro_status(user: UserOut = Depends(get_user)):
+    """Public-ish (needs auth). Shows spots remaining and this user's application state."""
+    cfg = await _get_config()
+    fp = cfg.get("founding_pro", DEFAULT_CONFIG["founding_pro"])
+    approved = await db.users.count_documents({"founding_pro": True})
+    u = await _user_doc(user.id)
+    app_doc = await db.founding_pro_applications.find_one({"user_id": user.id}, {"_id": 0})
+    return {
+        "slots": int(fp.get("slots", 100)),
+        "spots_taken": approved,
+        "spots_remaining": max(0, int(fp.get("slots", 100)) - approved),
+        "duration_days": int(fp.get("duration_days", 365)),
+        "is_founding_pro": bool(u.get("founding_pro")),
+        "founding_pro_expires_at": u.get("founding_pro_expires_at"),
+        "founding_pro_days_left": sub_days_remaining(u.get("founding_pro_expires_at")),
+        "application": app_doc,
+        "eligibility": fp.get("eligibility", {}),
+    }
+
+
+@api.post("/founding-pro/apply")
+async def founding_pro_apply(body: FoundingProApplyIn, user: UserOut = Depends(get_user)):
+    """Braider submits their application. Enters the admin approval queue."""
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only braiders can apply")
+    cfg = await _get_config()
+    fp = cfg.get("founding_pro", DEFAULT_CONFIG["founding_pro"])
+    approved = await db.users.count_documents({"founding_pro": True})
+    if approved >= int(fp.get("slots", 100)):
+        raise HTTPException(400, "All Founding Pro spots are currently taken.")
+    # Eligibility checks
+    elig = fp.get("eligibility", {})
+    hd = await db.hairdressers.find_one({"user_id": user.id}, {"_id": 0}) or {}
+    if elig.get("requires_availability"):
+        if not await db.availability.count_documents({"hairdresser_id": user.id}):
+            raise HTTPException(400, "Set your Weekly Availability first.")
+    if elig.get("requires_portfolio_min", 0):
+        n = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
+        if n < int(elig["requires_portfolio_min"]):
+            raise HTTPException(400, f"Add at least {elig['requires_portfolio_min']} portfolio photos.")
+    if elig.get("requires_studio_info"):
+        if not (hd.get("bio") and hd.get("salon_name") and hd.get("city")):
+            raise HTTPException(400, "Complete your Studio Information first.")
+
+    now = datetime.now(timezone.utc).isoformat()
+    existing = await db.founding_pro_applications.find_one({"user_id": user.id})
+    doc = {
+        "id": existing["id"] if existing else str(uuid.uuid4()),
+        "user_id": user.id,
+        "intro": (body.intro or "").strip()[:500],
+        "status": "pending",
+        "submitted_at": now,
+        "decided_at": None,
+        "decided_by": None,
+        "reason": None,
+    }
+    if existing:
+        await db.founding_pro_applications.update_one({"user_id": user.id}, {"$set": doc})
+    else:
+        await db.founding_pro_applications.insert_one(doc)
+    return {"ok": True, "status": "pending"}
+
+
+@api.get("/admin/founding-pro/queue")
+async def admin_founding_pro_queue(user: UserOut = Depends(get_user)):
+    if user.role != "admin":
+        raise HTTPException(403, "Admin only")
+    apps = await db.founding_pro_applications.find({"status": "pending"}, {"_id": 0}).sort("submitted_at", 1).to_list(500)
+    for a in apps:
+        u = await db.users.find_one({"id": a["user_id"]}, {"_id": 0, "email": 1, "name": 1})
+        hd = await db.hairdressers.find_one({"user_id": a["user_id"]}, {"_id": 0, "salon_name": 1, "city": 1})
+        a["user"] = u or {}
+        a["studio"] = hd or {}
+    return apps
+
+
+class FoundingProDecideIn(BaseModel):
+    approve: bool
+    reason: Optional[str] = None
+
+
+@api.post("/admin/founding-pro/{app_id}/decide")
+async def admin_founding_pro_decide(app_id: str, body: FoundingProDecideIn, user: UserOut = Depends(get_user)):
+    if user.role != "admin":
+        raise HTTPException(403, "Admin only")
+    app_doc = await db.founding_pro_applications.find_one({"id": app_id}, {"_id": 0})
+    if not app_doc:
+        raise HTTPException(404, "Application not found")
+    cfg = await _get_config()
+    fp = cfg.get("founding_pro", DEFAULT_CONFIG["founding_pro"])
+    approved = await db.users.count_documents({"founding_pro": True})
+    if body.approve and approved >= int(fp.get("slots", 100)):
+        raise HTTPException(400, "All spots are taken.")
+    now = datetime.now(timezone.utc)
+    if body.approve:
+        expires = now + timedelta(days=int(fp.get("duration_days", 365)))
+        await db.users.update_one({"id": app_doc["user_id"]}, {"$set": {
+            "founding_pro": True,
+            "founding_pro_expires_at": expires.isoformat(),
+            "founding_pro_notified_days": [],
+            "plan": "unlimited",
+            "plan_source": "founding_pro",
+            "plan_status": "active",
+        }})
+        await notif.emit(
+            db,
+            user_id=app_doc["user_id"],
+            notif_type="founding_pro.approved",
+            title="Welcome, Founding Pro ✨",
+            message=f"You have 1 year of Unlimited free. Enjoy every AI tool and premium feature.",
+            action_url="/pro/founding",
+        )
+    await db.founding_pro_applications.update_one({"id": app_id}, {"$set": {
+        "status": "approved" if body.approve else "rejected",
+        "decided_at": now.isoformat(),
+        "decided_by": user.id,
+        "reason": body.reason,
+    }})
+    return {"ok": True}
+
+
+# ---- Notification preferences (channel-agnostic) ----
+@api.get("/notifications/preferences")
+async def get_notification_prefs(user: UserOut = Depends(get_user)):
+    doc = await db.notification_preferences.find_one({"user_id": user.id}, {"_id": 0}) or {}
+    return {"prefs": doc.get("prefs") or notif.DEFAULT_USER_PREFERENCES}
+
+
+@api.put("/notifications/preferences")
+async def put_notification_prefs(body: NotificationPrefsIn, user: UserOut = Depends(get_user)):
+    await db.notification_preferences.update_one(
+        {"user_id": user.id},
+        {"$set": {"user_id": user.id, "prefs": body.prefs, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api.post("/notifications/{nid}/read")
+async def mark_notification_read(nid: str, user: UserOut = Depends(get_user)):
+    res = await db.notifications.update_one(
+        {"id": nid, "user_id": user.id, "opened_at": None},
+        {"$set": {"opened_at": datetime.now(timezone.utc).isoformat(), "status": "opened"}},
+    )
+    return {"ok": True, "modified": res.modified_count}
+
+
+# ---- Daily maintenance job ----
+async def daily_subscription_maintenance():
+    """Runs every 6 hours. Handles:
+    1. Founding Pro reminders (30/14/7/1 days).
+    2. Founding Pro expiration transitions -> free.
+    3. Trial-ending reminders + trial expiry.
+    4. Plan_cancel_at_period_end -> downgrade at renewal.
+    """
+    cfg = await _get_config()
+    reminder_days = list(cfg.get("founding_pro", {}).get("reminder_days", [30, 14, 7, 1]))
+    now = datetime.now(timezone.utc)
+
+    # Founding Pro reminders + expiration
+    async for u in db.users.find({"founding_pro": True}, {"_id": 0}):
+        exp = u.get("founding_pro_expires_at")
+        if not exp:
+            continue
+        try:
+            dt = datetime.fromisoformat(exp)
+        except Exception:
+            continue
+        if dt <= now:
+            # Expire — transition to free (never charge automatically).
+            await db.users.update_one({"id": u["id"]}, {"$set": {
+                "founding_pro": False,
+                "plan": "free",
+                "plan_source": None,
+                "plan_status": "expired",
+            }})
+            await notif.emit_subscription_transition(db, user_id=u["id"], from_plan="founding_pro", to_plan="free")
+            continue
+        days_left = max(0, int((dt - now).total_seconds() // 86400))
+        sent = set(u.get("founding_pro_notified_days") or [])
+        for d in reminder_days:
+            if days_left == d and d not in sent:
+                await notif.emit_founding_pro_reminder(db, user_id=u["id"], days_left=d)
+                sent.add(d)
+        if set(u.get("founding_pro_notified_days") or []) != sent:
+            await db.users.update_one({"id": u["id"]}, {"$set": {"founding_pro_notified_days": list(sent)}})
+
+    # Trial expiration + reminders
+    async for u in db.users.find({"trial_ends_at": {"$ne": None}}, {"_id": 0}):
+        te = u.get("trial_ends_at")
+        try:
+            dt = datetime.fromisoformat(te)
+        except Exception:
+            continue
+        if dt <= now:
+            # Trial ended → keep the plan they chose if they've paid, else downgrade.
+            if u.get("plan_source") == "mock":
+                # Mock purchases stay active (they already "paid").
+                pass
+            await db.users.update_one({"id": u["id"]}, {"$set": {"trial_plan": None, "trial_ends_at": None,
+                                                                   "plan_status": "active"}})
+        else:
+            days_left = max(0, int((dt - now).total_seconds() // 86400))
+            if days_left in (7, 3, 1):
+                # Only send if we haven't for that milestone.
+                sent = set(u.get("trial_reminded_days") or [])
+                if days_left not in sent:
+                    await notif.emit_trial_ending(db, user_id=u["id"], plan=(u.get("trial_plan") or "unlimited"), days_left=days_left)
+                    sent.add(days_left)
+                    await db.users.update_one({"id": u["id"]}, {"$set": {"trial_reminded_days": list(sent)}})
+
+    # Cancel-at-period-end -> downgrade to free at renewal
+    async for u in db.users.find({"plan_cancel_at_period_end": True}, {"_id": 0}):
+        renew = u.get("plan_renewal_at")
+        if not renew:
+            continue
+        try:
+            if datetime.fromisoformat(renew) <= now:
+                await db.users.update_one({"id": u["id"]}, {"$set": {
+                    "plan": "free", "plan_source": None, "plan_status": "expired",
+                    "plan_cancel_at_period_end": False, "plan_cycle": None,
+                    "plan_renewal_at": None,
+                }})
+                await notif.emit_subscription_transition(db, user_id=u["id"], from_plan=u.get("plan", ""), to_plan="free")
+        except Exception:
+            continue
+
+
+
 app.include_router(api)
 app.add_middleware(CORSMiddleware, allow_credentials=True, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 logging.basicConfig(level=logging.INFO)
@@ -2989,8 +3388,12 @@ logging.basicConfig(level=logging.INFO)
 
 @app.on_event("startup")
 async def _startup():
+    # Bootstrap platform config (singleton doc). Adds any newly-introduced keys
+    # without clobbering values the admin has already changed.
+    await notif.bootstrap_platform_config(db, DEFAULT_CONFIG)
     if not scheduler.running:
         scheduler.add_job(auto_cancel_late, "interval", minutes=1, id="autocancel", replace_existing=True)
+        scheduler.add_job(daily_subscription_maintenance, "interval", hours=6, id="submaint", replace_existing=True)
         scheduler.start()
     if await db.hairstyles.count_documents({}) == 0:
         await seed()

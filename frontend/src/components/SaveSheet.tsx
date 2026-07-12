@@ -71,7 +71,7 @@ export default function SaveSheet({ visible, hairstyleId, hairstyleName, onClose
       <View style={s.sheet}>
         <View style={s.handle} />
         <Text style={s.title}>Save to inspiration</Text>
-        {hairstyleName && <Text style={s.sub}>"{hairstyleName}"</Text>}
+        {hairstyleName && <Text style={s.sub}>&quot;{hairstyleName}&quot;</Text>}
 
         <ScrollView style={{ maxHeight: 320, marginTop: spacing.md }}>
           {cols.map((c) => {

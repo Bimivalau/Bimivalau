@@ -1,251 +1,384 @@
 /**
- * Subscription — the "invest in growth" screen.
- * Renders the full plan catalog per role (customer / braider), with:
- *   - Current plan highlight
- *   - Monthly / Yearly toggle (with yearly savings pill)
- *   - Founding Pro promo strip for eligible braiders
- *   - Feature checklists per tier
- *   - Subscribe / Manage / Downgrade actions
+ * Subscription screen — aspirational, elegant, launch-mode-aware.
+ *
+ * Uses /api/subscription/me + /api/subscription/config as single source of truth.
+ * Purchase flows go through the abstracted PurchaseProvider (mock today,
+ * RevenueCat when keys are activated at Store submission time).
  */
-import { useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { useCallback, useState } from "react";
+import { View, Text, Pressable, StyleSheet, ActivityIndicator, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
-import { api, ApiError } from "@/src/api";
+import { api } from "@/src/api";
 import { useSession } from "@/src/session";
+import { useEntitlements } from "@/src/entitlements";
+import { purchaseProvider, type PlanSlug, type Cycle } from "@/src/purchase";
 import { colors, spacing, font, radii } from "@/src/theme";
+import { SafeScrollView, ResponsiveHeading, Card, Badge, LoadingState } from "@/src/ui";
 
-type Tier = {
+type PlanDef = {
+  slug: PlanSlug | "free";
   name: string;
-  price_monthly: number;
-  price_yearly: number;
   tagline: string;
-  features: string[];
-  limits?: string[];
+  benefits: string[];
+  price_monthly?: number;
+  price_yearly?: number;
+  trial_days?: number;
+  highlight?: boolean;
 };
 
-type Interval = "monthly" | "yearly";
+const CUSTOMER_PLANS: PlanDef[] = [
+  {
+    slug: "free",
+    name: "Free",
+    tagline: "Discover every braid, everywhere. Forever.",
+    benefits: [
+      "Browse every hairstyle & Studio",
+      "Compare unlimited professionals",
+      "Save favorites & inspiration boards",
+      "Book any Studio worldwide",
+      "Read every review",
+    ],
+  },
+  {
+    slug: "customer_unlimited",
+    name: "Unlimited",
+    tagline: "Your personal beauty assistant.",
+    benefits: [
+      "AI Style Match from a selfie",
+      "Recreate This Look from any photo",
+      "Beauty Journal — growth & touch-up reminders",
+      "Travel Planning — braiders in every city",
+      "Price alerts on your dream styles",
+      "Premium filters · VIP support",
+    ],
+    highlight: true,
+  },
+];
 
-export default function Subscription() {
+const BRAIDER_PLANS: PlanDef[] = [
+  {
+    slug: "free",
+    name: "Free",
+    tagline: "Start your Studio and begin accepting bookings.",
+    benefits: [
+      "Studio profile · availability · calendar",
+      "Bookings & reviews",
+      "Business Success Score & Braider DNA",
+      "Basic dashboard",
+      "Up to 10 portfolio photos",
+    ],
+  },
+  {
+    slug: "braider_standard",
+    name: "Standard",
+    tagline: "Grow your visibility and attract more customers.",
+    benefits: [
+      "Up to 25 portfolio photos",
+      "Business analytics & health dashboard",
+      "Weekly business report",
+      "Trending reports",
+      "Priority ranking",
+      "Growth recommendations",
+    ],
+  },
+  {
+    slug: "braider_unlimited",
+    name: "Unlimited",
+    tagline: "Build a premium beauty business powered by AI.",
+    benefits: [
+      "Up to 40 portfolio photos",
+      "Featured placement · homepage recommendations",
+      "AI Business Coach",
+      "Marketing assistant · seasonal campaigns",
+      "Revenue & retention analytics",
+      "Appointment forecasting",
+      "Website · online store · inventory · payroll",
+    ],
+    highlight: true,
+  },
+];
+
+export default function SubscriptionScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
-  const { user, refresh } = useSession();
-  const [state, setState] = useState<any>(null);
-  const [interval, setIntervalState] = useState<Interval>("yearly");
+  const { user } = useSession();
+  const { snapshot, refresh } = useEntitlements();
+  const [config, setConfig] = useState<any>(null);
+  const [cycle, setCycle] = useState<Cycle>("yearly");
   const [busy, setBusy] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const d = await api("/subscriptions/me");
-        setState(d);
-      } catch (e: any) {
-        setError(e instanceof ApiError ? e.userMessage : "Couldn't load plans.");
-      }
-    })();
-  }, []);
+  const load = useCallback(async () => {
+    try {
+      const cfg = await api("/subscription/config");
+      setConfig(cfg);
+    } catch {}
+    await refresh();
+  }, [refresh]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (!state) {
-    return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface }}>
-        {error ? <Text style={{ color: colors.error, fontFamily: font.body }}>{error}</Text> : <ActivityIndicator color={colors.brand} />}
-      </View>
-    );
-  }
+  if (!config || !snapshot) return <LoadingState label="Loading your plans…" />;
 
   const role = user?.role || "customer";
   const isBraider = role === "hairdresser";
-  const catalog: Record<string, Tier> = state.catalog;
-  const currentPlan = state.subscription?.plan_type || "free";
-  const yearlyPct = state.yearly_savings_pct;
-  const promoDays = state.founding_pro_days_left;
+  const plans: PlanDef[] = (isBraider ? BRAIDER_PLANS : CUSTOMER_PLANS).map(p => {
+    if (p.slug === "free") return p;
+    const key = p.slug as string;
+    const pricing = config.pricing?.[key] || { monthly: 0, yearly: 0 };
+    const trials = config.trials || {};
+    return { ...p, price_monthly: pricing.monthly, price_yearly: pricing.yearly, trial_days: trials[key] || 0 };
+  });
 
-  const subscribe = async (planType: string) => {
-    setBusy(planType);
+  const currentSlug = snapshot.plan_slug;
+  const isCurrent = (p: PlanDef) => {
+    if (p.slug === "free") return currentSlug === "customer_free" || currentSlug === "braider_free";
+    return p.slug === currentSlug || (currentSlug === "founding_pro" && p.slug === "braider_unlimited");
+  };
+
+  const buy = async (p: PlanDef) => {
+    if (p.slug === "free") {
+      Alert.alert("Downgrade to Free?", "You&apos;ll keep everything you built. Paid features will pause at the end of your billing period.", [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Downgrade",
+          style: "destructive",
+          onPress: async () => {
+            setBusy(p.slug);
+            try {
+              await purchaseProvider.cancel();
+              await refresh();
+            } finally { setBusy(null); }
+          },
+        },
+      ]);
+      return;
+    }
+    setBusy(p.slug);
     try {
-      const body: any = { plan_type: planType };
-      if (planType !== "free") body.billing_interval = interval;
-      const d = await api("/subscriptions/subscribe", { method: "POST", body: JSON.stringify(body) });
+      const useTrial = (p.trial_days || 0) > 0 && !isCurrent(p);
+      const r = await purchaseProvider.purchase(p.slug as PlanSlug, cycle, useTrial);
+      if (!r.ok) throw new Error(r.message || "Purchase failed");
       await refresh();
-      const d2 = await api("/subscriptions/me");
-      setState(d2);
-      Alert.alert(planType === "free" ? "Plan updated" : "You're in ✨", d.note || `Welcome to ${(catalog[planType]?.name || planType)}.`);
+      Alert.alert(useTrial ? "Trial started ✨" : "You're in ✨", useTrial ? `Enjoy your ${p.trial_days}-day free trial.` : `Welcome to ${p.name}.`);
     } catch (e: any) {
-      Alert.alert("Couldn't update plan", e instanceof ApiError ? e.userMessage : "Please try again.");
+      Alert.alert("We couldn't complete the upgrade", e?.message || "Please try again.");
     } finally { setBusy(null); }
   };
 
-  const tierOrder = isBraider ? ["free", "standard", "unlimited"] : ["free", "unlimited"];
+  const yearlySavingsPct = (p: PlanDef): number | null => {
+    const m = p.price_monthly || 0;
+    const y = p.price_yearly || 0;
+    if (!m || !y) return null;
+    const perMonthYearly = y / 12;
+    return Math.max(0, Math.round(100 - (perMonthYearly / m) * 100));
+  };
+
+  const launchMode = !!config.launch_mode && !isBraider;
+  const foundingPro = config.founding_pro || { spots_remaining: 100, slots: 100 };
 
   return (
-    <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={{ paddingBottom: spacing.xxxl + insets.bottom }}>
-      {/* ---- Header ---- */}
-      <View style={[s.header, { paddingTop: insets.top + spacing.md }]}>
-        <Pressable testID="sub-back" onPress={() => router.back()} hitSlop={10}>
+    <SafeScrollView>
+      <View style={{ paddingTop: spacing.md }}>
+        <Pressable
+          testID="sub-back"
+          onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
+          hitSlop={12}
+          style={{ minHeight: 44, width: 44, justifyContent: "center" }}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <Feather name="arrow-left" size={22} color={colors.onSurface} />
         </Pressable>
-      </View>
-
-      <View style={{ paddingHorizontal: spacing.xl }}>
-        <Text style={s.title}>{isBraider ? "Invest in your growth" : "Unlock the world of braids"}</Text>
+        <Text style={s.eyebrow}>{isBraider ? "PROFESSIONAL PLANS" : "PERSONAL PLANS"}</Text>
+        <ResponsiveHeading size={30} style={{ marginTop: spacing.xs }}>
+          {isBraider ? "Invest in your growth" : "Unlock the world of braids"}
+        </ResponsiveHeading>
         <Text style={s.sub}>
           {isBraider
-            ? "BraidsCommunity is the world's first AI-powered growth platform built exclusively for professional braiders."
-            : "Free forever discovery. Upgrade for worldwide search, advanced filters and AI recommendations."}
+            ? "The complete platform to run and grow a professional braiding business."
+            : "Free forever discovery. Upgrade later to unlock your personal beauty assistant."}
         </Text>
 
-        {/* Founding Pro promo strip */}
-        {isBraider && promoDays != null && promoDays > 0 && (
-          <LinearGradient colors={["#F5C77E", "#B78141"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.promo}>
-            <Feather name="award" size={16} color="#fff" />
-            <View style={{ flex: 1 }}>
-              <Text style={s.promoTitle}>Founding Pro — Unlimited free for {promoDays} more days</Text>
-              <Text style={s.promoDesc}>You keep every Unlimited perk until your promo ends.</Text>
+        {launchMode && (
+          <Card variant="outline" padding={spacing.md} style={{ marginTop: spacing.lg, borderColor: colors.success, backgroundColor: "#EFFDF5" }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+              <Feather name="gift" size={20} color={colors.success} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.launchTitle}>All premium customer features are free during launch</Text>
+                <Text style={s.launchMsg} numberOfLines={3}>Enjoy AI Style Match, Recreate This Look, Beauty Journal, Travel Planning and more — no charge, no card required.</Text>
+              </View>
             </View>
-          </LinearGradient>
+          </Card>
         )}
 
-        {/* Interval toggle */}
-        <View style={s.toggleRow}>
-          <Pressable testID="toggle-monthly" onPress={() => setIntervalState("monthly")} style={[s.toggle, interval === "monthly" && s.toggleActive]}>
-            <Text style={[s.toggleText, interval === "monthly" && s.toggleTextActive]}>Monthly</Text>
+        {isBraider && foundingPro.spots_remaining > 0 && !snapshot.founding_pro && (
+          <Pressable
+            testID="founding-pro-cta"
+            onPress={() => router.push("/pro/founding")}
+            style={{ marginTop: spacing.lg }}
+          >
+            <LinearGradient colors={["#F5C77E", "#B78141"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.foundingCard}>
+              <Feather name="award" size={20} color="#fff" />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.foundingTitle}>Founding Studio spots</Text>
+                <Text style={s.foundingMsg} numberOfLines={2}>
+                  {foundingPro.spots_remaining} of {foundingPro.slots} remaining · 1 year of Unlimited free
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={20} color="#fff" />
+            </LinearGradient>
           </Pressable>
-          <Pressable testID="toggle-yearly" onPress={() => setIntervalState("yearly")} style={[s.toggle, interval === "yearly" && s.toggleActive]}>
-            <Text style={[s.toggleText, interval === "yearly" && s.toggleTextActive]}>Yearly</Text>
-            {yearlyPct ? <Text style={s.savePill}>SAVE {yearlyPct}%</Text> : null}
+        )}
+
+        {snapshot.founding_pro && snapshot.founding_pro_days_left != null && (
+          <Card variant="outline" padding={spacing.md} style={{ marginTop: spacing.lg, borderColor: colors.brand, backgroundColor: colors.brandTertiary }}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+              <Feather name="award" size={20} color={colors.brand} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.launchTitle}>You&apos;re a Founding Pro ✨</Text>
+                <Text style={s.launchMsg}>{snapshot.founding_pro_days_left} days of Unlimited remaining — everything on us.</Text>
+              </View>
+            </View>
+          </Card>
+        )}
+
+        <View style={s.toggleRow}>
+          <Pressable testID="toggle-monthly" onPress={() => setCycle("monthly")} style={[s.toggle, cycle === "monthly" && s.toggleActive]} accessibilityRole="radio" accessibilityState={{ checked: cycle === "monthly" }}>
+            <Text style={[s.toggleText, cycle === "monthly" && s.toggleTextActive]}>Monthly</Text>
+          </Pressable>
+          <Pressable testID="toggle-yearly" onPress={() => setCycle("yearly")} style={[s.toggle, cycle === "yearly" && s.toggleActive]} accessibilityRole="radio" accessibilityState={{ checked: cycle === "yearly" }}>
+            <Text style={[s.toggleText, cycle === "yearly" && s.toggleTextActive]}>Yearly</Text>
           </Pressable>
         </View>
-      </View>
 
-      {/* ---- Tier cards ---- */}
-      <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.xl, gap: spacing.lg }}>
-        {tierOrder.map((key) => {
-          const t = catalog[key];
-          if (!t) return null;
-          const isCurrent = currentPlan === key;
-          const isPaidUnlimitedBraider = isBraider && key === "unlimited";
-          const price = interval === "monthly" ? t.price_monthly : t.price_yearly;
-
-          return (
-            <View key={key} style={[s.card, isCurrent && s.cardCurrent, key === "unlimited" && s.cardUnlimited]}>
-              {/* Header row */}
-              <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-                    <Text style={s.tierName}>{t.name}</Text>
-                    {isCurrent && <View style={s.currentPill}><Text style={s.currentPillText}>CURRENT</Text></View>}
-                    {isPaidUnlimitedBraider && <Text style={s.recommend}>Most popular</Text>}
+        <View style={{ marginTop: spacing.lg, gap: spacing.lg }}>
+          {plans.map((p) => {
+            const price = cycle === "monthly" ? p.price_monthly : p.price_yearly;
+            const cur = isCurrent(p);
+            const savings = cycle === "yearly" ? yearlySavingsPct(p) : null;
+            const forceUnlockedByLaunch = launchMode && p.slug === "customer_unlimited";
+            return (
+              <Card
+                key={p.slug}
+                padding={spacing.lg}
+                style={[
+                  s.tierCard,
+                  cur && s.tierCurrent,
+                  p.highlight && !cur && s.tierHighlight,
+                ]}
+              >
+                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: spacing.md, flexWrap: "wrap" }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap", rowGap: 4 }}>
+                      <Text style={s.tierName}>{p.name}</Text>
+                      {cur && <Badge label="CURRENT" tone="brand" />}
+                      {p.highlight && !cur && <Badge label="MOST POPULAR" tone="warning" />}
+                      {forceUnlockedByLaunch && <Badge label="FREE DURING LAUNCH" tone="success" />}
+                    </View>
+                    <Text style={s.tierTag} numberOfLines={3}>{p.tagline}</Text>
                   </View>
-                  <Text style={s.tierTag}>{t.tagline}</Text>
-                </View>
-                <View style={{ alignItems: "flex-end" }}>
-                  {price > 0 ? (
-                    <>
-                      <Text style={s.price}>${price.toFixed(2)}</Text>
-                      <Text style={s.priceUnit}>/{interval === "monthly" ? "mo" : "yr"}</Text>
-                    </>
+                  {p.slug !== "free" ? (
+                    <View style={{ alignItems: "flex-end", minWidth: 90 }}>
+                      <Text style={s.price}>${(price || 0).toFixed(2)}</Text>
+                      <Text style={s.priceUnit}>/{cycle === "monthly" ? "month" : "year"}</Text>
+                      {savings != null && savings > 0 && <Badge label={`SAVE ${savings}%`} tone="brand" style={{ marginTop: 4 }} />}
+                    </View>
                   ) : (
-                    <Text style={s.priceFree}>Free</Text>
+                    <View style={{ alignItems: "flex-end" }}>
+                      <Text style={s.priceFree}>Free</Text>
+                    </View>
                   )}
                 </View>
-              </View>
 
-              {/* Features */}
-              <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
-                {t.features.map((f, i) => (
-                  <View key={i} style={s.featureRow}>
-                    <View style={s.checkDot}><Feather name="check" size={11} color="#fff" /></View>
-                    <Text style={s.featureText}>{f}</Text>
-                  </View>
-                ))}
-                {(t.limits || []).map((f, i) => (
-                  <View key={`l${i}`} style={s.featureRow}>
-                    <View style={s.lockDot}><Feather name="lock" size={10} color={colors.muted} /></View>
-                    <Text style={[s.featureText, { color: colors.onSurfaceTertiary }]}>{f}</Text>
-                  </View>
-                ))}
-              </View>
-
-              {/* Action */}
-              {isCurrent ? (
-                <View style={s.currentBtn}>
-                  <Text style={s.currentBtnText}>Your current plan</Text>
+                <View style={{ marginTop: spacing.md, gap: spacing.sm }}>
+                  {p.benefits.map((b) => (
+                    <View key={b} style={s.benefit}>
+                      <View style={s.check}><Feather name="check" size={12} color="#fff" /></View>
+                      <Text style={s.benefitText} numberOfLines={3}>{b}</Text>
+                    </View>
+                  ))}
                 </View>
-              ) : (
-                <Pressable
-                  testID={`sub-${key}`}
-                  disabled={busy === key}
-                  onPress={() => {
-                    if (key === "free") {
-                      Alert.alert("Downgrade to Free?", "You'll lose access to your paid perks at the end of your billing period.", [
-                        { text: "Cancel", style: "cancel" },
-                        { text: "Downgrade", style: "destructive", onPress: () => subscribe("free") },
-                      ]);
-                    } else {
-                      subscribe(key);
-                    }
-                  }}
-                  style={[s.action, key === "unlimited" && s.actionUnlimited, busy === key && { opacity: 0.5 }]}
-                >
-                  {busy === key ? <ActivityIndicator color="#fff" /> : (
-                    <Text style={[s.actionText, key !== "unlimited" && { color: colors.onSurface }]}>
-                      {key === "free" ? "Switch to Free" : `Choose ${t.name}`}
-                    </Text>
-                  )}
-                </Pressable>
-              )}
-            </View>
-          );
-        })}
+
+                {p.trial_days && p.trial_days > 0 && !cur ? (
+                  <Text style={s.trialLine}>
+                    <Feather name="clock" size={12} color={colors.brand} />  {p.trial_days}-day free trial included
+                  </Text>
+                ) : null}
+
+                {cur ? (
+                  <View style={s.currentBtn}>
+                    <Text style={s.currentBtnText}>Your current plan</Text>
+                  </View>
+                ) : forceUnlockedByLaunch ? (
+                  <View style={[s.currentBtn, { borderColor: colors.success }]}>
+                    <Text style={[s.currentBtnText, { color: colors.success }]}>Already unlocked for you</Text>
+                  </View>
+                ) : (
+                  <Pressable
+                    testID={`sub-${p.slug}`}
+                    disabled={busy === p.slug}
+                    onPress={() => buy(p)}
+                    style={[
+                      s.action,
+                      p.highlight && s.actionPrimary,
+                      busy === p.slug && { opacity: 0.5 },
+                    ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={p.slug === "free" ? "Switch to Free" : `Choose ${p.name}`}
+                  >
+                    {busy === p.slug ? <ActivityIndicator color="#fff" /> : (
+                      <Text style={[s.actionText, !p.highlight && p.slug !== "free" && { color: colors.onSurface }, p.slug === "free" && { color: colors.error }]}>
+                        {p.slug === "free" ? "Switch to Free" : (p.trial_days ? `Start ${p.trial_days}-day free trial` : `Choose ${p.name}`)}
+                      </Text>
+                    )}
+                  </Pressable>
+                )}
+              </Card>
+            );
+          })}
+        </View>
+
+        <Pressable testID="restore-purchases" onPress={async () => { await purchaseProvider.restore(); await refresh(); }} style={{ marginTop: spacing.xl, alignSelf: "center", padding: spacing.md }}>
+          <Text style={{ fontFamily: font.bodyMed, color: colors.brand, fontSize: 13 }}>Restore purchases</Text>
+        </Pressable>
+
+        <Text style={s.legal} numberOfLines={5}>
+          Your data — Studio, portfolio, saves, bookings — is always yours. We never delete portfolio photos when your plan changes. Payments are handled by the App Store, Google Play or Stripe. Cancel anytime.
+        </Text>
       </View>
-
-      <Text style={s.footer}>Cancel anytime. Payment is mocked in this build — no card required.</Text>
-    </ScrollView>
+    </SafeScrollView>
   );
 }
 
 const s = StyleSheet.create({
-  header: { paddingHorizontal: spacing.xl, paddingBottom: spacing.sm },
-  title: { fontFamily: font.display, fontSize: 32, lineHeight: 36, color: colors.onSurface, marginTop: spacing.md },
+  eyebrow: { color: colors.brand, letterSpacing: 3, fontSize: 10, fontFamily: font.bodyMed, marginTop: spacing.sm },
   sub: { fontFamily: font.body, fontSize: 14, color: colors.onSurfaceTertiary, marginTop: spacing.sm, lineHeight: 20 },
-  promo: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderRadius: radii.lg, marginTop: spacing.lg },
-  promoTitle: { color: "#fff", fontFamily: font.bodyBold, fontSize: 13 },
-  promoDesc: { color: "#fff", fontFamily: font.body, fontSize: 11, marginTop: 2, opacity: 0.9 },
-
-  toggleRow: { flexDirection: "row", backgroundColor: colors.surfaceSecondary, borderRadius: radii.pill, padding: 4, marginTop: spacing.xl },
-  toggle: { flex: 1, height: 40, alignItems: "center", justifyContent: "center", borderRadius: radii.pill, flexDirection: "row", gap: spacing.xs },
-  toggleActive: { backgroundColor: "#fff", shadowColor: "#000", shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 },
+  launchTitle: { fontFamily: font.bodyBold, fontSize: 14, color: "#207449" },
+  launchMsg: { fontFamily: font.body, fontSize: 12, color: "#38875D", marginTop: 2, lineHeight: 17 },
+  foundingCard: { flexDirection: "row", alignItems: "center", gap: spacing.md, padding: spacing.md, borderRadius: radii.lg },
+  foundingTitle: { color: "#fff", fontFamily: font.bodyBold, fontSize: 14 },
+  foundingMsg: { color: "#fff", fontFamily: font.body, fontSize: 12, marginTop: 2, opacity: 0.95 },
+  toggleRow: { flexDirection: "row", backgroundColor: colors.surfaceSecondary, borderRadius: radii.pill, padding: 4, marginTop: spacing.xl, gap: 4 },
+  toggle: { flex: 1, minHeight: 40, alignItems: "center", justifyContent: "center", borderRadius: radii.pill },
+  toggleActive: { backgroundColor: "#fff" },
   toggleText: { fontFamily: font.bodyMed, fontSize: 13, color: colors.onSurfaceTertiary },
   toggleTextActive: { color: colors.onSurface },
-  savePill: { fontFamily: font.bodyBold, fontSize: 9, color: colors.brand, backgroundColor: colors.brandTertiary, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 4, marginLeft: 4, letterSpacing: 0.8 },
-
-  card: { padding: spacing.xl, borderRadius: 24, backgroundColor: "#fff", borderWidth: 1, borderColor: colors.border, shadowColor: "#000", shadowOpacity: 0.05, shadowRadius: 20, shadowOffset: { width: 0, height: 6 }, elevation: 4 },
-  cardCurrent: { borderColor: colors.brand, borderWidth: 2 },
-  cardUnlimited: { backgroundColor: "#FAF6EF", borderColor: "#EBDEC5" },
-
+  tierCard: { borderWidth: 1, borderColor: colors.border },
+  tierCurrent: { borderColor: colors.brand, borderWidth: 2 },
+  tierHighlight: { borderColor: colors.brandSecondary },
   tierName: { fontFamily: font.display, fontSize: 24, color: colors.onSurface },
   tierTag: { fontFamily: font.body, fontSize: 12, color: colors.onSurfaceTertiary, marginTop: 4, lineHeight: 16 },
-  currentPill: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 4, backgroundColor: colors.brandTertiary },
-  currentPillText: { fontFamily: font.bodyBold, fontSize: 9, color: colors.brandSecondary, letterSpacing: 1 },
-  recommend: { fontFamily: font.bodyBold, fontSize: 10, color: colors.brand, letterSpacing: 1 },
-
-  price: { fontFamily: font.display, fontSize: 28, color: colors.onSurface },
+  price: { fontFamily: font.display, fontSize: 26, color: colors.onSurface },
   priceUnit: { fontFamily: font.body, fontSize: 11, color: colors.onSurfaceTertiary, marginTop: -2 },
   priceFree: { fontFamily: font.display, fontSize: 22, color: colors.success },
-
-  featureRow: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
-  checkDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.success, alignItems: "center", justifyContent: "center", marginTop: 1 },
-  lockDot: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.divider, alignItems: "center", justifyContent: "center", marginTop: 1 },
-  featureText: { flex: 1, fontFamily: font.body, fontSize: 13, color: colors.onSurfaceSecondary, lineHeight: 18 },
-
-  action: { marginTop: spacing.xl, height: 48, borderRadius: 24, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
-  actionUnlimited: { backgroundColor: colors.brand },
+  benefit: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm },
+  check: { width: 18, height: 18, borderRadius: 9, backgroundColor: colors.success, alignItems: "center", justifyContent: "center", marginTop: 1 },
+  benefitText: { flex: 1, fontFamily: font.body, fontSize: 13, color: colors.onSurfaceSecondary, lineHeight: 18 },
+  trialLine: { marginTop: spacing.md, fontFamily: font.bodyMed, fontSize: 12, color: colors.brand },
+  action: { marginTop: spacing.lg, minHeight: 48, borderRadius: radii.pill, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
+  actionPrimary: { backgroundColor: colors.brand },
   actionText: { color: "#fff", fontFamily: font.bodyBold, fontSize: 14 },
-  currentBtn: { marginTop: spacing.xl, height: 48, borderRadius: 24, borderWidth: 1, borderColor: colors.brand, alignItems: "center", justifyContent: "center" },
+  currentBtn: { marginTop: spacing.lg, minHeight: 48, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.brand, alignItems: "center", justifyContent: "center" },
   currentBtnText: { color: colors.brand, fontFamily: font.bodyBold, fontSize: 14 },
-
-  footer: { textAlign: "center", marginTop: spacing.xl, fontFamily: font.body, fontSize: 11, color: colors.muted, paddingHorizontal: spacing.xl },
+  legal: { textAlign: "center", marginTop: spacing.xl, fontFamily: font.body, fontSize: 11, color: colors.muted, lineHeight: 15 },
 });

@@ -1,0 +1,49 @@
+{
+  "summary": "Iteration 14 — Subscription Architecture (mocked purchases). Comprehensive backend + frontend testing. Backend: 203/203 tests pass (189 regression + 14 new for iter14). All new endpoints work as specified: /api/subscription/{config,me,mock-purchase,mock-cancel,mock-restore}, /api/entitlements/{key}, /api/founding-pro/{status,apply}, /api/notifications/preferences. Frontend at 390x844: Sara (customer_free) /subscription shows green launch-mode banner, Free (CURRENT) + Unlimited (MOST POPULAR + FREE DURING LAUNCH badges) cards, 'Already unlocked for you' CTA, SAVE 28% on yearly, Yearly<->Monthly toggle works, /ai/style-match shows 'Included free during launch' chip (no upgrade card), /ai/coach renders waitlist form without crash, restore-purchases button no crash. Amara (braider_unlimited) /subscription: NO launch banner, 3 plan cards (Free/Standard/Unlimited), Founding Studio CTA visible with '100 of 100 remaining · 1 year of Unlimited free', 30-day free trial line on Standard, CURRENT badge on Unlimited, Switch-to-Free → mock-cancel fires without crash. Deep-link /pro/founding renders full hero + apply button. Regression pages render (home, discover, hairstyle/[id], hairdresser/[id], notifications, favorites, collections, pro/dashboard, pro/studio, pro/services, pro/bookings, pro/growth).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/subscription/mock-purchase", "issue": "When start_trial=False and user has a pre-existing active trial, trial_plan and trial_ends_at are NOT cleared. Downstream effect: portfolio_cap() honours the residual (lower) trial slug, so an Unlimited braider who cancels a Standard trial keeps portfolio_cap=25 until the trial expires. Fix: clear trial_plan/trial_ends_at (or set plan_status back to 'active') on any non-trial mock-purchase."},
+      {"endpoint": "subscription_service.portfolio_cap()", "issue": "When user has both an active trial_plan and a higher base plan, function returns the trial cap (lower). Should return max(base_cap, trial_cap) so a trial never *reduces* entitlements. Reference: subscription_service.py:179-187."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "app/subscription.tsx (braider view / Unlimited card)", "issue": "Review request expected 'MOST POPULAR badge + CURRENT badge' on Unlimited for amara. Currently line 275 renders `p.highlight && !cur && <Badge>` — the MOST POPULAR badge is *hidden* when the card is CURRENT. Result: amara sees only CURRENT on Unlimited. Either drop the `!cur &&` guard or update the review spec (design choice: collapse badges when current).", "testID": "sub-braider_unlimited", "priority": "P2"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "console (dev-only)", "issues": ["Existing (pre-iter14) RN Web deprecation warnings still logged: 'shadow*' style props and props.pointerEvents. Non-blocking."]}
+    ],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration14_subscription.py",
+    "/app/test_reports/pytest/iteration14_subscription.xml",
+    "/app/test_reports/pytest/iteration14_full_regression.xml"
+  ],
+  "action_items": [
+    "P2 (backend): In POST /api/subscription/mock-purchase, when start_trial is False (or omitted), clear residual trial_plan/trial_ends_at so an Unlimited pro doesn't stay pinned to a Standard trial cap.",
+    "P2 (backend): subscription_service.portfolio_cap() should never let an active trial LOWER the cap below the user's base plan cap. Return max(base_cap, trial_cap).",
+    "P2 (frontend): app/subscription.tsx line 275 — decide product intent: either show MOST POPULAR alongside CURRENT on Unlimited (drop `!cur &&`), or update the iter14 review spec to say 'CURRENT badge only when user is on that plan.'"
+  ],
+  "critical_code_review_comments": [
+    "subscription_service.py: has_entitlement is a clean central gate; launch-mode override is scoped to `customer.*` keys (correct — braider features are unaffected). Trial support elevates to full paid entitlements while active — sane.",
+    "server.py:3081-3114 mock_purchase — sets plan/plan_source/plan_status/plan_renewal_at atomically and emits a subscription.transition notification; good. Downside: does not clear trial fields on non-trial purchase (see backend_issues.minor).",
+    "server.py:3175-3215 founding_pro_apply — eligibility checks (availability, portfolio min, studio info) are enforced server-side and return clear 400s. Test confirmed 'Set your Weekly Availability first.' error message.",
+    "notification_engine.py: providers pattern (in_app persistent; push/email/sms/whatsapp stubbed to pending) is production-ready for later transport wiring. In-app always fires as analytics ground-truth — correct.",
+    "app/subscription.tsx: launch banner is gated by role==='customer' && launch_mode (verified — hidden for amara). CTA labels are correctly context-aware ('Your current plan', 'Already unlocked for you', 'Start 30-day free trial', 'Switch to Free').",
+    "restore-purchases button calls purchaseProvider.restore() + refresh() — no crash observed in mock mode."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration14_subscription.py (new)"
+  ],
+  "success_rate": {"backend": "100% (203/203 including 14 new iter14 tests)", "frontend": "97% (17/17 audit checks pass; 1 minor spec-vs-impl discrepancy on Unlimited badge for current pro user)"},
+  "seed_data_creation": "One ephemeral hairdresser (newpro_fp_<random>@braids.demo) created via /api/auth/register to exercise the Founding Pro eligibility gate + happy-path apply. Not deleted (harmless dev data).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iteration 14 subscription architecture. All new APIs live at /api/subscription/*, /api/entitlements/{key}, /api/founding-pro/*, /api/notifications/preferences. Tests: /app/backend/tests/test_iteration14_subscription.py (14 tests, all pass). Full suite is now 203 tests. Amara is reset to plan=unlimited (no trial) at teardown via DB. Two backend edge cases documented as P2 (mock-purchase trial-clearing + portfolio_cap max()). One frontend UX question (MOST POPULAR + CURRENT co-display).",
+  "rca_of_issue": "Two P2 backend behaviours discovered during class teardown of mock-purchase tests: (1) mock-purchase without start_trial doesn't reset trial fields, so subsequent /subscription/me still reports trial_plan and trial_days_left; (2) portfolio_cap prefers the trial slug even when the base plan is higher, giving a paradoxical lower cap. Both are non-blocking for launch (only surface when a pro trials Standard and later upgrades to Unlimited without waiting for the trial to expire).",
+  "release_readiness_score": 96,
+  "release_readiness_notes": "Backend 203/203 (100%). Frontend spec conformance is high; the only material discrepancy is the badge choice on the current pro's Unlimited card (product decision, not a defect). Two P2 backend edge cases in mock-purchase trial state — safe to defer or fix in a follow-up. RevenueCat swap should also address (1) since real subscriptions won't hit the mock-purchase code path. Recommended: fix P2s + reconcile MOST POPULAR badge intent before Iter 15 sign-off."
+}

@@ -14,6 +14,8 @@ import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { api, ApiError } from "@/src/api";
 import { useSession } from "@/src/session";
+import { useEntitlements } from "@/src/entitlements";
+import { PaywallSheet } from "@/src/components/PaywallSheet";
 import { colors, spacing, font, radii } from "@/src/theme";
 import { SafeScrollView, ResponsiveHeading, Card, Badge, useResponsive } from "@/src/ui";
 
@@ -26,15 +28,25 @@ export interface AIComingSoonProps {
   bullets: string[];             // 3-6 lines describing what the AI will do
   gradient?: [string, string, string];
   requiresUnlimited?: boolean;
+  audience?: "customer" | "braider";
+  featureKey?: string;           // e.g. "customer.ai.style_match"
 }
 
 export function AIComingSoonScreen(p: AIComingSoonProps) {
   const router = useRouter();
   const { user } = useSession();
+  const { has, snapshot } = useEntitlements();
   const { scaleFont } = useResponsive();
   const [joined, setJoined] = useState(false);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [paywallOpen, setPaywallOpen] = useState(false);
+
+  const audience = p.audience || (p.eyebrow.toLowerCase().includes("business") || p.eyebrow.toLowerCase().includes("braider") ? "braider" : "customer");
+  const featureKey = p.featureKey || (audience === "customer" ? `customer.ai.${p.module}` : `braider.ai.${p.module}`);
+  const isEntitled = has(featureKey);
+  const launchMode = !!snapshot?.launch_mode && audience === "customer";
+  const targetPlan: any = audience === "customer" ? "customer_unlimited" : "braider_unlimited";
 
   const load = useCallback(async () => {
     try {
@@ -55,8 +67,7 @@ export function AIComingSoonScreen(p: AIComingSoonProps) {
   };
 
   const gradient = p.gradient || ["#F5C77E", "#B78141", "#8B5A2B"];
-  const isUnlimited = user?.plan === "unlimited";
-  const upgradeHint = p.requiresUnlimited && !isUnlimited;
+  const showUpgradeHint = !isEntitled && !launchMode;
 
   return (
     <KeyboardAvoidingView
@@ -98,16 +109,26 @@ export function AIComingSoonScreen(p: AIComingSoonProps) {
           ))}
         </View>
 
-        {upgradeHint && (
-          <Pressable testID="ai-upgrade" onPress={() => router.push("/subscription")} style={{ marginTop: spacing.lg }}>
+        {showUpgradeHint && (
+          <Pressable testID="ai-upgrade" onPress={() => setPaywallOpen(true)} style={{ marginTop: spacing.lg }}>
             <Card variant="outline" padding={spacing.md} style={{ borderColor: colors.brand, backgroundColor: colors.brandTertiary }}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" }}>
                 <Feather name="lock" size={14} color={colors.brand} />
-                <Text style={s.upgradeText}>Unlimited members get first access when this launches.</Text>
+                <Text style={s.upgradeText}>{audience === "customer" ? "Unlimited members get first access when this launches." : "Braider Unlimited members get first access when this launches."}</Text>
                 <Text style={s.upgradeLink}>See plans →</Text>
               </View>
             </Card>
           </Pressable>
+        )}
+        {launchMode && (
+          <View style={{ marginTop: spacing.lg }}>
+            <Card variant="outline" padding={spacing.md} style={{ borderColor: colors.success, backgroundColor: "#EFFDF5" }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                <Feather name="gift" size={14} color={colors.success} />
+                <Text style={{ flex: 1, fontFamily: font.bodyMed, fontSize: 12, color: "#207449" }}>Included free during BraidsCommunity&apos;s launch — you&apos;ll be first to try it.</Text>
+              </View>
+            </Card>
+          </View>
         )}
 
         {joined ? (
@@ -148,6 +169,16 @@ export function AIComingSoonScreen(p: AIComingSoonProps) {
           </View>
         )}
       </SafeScrollView>
+      <PaywallSheet
+        visible={paywallOpen}
+        onClose={() => setPaywallOpen(false)}
+        ctx={{
+          targetPlan,
+          eyebrow: p.eyebrow,
+          title: audience === "customer" ? "Unlock BraidsCommunity Unlimited" : "Unlock Braider Unlimited",
+          value: p.description,
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
