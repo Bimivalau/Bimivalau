@@ -84,3 +84,56 @@ Collections (reference IDs, not embedded):
 - Push notifications
 - In-app messaging, referrals/loyalty, multi-location salons, salon kiosk
 - Windows/desktop native app
+
+---
+
+## v12 Update — Studio Architecture Refinement
+
+### Professional bottom tab bar (permanent)
+`/pro/_layout.tsx` — 4 tabs, always visible: **Dashboard**, **Bookings**, **Growth**, **My Studio**.
+Default tab on login = Dashboard. Onboarding hides the tab bar (first-run only).
+
+### My Studio (`/pro/studio`)
+Permanent business hub — replaces "Profile" for pros. Sections:
+- Weekly Availability (required)
+- Services & Pricing (new — braider-owned catalog)
+- Portfolio
+- Studio Information (bio, salon name, city)
+- Verification
+- Business Insights deep-links (Business Success Score, Braider DNA → Growth)
+- Subscription, Sign out
+
+Auto-focuses `?focus=<section>` param or the backend's `first_incomplete`.
+
+### Onboarding
+Strictly ONE-TIME. Self-heals to /pro/dashboard when `onboarding_completed=true`.
+"Improve My Studio" and any post-onboarding flow routes to /pro/studio (never /pro/onboarding).
+
+### Services model (backend)
+Each Studio owns its own catalog on top of the shared hairstyle taxonomy.
+Fields: hairstyle_id, custom_name, price (starting), price_max, duration_minutes,
+hair_included, hair_brands[], hair_lengths[] (Short/Mid-length/Long/Extra Long),
+difficulty, description, active.
+
+Customer view: "Starting at $X" with note that final varies by hair length/size/density.
+
+### New endpoints
+- `GET /api/hairdressers/me` — own profile
+- `GET /api/hairdressers/me/studio-status` — per-section completion + first_incomplete
+- `GET /api/studios/{hid}/services` — public read-only Studio catalog
+- `POST /api/services/{sid}/toggle` — flip active flag
+
+### Responsive UI kit (`/app/frontend/src/ui/`)
+`useResponsive`, `PageContainer`, `SafeScrollView`, `ResponsiveHeading`, `Card`,
+`Badge`, `SectionTitle`, `BottomCTA`, `LoadingState`, `EmptyState`, `ErrorState`.
+Handles safe-area, narrow-phone padding (16 / 18 / 20 / 24), clamped font
+scaling (0.9–1.3x), and content max-width 640.
+
+## Permanent Development Rule — Quality Gate
+Every iteration ends with:
+1. Functionality (screens, endpoints, navigation, both platforms, no traps)
+2. Regression (auth, onboarding, subs, uploads, dashboards, discover, growth)
+3. Production polish (spacing, states, animations, error handling)
+4. Performance (API, rendering, images)
+5. Security (authz on new endpoints, isolation of user resources)
+6. Release readiness score

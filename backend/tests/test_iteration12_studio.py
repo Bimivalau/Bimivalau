@@ -183,7 +183,7 @@ def test_8_delete_service(amara, hairstyle_id):
     sid = cr.json()["id"]
     dr = requests.delete(f"{BASE}/api/hairdressers/me/services/{sid}", headers=tok, timeout=15)
     assert dr.status_code == 200
-    # verify: it's marked inactive (soft delete) — should no longer show as active in public list
+    # verify: it's hard-deleted — should no longer show up anywhere
     hid = amara["user"]["id"]
     pub = requests.get(f"{BASE}/api/studios/{hid}/services", timeout=15).json()
     ids = [it["id"] for it in pub]
