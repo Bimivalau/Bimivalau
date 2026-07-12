@@ -32,12 +32,12 @@ const TAG_FILTERS = [
 ];
 
 const FUTURE = [
-  { key: "ai_match", label: "AI Style Match", icon: "zap" },
-  { key: "virtual_tryon", label: "Virtual Try-On", icon: "camera" },
-  { key: "growth_journey", label: "Hair Growth Journey", icon: "activity" },
-  { key: "trending_world", label: "Trending Worldwide", icon: "globe" },
-  { key: "braid_map", label: "Global Braid Map", icon: "map" },
-  { key: "passport", label: "Style Passport", icon: "bookmark" },
+  { key: "ai_match", label: "AI Style Match", icon: "zap", route: "/ai/style-match" },
+  { key: "recreate_look", label: "Recreate This Look", icon: "camera", route: "/ai/recreate-look" },
+  { key: "recommendations", label: "AI Recommendations", icon: "target", route: "/ai/recommendations" },
+  { key: "price_alerts", label: "Price Alerts", icon: "bell", route: "/ai/price-alerts" },
+  { key: "beauty_journal", label: "Beauty Journal", icon: "book-open", route: "/ai/beauty-journal" },
+  { key: "travel_planning", label: "Travel Planning", icon: "map", route: "/ai/travel-planning" },
 ];
 
 export default function Discover() {
@@ -130,11 +130,16 @@ export default function Discover() {
         <Text style={s.section}>Coming soon to BraidsCommunity</Text>
         <View style={s.futureGrid}>
           {FUTURE.map((f) => (
-            <View key={f.key} style={s.futureCard}>
-              <View style={s.futureIcon}><Feather name={f.icon as any} size={16} color={colors.muted} /></View>
+            <Pressable
+              key={f.key}
+              testID={`ai-tile-${f.key}`}
+              onPress={() => router.push(f.route as any)}
+              style={s.futureCard}
+            >
+              <View style={s.futureIcon}><Feather name={f.icon as any} size={16} color={colors.brand} /></View>
               <Text style={s.futureLabel}>{f.label}</Text>
               <Text style={s.futureTag}>Soon</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
       </ScrollView>

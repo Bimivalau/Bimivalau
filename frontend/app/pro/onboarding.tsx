@@ -1,56 +1,121 @@
-import { useState, useCallback } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, BackHandler, Platform } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@/src/api";
-import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
 
 // Pro Onboarding — only Weekly Availability is required to activate bookings.
 // Portfolio, Verified Pro, License, Bio, Salon name are all OPTIONAL and never
 // block the "Start Receiving Bookings" button.
+//
+// Navigation contract:
+// - If backend says onboarding is already `completed`, this screen auto-redirects
+//   to /pro/dashboard so returning users are never trapped here.
+// - Back arrow + Android hardware Back always route to /pro/dashboard (never a
+//   dead-end). If the user hasn't completed yet, dashboard's own guard will
+//   bounce them back — but only ONCE per app session, giving them a clear path.
+// - "Start Receiving Bookings" replaces the stack with /pro/dashboard on success.
 export default function ProOnboarding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user } = useSession();
   const [status, setStatus] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [loadErr, setLoadErr] = useState<string | null>(null);
+  const redirectedRef = useRef(false);
 
   const load = useCallback(async () => {
-    const s = await api("/hairdressers/me/onboarding-status");
-    setStatus(s);
-  }, []);
+    try {
+      setLoadErr(null);
+      const s = await api("/hairdressers/me/onboarding-status");
+      setStatus(s);
+      // Self-heal: if backend already says completed, don't trap the user here.
+      if (s?.completed && !redirectedRef.current) {
+        redirectedRef.current = true;
+        router.replace("/pro/dashboard");
+      }
+    } catch (e: any) {
+      setLoadErr(e?.message || "Could not load setup status. Check your connection and try again.");
+    }
+  }, [router]);
+
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Android hardware Back — never dead-end; go to dashboard.
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      router.replace("/pro/dashboard");
+      return true;
+    });
+    return () => sub.remove();
+  }, [router]);
 
   const finish = async () => {
     setErr(null); setBusy(true);
     try {
-      await api("/hairdressers/me/onboarding-complete", { method: "POST" });
-      router.replace("/pro/dashboard");
-    } catch (e: any) { setErr(e.message); }
-    finally { setBusy(false); }
+      const res = await api("/hairdressers/me/onboarding-complete", { method: "POST" });
+      if (res?.completed !== false) {
+        redirectedRef.current = true;
+        router.replace("/pro/dashboard");
+      }
+    } catch (e: any) {
+      setErr(e?.message || "Could not activate bookings. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  if (!status) return <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={colors.brand} /></View>;
+  if (!status && !loadErr) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}>
+        <ActivityIndicator color={colors.brand} />
+      </View>
+    );
+  }
 
-  const canFinish = !!status.has_availability;
+  if (loadErr && !status) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl }}>
+        <Feather name="wifi-off" size={28} color={colors.muted} />
+        <Text style={{ fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 16, marginTop: spacing.md, textAlign: "center" }}>
+          Couldn&apos;t load your setup
+        </Text>
+        <Text style={{ fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 13, marginTop: spacing.xs, textAlign: "center", lineHeight: 18 }}>
+          {loadErr}
+        </Text>
+        <Pressable testID="onb-retry" onPress={load} style={[s.finishBtn, { marginTop: spacing.lg, paddingHorizontal: spacing.xl }]}>
+          <Text style={s.finishText}>Try again</Text>
+        </Pressable>
+        <Pressable testID="onb-skip-to-dash" onPress={() => router.replace("/pro/dashboard")} style={{ marginTop: spacing.md }}>
+          <Text style={{ fontFamily: font.bodyMed, color: colors.brand, fontSize: 13 }}>Go to Dashboard</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const canFinish = !!status?.has_availability;
 
   return (
     <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={{ paddingBottom: spacing.xxxl }}>
       <View style={{ paddingTop: insets.top + spacing.lg, paddingHorizontal: spacing.xl }}>
         <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: spacing.md }}>
-          <Pressable testID="onb-back" onPress={() => router.canGoBack() ? router.back() : router.replace("/pro/dashboard")}>
+          <Pressable
+            testID="onb-back"
+            hitSlop={12}
+            onPress={() => router.replace("/pro/dashboard")}
+          >
             <Feather name="arrow-left" size={22} color={colors.onSurface} />
           </Pressable>
         </View>
         <View style={s.liveBadge}>
           <View style={s.dot} />
-          <Text style={s.liveBadgeText}>YOUR PROFILE IS LIVE</Text>
+          <Text style={s.liveBadgeText}>YOUR STUDIO IS LIVE</Text>
         </View>
-        <Text testID="onb-title" style={s.title}>Your profile is live.</Text>
-        <Text style={s.sub}>Customers can already discover your profile. Complete these recommendations to attract even more bookings.</Text>
+        <Text testID="onb-title" style={s.title}>Your Studio is live.</Text>
+        <Text style={s.sub}>Customers can already discover your Studio. Complete these recommendations to attract even more bookings.</Text>
 
         {/* ---- REQUIRED ---- */}
         <Text style={s.sectionTitle}>Required</Text>
@@ -122,9 +187,20 @@ export default function ProOnboarding() {
         )}
         {canFinish && (
           <Text testID="onb-recs" style={s.recs}>
-            You're all set. Add portfolio photos or apply for Verified Pro anytime from Profile → Improve My Profile.
+            You&apos;re all set. Add portfolio photos or apply for Verified Pro anytime from Dashboard → Improve My Studio.
           </Text>
         )}
+
+        {/* Escape hatch: always let the user go to the dashboard, even mid-setup. */}
+        <Pressable
+          testID="onb-skip"
+          onPress={() => router.replace("/pro/dashboard")}
+          style={{ marginTop: spacing.lg, alignSelf: "center", paddingVertical: spacing.sm }}
+        >
+          <Text style={{ fontFamily: font.bodyMed, color: colors.brand, fontSize: 13 }}>
+            Skip for now — go to Dashboard
+          </Text>
+        </Pressable>
       </View>
     </ScrollView>
   );

@@ -168,9 +168,9 @@ export default function HairstyleDetail() {
 
           {gated && (
             <View style={s.gated}>
-              <Feather name="lock" size={13} color={colors.brandSecondary} />
-              <Text style={s.gatedText}>Showing top 3 · location blurred. Upgrade for full access.</Text>
-              <Pressable onPress={() => router.push("/subscription")}><Text style={s.gatedLink}>Upgrade →</Text></Pressable>
+              <Feather name="award" size={13} color={colors.brandSecondary} />
+              <Text style={s.gatedText}>All results visible — Unlimited adds AI-powered ranking.</Text>
+              <Pressable onPress={() => router.push("/subscription")}><Text style={s.gatedLink}>Learn more →</Text></Pressable>
             </View>
           )}
 

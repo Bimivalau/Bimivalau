@@ -71,18 +71,7 @@ export default function Compare() {
 
       <ScrollView contentContainerStyle={{ padding: spacing.xl, paddingBottom: spacing.xxxl }}>
         {loading && <ActivityIndicator color={colors.brand} />}
-        {data.gated && !loading && (
-          <View testID="gated-upgrade" style={s.gated}>
-            <Feather name="lock" size={20} color={colors.brand} />
-            <View style={{ flex: 1 }}>
-              <Text style={s.gatedTitle}>Upgrade to compare all {data.total_matches}</Text>
-              <Text style={s.gatedMsg}>Free plan shows the top 3. Unlock exact locations, availability, and full portfolios.</Text>
-            </View>
-            <Pressable testID="gated-cta" onPress={() => router.push("/subscription")} style={s.gatedBtn}>
-              <Text style={s.gatedBtnText}>Upgrade</Text>
-            </Pressable>
-          </View>
-        )}
+        {/* Discovery is universal — every match is visible to every customer, always. */}
         {data.results.map((c: any) => (
           <Pressable key={c.hairdresser_id} testID={`compare-card-${c.hairdresser_id}`} onPress={() => router.push(`/hairdresser/${c.hairdresser_id}`)} style={s.card}>
             <Image source={{ uri: c.portfolio_photo }} style={s.cardImg} contentFit="cover" />

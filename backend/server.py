@@ -292,32 +292,30 @@ PLANS_CATALOG = {
         "free": {
             "name": "Free",
             "price_monthly": 0, "price_yearly": 0,
-            "tagline": "Discover the world of braids — no strings.",
+            "tagline": "Discover every braid, everywhere. Forever free.",
             "features": [
-                "Unlimited hairstyle discovery",
-                "Unlimited portfolio viewing",
-                "Unlimited style comparisons",
-                "Unlimited price & duration info",
-                "Book professionals within 10 miles",
+                "Browse every hairstyle & Studio",
+                "Compare unlimited professionals",
+                "Read every review, view every portfolio",
+                "Save styles & build inspiration boards",
+                "Book any professional worldwide",
             ],
-            "limits": [
-                "Search radius capped at 10 miles",
-                "Traveling pros & luxury filters locked",
-                "Advanced discovery filters locked",
-            ],
+            "limits": [],  # Discovery is NEVER gated — Free unlocks everything
         },
         "unlimited": {
             "name": "Unlimited",
             "price_monthly": PRICING["customer"]["monthly"],
             "price_yearly": PRICING["customer"]["yearly"],
-            "tagline": "Every braid, everywhere. Powered by AI.",
+            "tagline": "AI intelligence & convenience — make every braid feel effortless.",
             "features": [
-                "Worldwide search — unlimited radius",
-                "Traveling professionals & house calls",
-                "Verified Pros only · Open today · Kids · Bridal",
-                "Hair included · Budget filters",
-                "AI style recommendations",
-                "Price · duration · pro comparison",
+                "AI Style Match — upload a selfie, get personalized recs",
+                "Recreate This Look — from any Instagram or Pinterest photo",
+                "AI Recommendations tuned to your style history",
+                "Price Alerts — get notified when your dream style drops",
+                "Beauty Journal — track appointments, growth & touch-ups",
+                "Travel Planning — braiders in every city you visit",
+                "Premium filters (traveling pros, luxury, verified-only)",
+                "VIP support",
             ],
             "limits": [],
         },
@@ -995,22 +993,14 @@ async def get_hairstyle(hid: str, user: Optional[UserOut] = Depends(maybe_user))
 
 @api.get("/hairstyles/{hid}/hairdressers")
 async def hairdressers_for_style(hid: str, user: Optional[UserOut] = Depends(maybe_user)):
-    # Verification is optional — all hairdressers are searchable. Approved pros just get the Verified Pro badge.
+    # Discovery is universal — Free customers browse every Studio, every price, every portfolio.
+    # Premium unlocks AI intelligence + convenience, never discovery itself.
     hds = await db.hairdressers.find({"specialty_ids": hid}, {"_id": 0}).to_list(200)
     for h in hds:
         u = await db.users.find_one({"id": h["user_id"]}, {"_id": 0, "password_hash": 0})
         h["name"] = u["name"] if u else "Stylist"
         h["profile_photo"] = u.get("profile_photo") if u else None
-    # subscription gating: Standard tier — top 3 + blur location
-    is_unlimited = user and user.plan == "unlimited"
-    if not is_unlimited:
-        hds = hds[:3]
-        for h in hds:
-            h["address"] = h.get("city", "") + " • area only"
-            h["latitude"] = round(h.get("latitude", 0.0), 1)
-            h["longitude"] = round(h.get("longitude", 0.0), 1)
-            h["location_blurred"] = True
-    return {"results": hds, "gated": not is_unlimited}
+    return {"results": hds, "gated": False}
 
 
 # ---------- Hairdressers ----------
@@ -1029,14 +1019,7 @@ async def hairdresser_detail(hid: str, user: Optional[UserOut] = Depends(maybe_u
         r["customer_name"] = cu["name"] if cu else "Anon"
     availability = await db.availability.find({"hairdresser_id": hid}, {"_id": 0}).to_list(20)
     specialties = await db.hairstyles.find({"id": {"$in": h.get("specialty_ids", [])}}, {"_id": 0}).to_list(50)
-    # Standard tier blurs exact address unless user has confirmed booking
-    is_unlimited = user and user.plan == "unlimited"
-    has_booking = False
-    if user:
-        has_booking = bool(await db.bookings.find_one({"hairdresser_id": hid, "customer_id": user.id}))
-    if not is_unlimited and not has_booking:
-        h["address"] = h.get("city", "") + " • Unlock full address with Unlimited"
-        h["location_blurred"] = True
+    # Discovery is universal — no location blur. Full Studio details are always visible.
     h["portfolio"] = portfolio
     h["reviews"] = reviews
     h["availability"] = availability
@@ -1100,13 +1083,7 @@ async def search(
     for h in hds:
         u = await db.users.find_one({"id": h["user_id"]}, {"_id": 0})
         h["name"] = u["name"] if u else "Stylist"
-    is_unlimited = user and user.plan == "unlimited"
-    if not is_unlimited:
-        hds = hds[:3]
-        for h in hds:
-            h["address"] = h.get("city", "") + " • area only"
-            h["location_blurred"] = True
-    return {"results": hds, "gated": not is_unlimited}
+    return {"results": hds, "gated": False}
 
 
 # ---------- Portfolio ----------
@@ -1791,8 +1768,24 @@ async def mark_onboarding_complete(user: UserOut = Depends(get_user)):
     has_avail = await db.availability.count_documents({"hairdresser_id": user.id}) > 0
     if not has_avail:
         raise HTTPException(400, "Set your weekly hours to start receiving bookings.")
-    await db.hairdressers.update_one({"user_id": user.id}, {"$set": {"onboarding_completed": True}})
-    return {"ok": True}
+    # Safety net: upsert the flag in case the hairdresser record is missing (defensive).
+    now = datetime.now(timezone.utc).isoformat()
+    await db.hairdressers.update_one(
+        {"user_id": user.id},
+        {
+            "$set": {"onboarding_completed": True, "onboarding_completed_at": now},
+            "$setOnInsert": {
+                "id": user.id,
+                "user_id": user.id,
+                "bio": "", "salon_name": "", "address": "", "city": "",
+                "service_area": "", "latitude": 0.0, "longitude": 0.0,
+                "cover_photo": "", "verification_status": "unverified",
+                "rating_avg": 0.0, "reviews_count": 0, "specialty_ids": [],
+            },
+        },
+        upsert=True,
+    )
+    return {"ok": True, "completed": True}
 
 @api.get("/hairdressers/me/onboarding-status")
 async def onboarding_status(user: UserOut = Depends(get_user)):
@@ -1966,11 +1959,8 @@ async def compare_braiders_for_style(
             "earliest_available": upcoming_slot,
             "available_today": slots_today > 0,
             "portfolio_photo": (portfolio or {}).get("photo_url") or hd.get("cover_photo"),
-            "location_blurred": not is_unlimited,
+            "location_blurred": False,
         }
-        # Location privacy
-        if not is_unlimited:
-            card["service_area"] = (card["service_area"] or "").split(",")[0] + " · area"
         cards.append(card)
 
     # Filters
@@ -1996,14 +1986,13 @@ async def compare_braiders_for_style(
     if sort in keys:
         cards.sort(key=keys[sort])
 
-    # Free gating: preview 3 cards + total count
-    preview = cards if is_unlimited else cards[:3]
+    # Discovery is universal — return every match. Premium unlocks intelligence, not results.
     return {
         "hairstyle": {"id": hairstyle["id"], "name": hairstyle["name"], "category": hairstyle["category"], "cover_photo": hairstyle.get("cover_photo")},
         "total_matches": total_matches,
-        "shown": len(preview),
-        "gated": not is_unlimited,
-        "results": preview,
+        "shown": len(cards),
+        "gated": False,
+        "results": cards,
     }
 
 
@@ -2216,6 +2205,168 @@ async def public_business_score(hid: str):
     result = await compute_business_success_score(hd["user_id"])
     # Only expose score + tier publicly (breakdown stays private to the pro)
     return {"score": result["score"], "tier": result["tier"]}
+
+
+# ---------- Business Health ----------
+# 7 human-readable health metrics (0-100 each) with a tip per metric so pros
+# know exactly how to improve. These complement the aggregate Success Score.
+async def compute_business_health(uid: str) -> dict:
+    hd = await db.hairdressers.find_one({"user_id": uid}, {"_id": 0}) or {}
+    u = await db.users.find_one({"id": uid}, {"_id": 0}) or {}
+    now = datetime.now(timezone.utc)
+    since_30d = (now - timedelta(days=30)).isoformat()
+    since_90d = (now - timedelta(days=90)).isoformat()
+
+    portfolio_count = await db.portfolio_items.count_documents({"hairdresser_id": uid})
+    views_30d = await db.profile_views.count_documents({"hairdresser_id": uid, "viewed_at": {"$gte": since_30d}})
+    bookings_90d = await db.bookings.count_documents({"hairdresser_id": uid, "status": "completed", "appointment_datetime": {"$gte": since_90d}})
+    total_bookings = await db.bookings.count_documents({"hairdresser_id": uid, "status": "completed"})
+    has_avail = await db.availability.count_documents({"hairdresser_id": uid}) > 0
+
+    # Repeat customers: distinct customer_ids with >1 completed booking
+    pipeline = [
+        {"$match": {"hairdresser_id": uid, "status": "completed"}},
+        {"$group": {"_id": "$customer_id", "n": {"$sum": 1}}},
+    ]
+    grouped = [doc async for doc in db.bookings.aggregate(pipeline)]
+    unique_customers = len(grouped)
+    repeat_customers = sum(1 for g in grouped if g["n"] > 1)
+    repeat_rate = int(round((repeat_customers / unique_customers) * 100)) if unique_customers else 0
+
+    rating = float(hd.get("rating_avg") or 0.0)
+    reviews = int(hd.get("reviews_count") or 0)
+
+    metrics = {
+        "customer_trust": {
+            "score": min(100, int(rating * 20) + min(20, reviews * 2)),
+            "label": "Customer Trust",
+            "tip": "Ask happy clients to leave a 5-star review after every booking.",
+        },
+        "visibility": {
+            "score": min(100, views_30d * 3),
+            "label": "Visibility",
+            "tip": "Add trending styles to your specialties and post fresh portfolio work weekly.",
+        },
+        "portfolio_strength": {
+            "score": min(100, portfolio_count * 8),
+            "label": "Portfolio Strength",
+            "tip": f"Upload at least 15 portfolio photos ({portfolio_count} today).",
+        },
+        "response_rate": {
+            # Placeholder until messaging is live — anchored to booking:cancel ratio
+            "score": 90 if total_bookings == 0 else max(30, 100 - int(await db.bookings.count_documents({"hairdresser_id": uid, "status": "cancelled"}) * 100 / max(1, total_bookings))),
+            "label": "Response Rate",
+            "tip": "Reply to inquiries within 4 hours — fast replies convert bookings.",
+        },
+        "repeat_customers": {
+            "score": min(100, repeat_rate * 2),
+            "label": "Repeat Customers",
+            "tip": "Offer returning-client discounts and remember their favorite styles.",
+        },
+        "availability": {
+            "score": 100 if has_avail else 0,
+            "label": "Availability",
+            "tip": "Keep your weekly hours updated so customers can book with confidence.",
+        },
+    }
+    return {"metrics": metrics, "unique_customers": unique_customers, "repeat_customers": repeat_customers}
+
+
+@api.get("/braiders/me/business-health")
+async def my_business_health(user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only braiders")
+    return await compute_business_health(user.id)
+
+
+# ---------- Braider DNA ----------
+# Each pro develops per-category expertise scores that surface as "Knotless Expert",
+# "Fulani Expert", etc. Formula blends portfolio depth, ratings and bookings in
+# that category. Later this replaces flat category tags in ranking.
+async def compute_braider_dna(uid: str) -> List[dict]:
+    portfolio = await db.portfolio_items.find({"hairdresser_id": uid}, {"_id": 0}).to_list(500)
+    if not portfolio:
+        return []
+    style_ids = list({p["hairstyle_id"] for p in portfolio})
+    styles = await db.hairstyles.find({"id": {"$in": style_ids}}, {"_id": 0}).to_list(500)
+    by_cat: dict = {}
+    for st in styles:
+        cat = st["category"]
+        by_cat.setdefault(cat, {"portfolio_count": 0, "avg_style_score": 0.0, "style_ids": []})
+        by_cat[cat]["portfolio_count"] += sum(1 for p in portfolio if p["hairstyle_id"] == st["id"])
+        by_cat[cat]["avg_style_score"] += float(st.get("style_score") or 0)
+        by_cat[cat]["style_ids"].append(st["id"])
+
+    hd = await db.hairdressers.find_one({"user_id": uid}, {"_id": 0}) or {}
+    rating = float(hd.get("rating_avg") or 0)
+    reviews = int(hd.get("reviews_count") or 0)
+
+    dna: List[dict] = []
+    for cat, data in by_cat.items():
+        depth = min(50, data["portfolio_count"] * 8)
+        quality = min(30, (data["avg_style_score"] / max(1, len(data["style_ids"]))) * 0.3)
+        signals = min(20, rating * 3 + reviews * 0.3)
+        score = round(depth + quality + signals)
+        if score >= 85: label = f"{cat} Master"
+        elif score >= 65: label = f"{cat} Expert"
+        elif score >= 40: label = f"{cat} Specialist"
+        else: label = f"{cat} Emerging"
+        dna.append({"category": cat, "score": score, "label": label, "portfolio_count": data["portfolio_count"]})
+
+    dna.sort(key=lambda d: -d["score"])
+    return dna[:8]  # cap for UI
+
+
+@api.get("/braiders/me/dna")
+async def my_dna(user: UserOut = Depends(get_user)):
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only braiders")
+    return await compute_braider_dna(user.id)
+
+
+@api.get("/braiders/{hid}/dna")
+async def public_dna(hid: str):
+    hd = await db.hairdressers.find_one({"id": hid}, {"_id": 0, "user_id": 1})
+    if not hd:
+        raise HTTPException(404, "Not found")
+    return await compute_braider_dna(hd["user_id"])
+
+
+# ---------- AI Feature Waitlist ----------
+_AI_MODULES = {"style_match", "recreate_look", "recommendations", "coach", "price_alerts", "beauty_journal", "travel_planning"}
+
+
+class AIWaitlistIn(BaseModel):
+    module: str
+    note: Optional[str] = ""
+
+
+@api.post("/ai/waitlist")
+async def ai_waitlist(body: AIWaitlistIn, user: UserOut = Depends(get_user)):
+    if body.module not in _AI_MODULES:
+        raise HTTPException(400, f"Unknown module. Try one of: {sorted(_AI_MODULES)}")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": user.id,
+        "role": user.role,
+        "module": body.module,
+        "note": (body.note or "")[:280],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    # Idempotent — one row per (user, module)
+    await db.ai_waitlist.update_one(
+        {"user_id": user.id, "module": body.module},
+        {"$set": doc},
+        upsert=True,
+    )
+    return {"ok": True, "joined": True}
+
+
+@api.get("/ai/waitlist/me")
+async def my_ai_waitlist(user: UserOut = Depends(get_user)):
+    rows = await db.ai_waitlist.find({"user_id": user.id}, {"_id": 0}).to_list(50)
+    return {"modules": [r["module"] for r in rows]}
+
 
 
 @api.get("/braiders/me/analytics")

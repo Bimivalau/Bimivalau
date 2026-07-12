@@ -10,7 +10,7 @@
  *   6. Themed sections (Bridal / Vacation / Kids / Office / Event / Protective / Luxury / New)
  */
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, RefreshControl, ActivityIndicator, Alert } from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet, RefreshControl, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -19,7 +19,6 @@ import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
 import StyleCard, { Hairstyle } from "@/src/components/StyleCard";
 import SaveSheet from "@/src/components/SaveSheet";
-import { pickImage } from "@/src/utils/cloudinary";
 
 const QUICK_CATEGORIES: { key: string; label: string; icon: any }[] = [
   { key: "trending", label: "Trending", icon: "trending-up" },
@@ -110,15 +109,10 @@ export default function Home() {
     })();
   }, [country]);
 
-  const onUploadInspiration = async () => {
-    try {
-      const picked = await pickImage("style_catalog");
-      if (!picked) return;
-      await api("/inspiration", { method: "POST", body: JSON.stringify({ photo_url: picked.uri, note: "" }) });
-      Alert.alert("Saved!", "AI Style Match is coming soon.\nYour inspiration has been added to \"My Inspiration Photos.\"");
-    } catch (e: any) {
-      Alert.alert("Couldn't add inspiration", e.message || "Please try again.");
-    }
+  const onUploadInspiration = () => {
+    // Route to the AI Style Match placeholder — beautiful "coming soon" flow
+    // that lets customers join the waitlist without any fake AI behavior.
+    router.push("/ai/style-match");
   };
 
   const openStyle = (id: string) => router.push({ pathname: "/hairstyle/[id]", params: { id } });

@@ -91,19 +91,16 @@ class TestHairstyles:
         assert r.status_code == 404
 
     def test_hairdressers_for_style_gated_standard(self, customer_auth):
-        # Ensure customer is standard
-        requests.post(f"{BASE_URL}/api/auth/plan", json={"plan": "standard"},
-                      headers=auth_headers(customer_auth["token"]))
+        """Pass A · discovery is universal — Free customers see ALL results, never gated."""
         items = requests.get(f"{BASE_URL}/api/hairstyles").json()
         sid = items[0]["id"]
         r = requests.get(f"{BASE_URL}/api/hairstyles/{sid}/hairdressers",
                          headers=auth_headers(customer_auth["token"]))
         assert r.status_code == 200
         d = r.json()
-        assert d["gated"] is True
-        assert len(d["results"]) <= 3
+        assert d["gated"] is False
         for h in d["results"]:
-            assert h.get("location_blurred") is True
+            assert not h.get("location_blurred")
 
     def test_hairdressers_for_style_unlimited(self, customer_auth):
         tok = customer_auth["token"]
@@ -119,14 +116,12 @@ class TestHairstyles:
 # ---------------- HAIRDRESSER DETAIL ----------------
 class TestHairdresserDetail:
     def test_detail_standard_blurred(self, customer_auth):
-        """Use a fresh customer without any bookings to verify blur behavior."""
-        # Register a fresh customer to guarantee no bookings
-        email = f"test_blur_{uuid.uuid4().hex[:8]}@example.com"
+        """Pass A · Studio detail is fully visible to every customer — no blur."""
+        email = f"test_studio_{uuid.uuid4().hex[:8]}@example.com"
         r = requests.post(f"{BASE_URL}/api/auth/register",
-                          json={"email": email, "password": "test1234", "name": "Blur Test", "role": "customer"})
+                          json={"email": email, "password": "test1234", "name": "Studio Test", "role": "customer"})
         assert r.status_code == 200
         tok = r.json()["access_token"]
-        # standard plan by default
         items = requests.get(f"{BASE_URL}/api/hairstyles").json()
         r = requests.get(f"{BASE_URL}/api/hairstyles/{items[0]['id']}/hairdressers",
                          headers=auth_headers(tok))
@@ -136,7 +131,7 @@ class TestHairdresserDetail:
         d = r2.json()
         assert "portfolio" in d and "reviews" in d and "availability" in d
         assert "specialties" in d and "badges" in d
-        assert d.get("location_blurred") is True
+        assert not d.get("location_blurred")
         assert isinstance(d["badges"], list)
 
     def test_detail_404(self):
@@ -147,10 +142,10 @@ class TestHairdresserDetail:
 # ---------------- SEARCH ----------------
 class TestSearch:
     def test_search_no_auth_gated(self):
+        """Pass A · anonymous discovery is unrestricted — every Studio surfaces."""
         r = requests.get(f"{BASE_URL}/api/search")
         assert r.status_code == 200
-        assert r.json()["gated"] is True
-        assert len(r.json()["results"]) <= 3
+        assert r.json()["gated"] is False
 
     def test_search_with_category(self, customer_auth):
         r = requests.get(f"{BASE_URL}/api/search?category=Braids",

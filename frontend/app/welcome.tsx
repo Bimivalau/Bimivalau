@@ -45,7 +45,7 @@ export default function Welcome() {
             <Text style={s.langHint}>· Français coming soon</Text>
           </Pressable>
           <Text style={s.chooseTitle}>How do you want to start?</Text>
-          <Text style={s.explain}>BraidsCommunity is a booking marketplace for braid artists — discover portfolios, reserve a chair, pay at the salon. Simple.</Text>
+          <Text style={s.explain}>BraidsCommunity is where you discover braid styles and the studios that create them.</Text>
 
           <Pressable testID="welcome-customer" onPress={() => router.push("/register?role=customer")} style={s.roleCard}>
             <View style={{ flex: 1 }}>

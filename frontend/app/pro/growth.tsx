@@ -20,6 +20,9 @@ import { colors, spacing, font, radii } from "@/src/theme";
 interface Score { score: number; tier: string; breakdown: any; recommendations: string[]; }
 interface Analytics { views_30d: number; views_7d: number; total_bookings: number; completed_30d: number; cancelled_30d: number; }
 interface WeeklyReport { bookings_this_week: number; bookings_growth_pct: number | null; profile_views_this_week: number; views_growth_pct: number | null; }
+interface HealthMetric { score: number; label: string; tip: string; }
+interface Health { metrics: Record<string, HealthMetric>; unique_customers: number; repeat_customers: number; }
+interface DNARow { category: string; score: number; label: string; portfolio_count: number; }
 
 const TIER_COLORS: Record<string, [string, string]> = {
   Elite: ["#F5C77E", "#8B5A2B"],
@@ -36,17 +39,21 @@ export default function BusinessGrowth() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [trending, setTrending] = useState<any>(null);
   const [weekly, setWeekly] = useState<WeeklyReport | null>(null);
+  const [health, setHealth] = useState<Health | null>(null);
+  const [dna, setDna] = useState<DNARow[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const [sc, a, t, w] = await Promise.all([
+      const [sc, a, t, w, h, d] = await Promise.all([
         api("/braiders/me/business-score"),
         api("/braiders/me/analytics").catch((e: any) => (e instanceof ApiError && e.status === 402 ? null : Promise.reject(e))),
         api("/braiders/me/trending-report").catch((e: any) => (e instanceof ApiError && e.status === 402 ? null : Promise.reject(e))),
         api("/braiders/me/weekly-report").catch((e: any) => (e instanceof ApiError && e.status === 402 ? null : Promise.reject(e))),
+        api("/braiders/me/business-health").catch(() => null),
+        api("/braiders/me/dna").catch(() => []),
       ]);
-      setScore(sc); setAnalytics(a); setTrending(t); setWeekly(w);
+      setScore(sc); setAnalytics(a); setTrending(t); setWeekly(w); setHealth(h); setDna(d);
     } finally { setLoading(false); }
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -101,6 +108,48 @@ export default function BusinessGrowth() {
                 <View key={i} style={s.recRow}>
                   <View style={s.recIcon}><Feather name="trending-up" size={13} color={colors.brand} /></View>
                   <Text style={s.recText}>{r}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
+        {/* ---- Business Health ---- */}
+        {health && (
+          <>
+            <Text style={s.section}>Business Health</Text>
+            <Text style={{ fontFamily: font.body, fontSize: 12, color: colors.onSurfaceTertiary, marginTop: -8, marginBottom: spacing.md }}>
+              6 signals that decide whether customers pick you. Improve any one to lift your Business Success Score.
+            </Text>
+            <View style={{ gap: spacing.sm }}>
+              {Object.entries(health.metrics).map(([k, m]) => (
+                <View key={k} style={s.healthCard}>
+                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                    <Text style={s.healthLabel}>{m.label}</Text>
+                    <Text style={[s.healthScore, { color: m.score >= 80 ? colors.success : m.score >= 40 ? colors.brand : colors.warning }]}>{m.score}</Text>
+                  </View>
+                  <View style={{ height: 6, borderRadius: 3, backgroundColor: colors.divider, marginTop: 6, overflow: "hidden" }}>
+                    <View style={{ height: 6, width: `${m.score}%`, backgroundColor: m.score >= 80 ? colors.success : m.score >= 40 ? colors.brand : colors.warning }} />
+                  </View>
+                  <Text style={s.healthTip}>💡 {m.tip}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
+        {/* ---- Braider DNA ---- */}
+        {dna.length > 0 && (
+          <>
+            <Text style={s.section}>Your Braider DNA</Text>
+            <Text style={{ fontFamily: font.body, fontSize: 12, color: colors.onSurfaceTertiary, marginTop: -8, marginBottom: spacing.md }}>
+              Your expertise across styles. Higher scores = better ranking for those categories.
+            </Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
+              {dna.map((row) => (
+                <View key={row.category} style={s.dnaBadge}>
+                  <Text style={s.dnaLabel}>{row.label}</Text>
+                  <Text style={s.dnaScore}>{row.score}<Text style={{ opacity: 0.5, fontSize: 10 }}>/100</Text></Text>
                 </View>
               ))}
             </View>
@@ -303,4 +352,13 @@ const s = StyleSheet.create({
 
   upgradeBtn: { marginTop: spacing.xl, backgroundColor: colors.surfaceInverse, padding: spacing.md, borderRadius: radii.md, alignItems: "center" },
   upgradeText: { color: colors.onSurfaceInverse, fontFamily: font.bodyBold, fontSize: 14 },
+
+  healthCard: { padding: spacing.md, borderRadius: radii.lg, backgroundColor: "#fff", borderWidth: 1, borderColor: colors.border },
+  healthLabel: { fontFamily: font.bodyBold, fontSize: 13, color: colors.onSurface },
+  healthScore: { fontFamily: font.display, fontSize: 22 },
+  healthTip: { fontFamily: font.body, fontSize: 11, color: colors.onSurfaceTertiary, marginTop: spacing.sm, lineHeight: 15 },
+
+  dnaBadge: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radii.pill, backgroundColor: "#FAF6EF", borderWidth: 1, borderColor: "#EBDEC5", flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  dnaLabel: { fontFamily: font.bodyBold, fontSize: 12, color: colors.brand },
+  dnaScore: { fontFamily: font.display, fontSize: 16, color: "#8B5A2B" },
 });

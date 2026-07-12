@@ -1,0 +1,37 @@
+{
+  "summary": "P0 Onboarding Navigation Trap fix verified end-to-end (backend + frontend). Backend pytest: 170/170 PASS incl. 13 new tests in test_iteration11_onboarding_trap.py covering all 9 spec items (fresh pro status, 400 before availability, PUT availability, status update, POST onboarding-complete returns {ok:true,completed:true}, persistence, idempotency, persistence across login, seeded pros regression, customer-role 403). Frontend (mobile 390x844) all 9 spec flows PASS: (1) register hairdresser + verify-email routes to /pro/onboarding; (2) onb-availability -> pick Mon (testID day-Mon) -> avail-save -> avail-back returns to onboarding with green check and onb-finish enabled; (3) KEY TEST — tapping onb-finish 'Start Receiving Bookings' cleanly navigates to /pro/dashboard and STAYS there (no bounce back to /pro/onboarding after 3.5s wait); (4) dashboard's setup-banner is NOT rendered when onboarding is complete; (5) pro-improve 'Improve My Studio' opens /pro/onboarding which self-heals and auto-redirects back to /pro/dashboard within ~2s (self-heal works — completed=true guard in load() effect fires router.replace); (6) verified via test 9 + backend test_8_persistence_across_login that a completed pro re-login lands on /pro/dashboard; (7) fresh pro tapping onb-skip lands on /pro/dashboard and sees yellow setup-banner, tapping it navigates to /pro/onboarding and STAYS (no self-heal, still incomplete); (8) onb-back arrow always routes to /pro/dashboard; (9) regression amara@braids.demo login -> /pro/dashboard directly (no onboarding screen). Redirect loop is confirmed FIXED. No critical or minor bugs found. No deprecated Expo packages (expo-av/expo-barcode-scanner/expo-background-fetch) detected in the changed files.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration11_onboarding_trap.py",
+    "/app/test_reports/pytest/iteration6_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:1762-1788 onboarding-complete correctly checks db.availability.count_documents > 0 before setting flag; upsert with $setOnInsert defensive doc includes all required hairdresser fields — good safety net if the record was somehow missing. Response {ok:true, completed:true} matches spec.",
+    "server.py:1790-1803 onboarding-status returns 4 flags (completed, has_specialty, has_availability, has_portfolio); frontend only relies on completed + has_availability + has_portfolio. Consistent.",
+    "onboarding.tsx:29-42 load() uses redirectedRef to prevent double-navigation in tight remounts; useFocusEffect re-runs on every focus which is correct so that returning to this screen after backend flips completed=true triggers self-heal. Clean.",
+    "onboarding.tsx:47-54 Android BackHandler routes hardware Back to /pro/dashboard — never dead-end. Correct.",
+    "onboarding.tsx:56-69 finish() sets redirectedRef=true BEFORE router.replace to avoid the load() effect that might fire on re-focus triggering a duplicate replace. Good.",
+    "onboarding.tsx:60 condition `res?.completed !== false` gracefully handles both {completed:true} and unexpected shapes — only aborts if backend explicitly returns completed:false.",
+    "dashboard.tsx:37-41 comment explains the removal of the forced redirect useEffect — the P0 bug root cause. setup-banner is the new nudge (non-blocking).",
+    "dashboard.tsx:55-74 setup-banner correctly gated on `onboarding && !onboarding.completed`; tapping it router.push('/pro/onboarding') — since incomplete, self-heal will NOT fire (verified in TEST 7b).",
+    "index.tsx:19-27 hairdresser routing: onboarding-status fetch failure catch falls back to /pro/dashboard (safer, non-trapping). Matches spec item.",
+    "Minor observation (not a bug): dashboard.tsx pro-signout Pressable renders 2 DOM nodes on react-native-web (outer wrapper + inner touchable) — both carry data-testid='pro-signout'. This is standard react-native-web behavior; use .last() in playwright if selector strict-mode ever matters. No app-level impact."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration11_onboarding_trap.py (new — 13 tests: 10 core spec items + parametrized seeded-pro regression + customer 403)"
+  ],
+  "success_rate": {"backend": "100% (170/170 pytest, incl. 13 new for the onboarding-trap fix)", "frontend": "100% (9/9 spec flows PASS including the KEY test 3 that verifies no bounce-back after Start Receiving Bookings)"},
+  "seed_data_creation": "3 TEST_iter11 hairdresser accounts created via pytest module fixture (TEST_iter11_pro_*); 2 e2e_iter11* users created via Playwright register flows. All are identifiable by TEST_/e2e_ prefix and can be purged safely; they have onboarding_completed=true (first Playwright pro) or false (skipped pro).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend contract for onboarding: POST /api/hairdressers/me/onboarding-complete requires role=hairdresser AND at least one row in db.availability for that user; returns 400 'Set your weekly hours to start receiving bookings.' otherwise, else 200 {ok:true,completed:true} (idempotent, upsert). GET /api/hairdressers/me/onboarding-status returns {completed, has_specialty, has_availability, has_portfolio}. Frontend testIDs added by this fix: setup-banner, pro-improve, onb-skip, onb-retry, onb-skip-to-dash. Availability screen uses day-Mon..day-Sun testIDs. Run backend tests with: cd /app/backend/tests && python -m pytest test_iteration11_onboarding_trap.py -v (13 tests, ~4s) or full suite -v (170 tests, ~68s). For frontend, register a fresh pro via /register?role=hairdresser + dev_code from verify-email banner (SendGrid intentionally unset — dev banner is expected UX).",
+  "rca_of_issue": "N/A — the P0 bug (redirect loop trapping braiders on /pro/onboarding after completing Weekly Availability) is verified FIXED. Root cause per PRD: dashboard's `useEffect(() => { if (onboarding && !onboarding.completed) router.replace('/pro/onboarding') })` fired between the moment finish() set onboarding_completed=true server-side and the dashboard's own onboarding-status fetch completed, causing a redirect back. Fix removes the forced useEffect (dashboard.tsx:37-41 comment) and replaces it with a non-blocking setup-banner. Onboarding.tsx additionally self-heals via load() checking `s?.completed` and redirecting to /pro/dashboard. Verified by TEST 3 (KEY: no bounce back for 3.5s after clicking onb-finish) and TEST 5 (self-heal when a completed pro accidentally opens /pro/onboarding via Improve My Studio)."
+}

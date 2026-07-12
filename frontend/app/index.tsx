@@ -21,7 +21,9 @@ export default function Index() {
           const ob = await api("/hairdressers/me/onboarding-status");
           router.replace(ob.completed ? "/pro/dashboard" : "/pro/onboarding");
         } catch {
-          router.replace("/pro/onboarding");
+          // On error, prefer the dashboard (safer — the setup banner will
+          // prompt for any remaining steps). Never trap the user on onboarding.
+          router.replace("/pro/dashboard");
         }
         return;
       }

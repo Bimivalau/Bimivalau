@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
-import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";import { useRouter, useFocusEffect } from "expo-router";
+import { useState, useCallback } from "react";
+import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@/src/api";
@@ -16,22 +17,28 @@ export default function ProDashboard() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    const [d, ver, ob] = await Promise.all([
-      api("/hairdressers/me/dashboard"),
-      api("/hairdressers/me/verification"),
-      api("/hairdressers/me/onboarding-status"),
-    ]);
-    setData(d);
-    setVerification(ver);
-    setOnboarding(ob);
-    setLoading(false);
+    try {
+      const [d, ver, ob] = await Promise.all([
+        api("/hairdressers/me/dashboard"),
+        api("/hairdressers/me/verification"),
+        api("/hairdressers/me/onboarding-status"),
+      ]);
+      setData(d);
+      setVerification(ver);
+      setOnboarding(ob);
+    } catch {
+      // Non-fatal — dashboard still renders with whatever we have.
+    } finally {
+      setLoading(false);
+    }
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  // Route incomplete onboarding to the setup hub
-  useEffect(() => {
-    if (onboarding && !onboarding.completed) router.replace("/pro/onboarding");
-  }, [onboarding, router]);
+  // NOTE: We no longer force-redirect incomplete pros to /pro/onboarding.
+  // Their Studio is already live for discovery from day one. They can browse
+  // the dashboard; a "Complete Setup" banner prompts them to finish availability
+  // whenever they're ready. Onboarding is opened explicitly via the banner
+  // or "Improve My Studio" action.
 
   if (loading) return <ActivityIndicator style={{ flex: 1 }} color={colors.brand} />;
   const upcoming = data?.upcoming || [];
@@ -44,6 +51,27 @@ export default function ProDashboard() {
         <Text style={s.eyebrow}>PRO WORKSPACE</Text>
         <Text style={s.title}>Hello, {user?.name?.split(" ")[0]}.</Text>
         <Text style={s.sub}>{todays.length > 0 ? `${todays.length} appointment${todays.length > 1 ? "s" : ""} today.` : "No appointments today."}</Text>
+
+        {onboarding && !onboarding.completed && (
+          <Pressable
+            testID="setup-banner"
+            onPress={() => router.push("/pro/onboarding")}
+            style={s.setupBanner}
+          >
+            <View style={s.setupIcon}>
+              <Feather name="zap" size={18} color={colors.brand} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={s.setupTitle}>Complete your Studio setup</Text>
+              <Text style={s.setupMsg}>
+                {onboarding.has_availability
+                  ? "You're one tap away from receiving bookings."
+                  : "Set your weekly hours to start receiving bookings."}
+              </Text>
+            </View>
+            <Feather name="chevron-right" size={20} color={colors.brand} />
+          </Pressable>
+        )}
 
         {verification && verification.status !== "approved" && (
           <Pressable
@@ -110,7 +138,20 @@ export default function ProDashboard() {
           </Pressable>
         </View>
 
-        <Text style={s.section}>Today's schedule</Text>
+        <Pressable
+          testID="pro-improve"
+          onPress={() => router.push("/pro/onboarding")}
+          style={s.improveRow}
+        >
+          <Feather name="sliders" size={18} color={colors.brand} />
+          <View style={{ flex: 1 }}>
+            <Text style={s.improveTitle}>Improve My Studio</Text>
+            <Text style={s.improveMsg}>Review your setup checklist and boost your visibility.</Text>
+          </View>
+          <Feather name="chevron-right" size={18} color={colors.muted} />
+        </Pressable>
+
+        <Text style={s.section}>Today&apos;s schedule</Text>
         {todays.length === 0 && <Text style={{ color: colors.muted, fontFamily: font.body }}>Free day. Enjoy it.</Text>}
         {todays.map((b: any) => (
           <Pressable key={b.id} testID={`pro-booking-${b.id}`} onPress={() => router.push(`/booking/${b.id}`)} style={s.appt}>
@@ -160,4 +201,11 @@ const s = StyleSheet.create({
   verBannerOptional: { borderColor: colors.border, backgroundColor: colors.surfaceSecondary },
   verBannerTitle: { fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 14 },
   verBannerMsg: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 12, marginTop: 2 },
+  setupBanner: { flexDirection: "row", gap: spacing.md, alignItems: "center", padding: spacing.md, borderWidth: 1, borderColor: colors.brand, backgroundColor: colors.brandTertiary, borderRadius: radii.md, marginBottom: spacing.lg },
+  setupIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: "#fff", alignItems: "center", justifyContent: "center" },
+  setupTitle: { fontFamily: font.bodyBold, color: colors.brand, fontSize: 14 },
+  setupMsg: { fontFamily: font.body, color: colors.onSurfaceSecondary, fontSize: 12, marginTop: 2, lineHeight: 17 },
+  improveRow: { flexDirection: "row", gap: spacing.md, alignItems: "center", padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, marginBottom: spacing.md, backgroundColor: colors.surface },
+  improveTitle: { fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 14 },
+  improveMsg: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 12, marginTop: 2 },
 });

@@ -101,3 +101,161 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  P0 bug: Professional Onboarding Navigation Trap. Braiders were being trapped on
+  /pro/onboarding after completing Weekly Availability. Fix must satisfy:
+  - Onboarding can only be completed once; state permanently stored in backend
+  - Back arrow always works; Android hardware Back also works
+  - Returning users never get trapped on the onboarding screen
+  - Users are redirected to /pro/dashboard after completing onboarding
+  - Onboarding remains accessible only from Settings, Improve My Studio, or Edit Availability
+  - Verify after app restart, logout/login, and fresh install
+
+backend:
+  - task: "POST /api/hairdressers/me/onboarding-complete idempotency + upsert safety"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Reworked endpoint: adds onboarding_completed_at timestamp, uses upsert with
+          $setOnInsert as a defensive safety net if hairdresser record is missing.
+          Response now returns {ok: true, completed: true}. Guard still rejects
+          completion when no weekly availability is set (400).
+  - task: "GET /api/hairdressers/me/onboarding-status persistence across sessions"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          No signature change. Must confirm that completed=true persists across
+          logins for the same hairdresser after complete-onboarding is called once.
+
+frontend:
+  - task: "Professional Onboarding no longer traps braiders (/pro/onboarding)"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/onboarding.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Full rewrite of onboarding screen:
+          - useFocusEffect reloads status and auto-redirects to /pro/dashboard if
+            backend reports completed=true (self-heal for returning users).
+          - Android BackHandler now routes hardwareBackPress to /pro/dashboard.
+          - Back arrow always goes to /pro/dashboard (never a dead-end).
+          - "Start Receiving Bookings" replaces stack with /pro/dashboard on success.
+          - Added a persistent "Skip for now — go to Dashboard" escape hatch.
+          - Robust load() error state with retry + "Go to Dashboard" fallback.
+  - task: "Pro Dashboard shows Complete Setup banner instead of redirecting"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/dashboard.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          Removed the forced router.replace('/pro/onboarding') useEffect that
+          caused the trap. Incomplete pros now see a "Complete your Studio setup"
+          banner at the top of the dashboard that navigates to /pro/onboarding.
+          Also added "Improve My Studio" entry row under the action grid so
+          onboarding is reachable explicitly.
+  - task: "Root routing / on cold start never traps braiders on onboarding"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: |
+          On onboarding-status fetch failure the app now falls back to
+          /pro/dashboard (safer) instead of /pro/onboarding.
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 11
+  run_ui: true
+
+test_plan:
+  current_focus:
+    - "Professional Onboarding no longer traps braiders (/pro/onboarding)"
+    - "Pro Dashboard shows Complete Setup banner instead of redirecting"
+    - "POST /api/hairdressers/me/onboarding-complete idempotency + upsert safety"
+    - "GET /api/hairdressers/me/onboarding-status persistence across sessions"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      P0 Onboarding Navigation Trap fix ready for testing.
+
+      BACKEND CHANGES (server.py):
+      - onboarding-complete now upserts and stamps onboarding_completed_at.
+      - Response contract: {ok: true, completed: true}.
+
+      FRONTEND CHANGES:
+      - app/pro/onboarding.tsx rewritten (self-heal, BackHandler, escape hatch,
+        error retry, "Skip for now").
+      - app/pro/dashboard.tsx: removed forced redirect; added "Complete your
+        Studio setup" banner and "Improve My Studio" row.
+      - app/index.tsx: onboarding-status failure now falls back to dashboard.
+
+      TESTS TO RUN:
+      Backend:
+      1. Register a new hairdresser → GET onboarding-status → expect
+         completed=false, has_availability=false.
+      2. POST onboarding-complete without availability → expect 400.
+      3. PUT /availability/me with at least one day → GET onboarding-status →
+         expect has_availability=true.
+      4. POST onboarding-complete → expect 200 {ok:true, completed:true}.
+      5. GET onboarding-status → expect completed=true.
+      6. Re-POST onboarding-complete → should still return 200 (idempotent).
+      7. Login again with the same credentials → GET onboarding-status must
+         still return completed=true (persistence).
+
+      Frontend:
+      1. New hairdresser register → lands on /pro/onboarding (checklist).
+      2. Tap "Set Weekly Availability" → set Mon 09:00-18:00 → Save →
+         back arrow → returns to /pro/onboarding with green check on the
+         Required item and "Start Receiving Bookings" enabled.
+      3. Tap "Start Receiving Bookings" → lands on /pro/dashboard,
+         NO redirect back to onboarding.
+      4. From dashboard, tap the "Improve My Studio" row →
+         /pro/onboarding opens → since completed=true, it auto-redirects
+         back to /pro/dashboard (self-heal).
+      5. Tap "Skip for now — go to Dashboard" from onboarding while
+         incomplete (fresh account) → lands on /pro/dashboard, sees
+         "Complete your Studio setup" banner.
+      6. Verify the back arrow on onboarding always navigates to
+         /pro/dashboard.
+      7. On Android emulator, verify hardware Back on onboarding also
+         goes to /pro/dashboard.
+
+      TEST CREDENTIALS: /app/memory/test_credentials.md.
+      Existing seeded pros (amara/zara/kenya/simone @braids.demo) already
+      have onboarding_completed=true — good for regression check that
+      they never see /pro/onboarding at cold start.

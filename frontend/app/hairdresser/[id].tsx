@@ -8,7 +8,7 @@ import { Feather } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 
-export default function HairdresserProfile() {
+export default function StudioPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -19,10 +19,12 @@ export default function HairdresserProfile() {
   const [reportReason, setReportReason] = useState("");
   const [reportMsg, setReportMsg] = useState<string | null>(null);
   const [bss, setBss] = useState<{ score: number; tier: string } | null>(null);
+  const [dna, setDna] = useState<any[]>([]);
 
   useEffect(() => {
     api(`/hairdressers/${id}`).then(setH);
     api(`/braiders/${id}/business-score`).then(setBss).catch(() => {});
+    api(`/braiders/${id}/dna`).then(setDna).catch(() => {});
     // Best-effort profile view tracker — powers the braider's analytics dashboard.
     api(`/braiders/${id}/view`, { method: "POST" }).catch(() => {});
   }, [id]);
@@ -74,6 +76,21 @@ export default function HairdresserProfile() {
           <View style={{ flex: 1 }}><Text style={s.stat}>{h.portfolio?.length || 0}</Text><Text style={s.statLbl}>Works</Text></View>
         </View>
 
+        {/* Braider DNA — signature BraidsCommunity feature. Auto-computed expertise. */}
+        {dna.length > 0 && (
+          <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.lg }}>
+            <Text style={{ fontFamily: font.bodyBold, fontSize: 11, color: colors.onSurfaceTertiary, letterSpacing: 1.5, marginBottom: spacing.sm }}>BRAIDER DNA</Text>
+            <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
+              {dna.slice(0, 5).map((d: any) => (
+                <View key={d.category} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: "#FAF6EF", borderWidth: 1, borderColor: "#EBDEC5", flexDirection: "row", alignItems: "center", gap: 5 }}>
+                  <Text style={{ fontFamily: font.bodyBold, fontSize: 11, color: colors.brand }}>{d.label}</Text>
+                  <Text style={{ fontFamily: font.body, fontSize: 10, color: "#8B5A2B", opacity: 0.7 }}>{d.score}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         <View style={s.tabs}>
           {(["portfolio", "reviews", "about"] as const).map(t => (
             <Pressable key={t} testID={`tab-${t}`} onPress={() => setTab(t)} style={[s.tab, tab === t && s.tabActive]}>
@@ -85,8 +102,8 @@ export default function HairdresserProfile() {
         {tab === "portfolio" && (
           <View style={s.grid}>
             {(() => {
-              // Standard tier gets a capped preview; Unlimited sees all.
-              const cap = h.location_blurred ? 6 : h.portfolio.length;
+              // Discovery is universal — every portfolio photo is visible.
+              const cap = h.portfolio.length;
               const shown = h.portfolio.slice(0, cap);
               const encodedUrls = shown.map((p: any) => encodeURIComponent(p.photo_url)).join(",");
               return (
