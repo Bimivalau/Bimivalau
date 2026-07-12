@@ -1,0 +1,33 @@
+{
+  "summary": "Iteration 12 P1 retest — DELETE /api/hairdressers/me/services/{sid} is now a HARD delete (row disappears, not soft-flip). Auth guards return 403 for customer callers, 404 for nonexistent ids. Business Success Score & Braider DNA cards are Pressable and navigate to /pro/growth. Backend: 189/189 tests pass (185 pre-existing + 4 new hard-delete regression tests). Iteration 12 studio suite: 15/15. Frontend: Amara login → create service (180/240min/first hairstyle chip) → row appears → Remove → row vanishes (0 delete buttons remaining, 0 INACTIVE badges — confirms HARD delete, not soft). Business Success Score tap → /pro/growth (pass). Braider DNA tap → /pro/growth (pass). Sign out → /welcome (pass). Tab bar operational.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration12_delete_fix.py",
+    "/app/backend/tests/test_iteration12_studio.py",
+    "/app/test_reports/pytest/iteration12_retest_results.xml",
+    "/app/test_reports/pytest/iteration12_full_regression.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py:2017-2026 — DELETE endpoint correctly ordered: role check (403) BEFORE existence check (404), and delete_one is scoped by both id and hairdresser_id so cross-tenant deletion is impossible.",
+    "Existing test_iteration12_studio.py::test_8_delete_service comment still says 'soft delete' but its assertion (sid not in public list) still holds under hard-delete — no test-code change needed, but comment is now stale (cosmetic).",
+    "studio.tsx:183-207 — Both insight cards use Pressable with testIDs studio-success-score / studio-braider-dna; chevron affordance now matches interaction. Consistent with adjacent studio-{section} pattern."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration12_delete_fix.py (new)"
+  ],
+  "success_rate": {"backend": "100% (189/189)", "frontend": "100% (all 5 targeted flows + sign-out regression)"},
+  "seed_data_creation": "None. Test creates & tears down its own service rows via amara@braids.demo.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 12 P1 delete fix is production-ready. If future changes touch /api/hairdressers/me/services DELETE, re-run test_iteration12_delete_fix.py — it verifies hard-delete semantics, 404, 403, and 401/403 unauth. Note the stale 'soft delete' comment on line 186 of test_iteration12_studio.py::test_8_delete_service (still passes; cosmetic only).",
+  "rca_of_issue": "Original issue: DELETE endpoint only flipped active:false, so removed rows still appeared in the hairdresser's own services list (as INACTIVE) and could still be re-toggled. Fix replaces update_one with delete_one and adds explicit 404 when delete_count==0 plus 403 for non-hairdressers. Verified via 4 new regression tests and end-to-end UI: after Remove, 0 rows remain and 0 INACTIVE badges are rendered.",
+  "release_readiness_score_iteration_12": 98,
+  "release_readiness_notes": "Deducted 2 for the stale 'soft delete' comment in test_iteration12_studio.py:186 (cosmetic; test still passes and correctly asserts absence). All 189 backend tests + 5/5 targeted frontend flows + tab bar + sign-out regression pass."
+}

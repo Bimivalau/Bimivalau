@@ -2016,9 +2016,13 @@ async def upsert_service(body: ProfessionalServiceIn, user: UserOut = Depends(ge
 
 @api.delete("/hairdressers/me/services/{sid}")
 async def delete_service(sid: str, user: UserOut = Depends(get_user)):
-    await db.professional_services.update_one(
-        {"id": sid, "hairdresser_id": user.id}, {"$set": {"active": False}}
+    if user.role != "hairdresser":
+        raise HTTPException(403, "Only hairdressers")
+    res = await db.professional_services.delete_one(
+        {"id": sid, "hairdresser_id": user.id}
     )
+    if res.deleted_count == 0:
+        raise HTTPException(404, "Service not found")
     return {"ok": True}
 
 

@@ -180,27 +180,31 @@ export default function MyStudio() {
 
         {/* Business Health & Braider DNA — read-only cards that deep-link to Growth */}
         <SectionTitle title="Business insights" action="See all →" onActionPress={() => router.push("/pro/growth")} />
-        <Card variant="tinted" padding={spacing.lg}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-            <View style={s.insightIcon}><Feather name="activity" size={16} color={colors.brand} /></View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={s.rowTitle}>Business Success Score</Text>
-              <Text style={s.rowSub} numberOfLines={2}>Your 0–100 signal that decides how often you appear to customers.</Text>
+        <Pressable testID="studio-success-score" onPress={() => router.push("/pro/growth")}>
+          <Card variant="tinted" padding={spacing.lg}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+              <View style={s.insightIcon}><Feather name="activity" size={16} color={colors.brand} /></View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.rowTitle}>Business Success Score</Text>
+                <Text style={s.rowSub} numberOfLines={2}>Your 0–100 signal that decides how often you appear to customers.</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.muted} />
             </View>
-            <Feather name="chevron-right" size={18} color={colors.muted} />
-          </View>
-        </Card>
+          </Card>
+        </Pressable>
         <View style={{ height: spacing.sm }} />
-        <Card variant="tinted" padding={spacing.lg}>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-            <View style={s.insightIcon}><Feather name="award" size={16} color={colors.brand} /></View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={s.rowTitle}>Braider DNA</Text>
-              <Text style={s.rowSub} numberOfLines={2}>Your expertise scores across each style — higher scores boost ranking.</Text>
+        <Pressable testID="studio-braider-dna" onPress={() => router.push("/pro/growth")}>
+          <Card variant="tinted" padding={spacing.lg}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+              <View style={s.insightIcon}><Feather name="award" size={16} color={colors.brand} /></View>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={s.rowTitle}>Braider DNA</Text>
+                <Text style={s.rowSub} numberOfLines={2}>Your expertise scores across each style — higher scores boost ranking.</Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.muted} />
             </View>
-            <Feather name="chevron-right" size={18} color={colors.muted} />
-          </View>
-        </Card>
+          </Card>
+        </Pressable>
 
         {/* Account footer */}
         <SectionTitle title="Account" />
