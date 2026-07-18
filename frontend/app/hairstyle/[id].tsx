@@ -89,8 +89,8 @@ export default function HairstyleDetail() {
                 <Text style={s.heroMetaText}>{(style.saves_count || 0).toLocaleString()} saves</Text>
               </View>
               <View style={s.heroMeta}>
-                <Feather name="award" size={11} color="#F5EFE7" />
-                <Text style={s.heroMetaText}>Style Score {Math.round(style.style_score || 0)}</Text>
+                <Feather name="bookmark" size={11} color="#F5EFE7" />
+                <Text style={s.heroMetaText}>{(style.saves_count || 0).toLocaleString()} saves</Text>
               </View>
             </View>
           </View>
@@ -106,35 +106,8 @@ export default function HairstyleDetail() {
           <Fact icon="droplet" label="Maintenance" value={style.maintenance || "Low"} />
         </View>
 
-        {/* ---------- Style Intelligence ---------- */}
-        <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.xxl }}>
-          <View style={si.card}>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
-              <LinearGradient colors={["#F5C77E", "#B78141", "#8B5A2B"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={si.badge}>
-                <Text style={si.badgeScore}>{Math.round(style.style_score || 0)}</Text>
-                <Text style={si.badgeMax}>/100</Text>
-              </LinearGradient>
-              <View style={{ flex: 1 }}>
-                <Text style={si.title}>Style Intelligence</Text>
-                <Text style={si.desc}>BraidsCommunity&apos;s proprietary score — powered by real customer signals.</Text>
-              </View>
-            </View>
-            <View style={si.chipRow}>
-              {(style.tags || []).includes("trending") && <SIChip emoji="🔥" text="Trending" />}
-              {(style.saves_count || 0) > 2000 && <SIChip emoji="❤️" text="Loved by the community" />}
-              {(style.style_score || 0) >= 90 && <SIChip emoji="⭐" text="Highly rated" />}
-              {(style.lasts_weeks || 0) >= 8 && <SIChip emoji="⏳" text="Long lasting" />}
-              {(style.tags || []).includes("protective") && <SIChip emoji="💪" text="Protective style" />}
-              <SIChip emoji="👩🏿" text="Suitable for most hair types" />
-            </View>
-            <Text style={si.formula}>
-              Score blends popularity, saves, ratings, appointments, professional recommendations, 30-day trend growth, difficulty, maintenance and average longevity.
-            </Text>
-          </View>
-        </View>
-
         {/* ---------- Description ---------- */}
-        <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.md }}>
+        <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.xxl }}>
           <Text style={s.section}>About this style</Text>
           <Text style={s.desc}>{style.description}</Text>
         </View>

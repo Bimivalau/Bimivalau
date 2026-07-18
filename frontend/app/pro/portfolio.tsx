@@ -8,7 +8,7 @@ import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 import { pickCompressUploadPersist, cldTransform } from "@/src/utils/cloudinary";
 
-const FREE_CAP = 5;
+const PORTFOLIO_CAP = 40;
 
 export default function ProPortfolio() {
   const router = useRouter();
