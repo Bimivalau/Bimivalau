@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional, Literal, Dict, Any
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-import os, uuid, logging, bcrypt, secrets, string, httpx
+import os, uuid, logging, bcrypt, secrets, string, httpx, hashlib
 from jose import jwt, JWTError
 
 from subscription_service import (
@@ -719,6 +719,85 @@ async def me(user: UserOut = Depends(get_user)):
     # include user's own phone in self endpoint only
     u = await db.users.find_one({"id": user.id}, {"_id": 0, "password_hash": 0})
     return await user_from_doc(u, include_phone=True)
+
+
+@api.delete("/auth/me")
+async def delete_account(user: UserOut = Depends(get_user)):
+    """Permanent, in-app account deletion — required by App Store guidelines.
+    Cascades to remove personal data (favorites, saves, notifications, inspiration,
+    hairdresser record). Bookings are anonymised (user_id kept as `deleted_user_<hash>`)
+    so the other party's booking history remains intact.
+    """
+    uid = user.id
+    stub = f"deleted_user_{hashlib.sha1(uid.encode()).hexdigest()[:8]}"
+    # Personal collections — hard delete.
+    await db.style_saves.delete_many({"user_id": uid})
+    await db.collections.delete_many({"user_id": uid})
+    await db.favorites.delete_many({"user_id": uid})
+    await db.inspiration.delete_many({"user_id": uid})
+    await db.notifications.delete_many({"user_id": uid})
+    await db.notification_preferences.delete_many({"user_id": uid})
+    await db.recent_views.delete_many({"user_id": uid})
+    await db.founding_pro_applications.delete_many({"user_id": uid})
+    # If braider: remove Studio-owned data.
+    if user.role == "hairdresser":
+        await db.hairdressers.delete_many({"user_id": uid})
+        await db.availability.delete_many({"hairdresser_id": uid})
+        await db.portfolio_items.delete_many({"hairdresser_id": uid})
+        await db.professional_services.delete_many({"hairdresser_id": uid})
+        # Anonymise past bookings so customer history stays intact.
+        await db.bookings.update_many({"hairdresser_id": uid}, {"$set": {"hairdresser_id": stub, "hairdresser_deleted": True}})
+    else:
+        await db.bookings.update_many({"customer_id": uid}, {"$set": {"customer_id": stub, "customer_deleted": True}})
+    # Anonymise reviews and flags (kept for community trust).
+    await db.reviews.update_many({"customer_id": uid}, {"$set": {"customer_id": stub, "customer_deleted": True}})
+    await db.reviews.update_many({"hairdresser_id": uid}, {"$set": {"hairdresser_id": stub, "hairdresser_deleted": True}})
+    # Finally, the user record itself.
+    await db.users.delete_one({"id": uid})
+    return {"ok": True}
+
+
+@api.post("/auth/block/{other_user_id}")
+async def block_user(other_user_id: str, user: UserOut = Depends(get_user)):
+    """Block another user. They will not appear in search or be able to interact.
+    A one-way block; each side maintains their own blocklist."""
+    if other_user_id == user.id:
+        raise HTTPException(400, "You cannot block yourself.")
+    await db.blocks.update_one(
+        {"blocker_id": user.id, "blocked_id": other_user_id},
+        {"$set": {"blocker_id": user.id, "blocked_id": other_user_id, "created_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+
+@api.delete("/auth/block/{other_user_id}")
+async def unblock_user(other_user_id: str, user: UserOut = Depends(get_user)):
+    await db.blocks.delete_one({"blocker_id": user.id, "blocked_id": other_user_id})
+    return {"ok": True}
+
+
+class ReportUserIn(BaseModel):
+    target_user_id: str
+    reason: Literal["harassment", "spam", "safety", "impersonation", "other"] = "other"
+    details: Optional[str] = None
+
+
+@api.post("/auth/report")
+async def report_user(body: ReportUserIn, user: UserOut = Depends(get_user)):
+    """File a report against another user. Admins triage from the queue collection."""
+    if body.target_user_id == user.id:
+        raise HTTPException(400, "You cannot report yourself.")
+    await db.user_reports.insert_one({
+        "id": str(uuid.uuid4()),
+        "reporter_id": user.id,
+        "target_user_id": body.target_user_id,
+        "reason": body.reason,
+        "details": (body.details or "").strip()[:1000],
+        "status": "open",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"ok": True}
 
 @api.post("/auth/plan", response_model=UserOut)
 async def update_plan(body: PlanUpdate, user: UserOut = Depends(get_user)):

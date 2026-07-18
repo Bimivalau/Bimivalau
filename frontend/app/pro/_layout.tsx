@@ -41,29 +41,22 @@ export default function ProTabsLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: "Dashboard",
-          tabBarIcon: ({ color, size }) => <Feather name="bar-chart-2" size={size - 2} color={color} />,
+          title: "Schedule",
+          tabBarIcon: ({ color, size }) => <Feather name="calendar" size={size - 2} color={color} />,
         }}
       />
       <Tabs.Screen
         name="bookings"
         options={{
           title: "Bookings",
-          tabBarIcon: ({ color, size }) => <Feather name="calendar" size={size - 2} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="growth"
-        options={{
-          title: "Growth",
-          tabBarIcon: ({ color, size }) => <Feather name="trending-up" size={size - 2} color={color} />,
+          tabBarIcon: ({ color, size }) => <Feather name="clipboard" size={size - 2} color={color} />,
         }}
       />
       <Tabs.Screen
         name="studio"
         options={{
-          title: "My Studio",
-          tabBarIcon: ({ color, size }) => <Feather name="briefcase" size={size - 2} color={color} />,
+          title: "Profile",
+          tabBarIcon: ({ color, size }) => <Feather name="user" size={size - 2} color={color} />,
         }}
       />
       {/* Hidden routes — reachable via push, not shown as tabs. */}
@@ -73,7 +66,7 @@ export default function ProTabsLayout() {
       <Tabs.Screen name="verification" options={{ href: null }} />
       <Tabs.Screen name="services" options={{ href: null }} />
       <Tabs.Screen name="studio-info" options={{ href: null }} />
-      <Tabs.Screen name="founding" options={{ href: null }} />
+      <Tabs.Screen name="growth" options={{ href: null }} />
     </Tabs>
   );
 }

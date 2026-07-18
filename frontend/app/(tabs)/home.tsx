@@ -18,7 +18,6 @@ import { api, ApiError } from "@/src/api";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
 import StyleCard, { Hairstyle } from "@/src/components/StyleCard";
-import SaveSheet from "@/src/components/SaveSheet";
 
 const QUICK_CATEGORIES: { key: string; label: string; icon: any }[] = [
   { key: "trending", label: "Trending", icon: "trending-up" },
@@ -66,7 +65,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saveTarget, setSaveTarget] = useState<Hairstyle | null>(null);
 
   const firstName = user?.name?.split(" ")[0] || "";
 
@@ -109,12 +107,6 @@ export default function Home() {
     })();
   }, [country]);
 
-  const onUploadInspiration = () => {
-    // Route to the AI Style Match placeholder — beautiful "coming soon" flow
-    // that lets customers join the waitlist without any fake AI behavior.
-    router.push("/ai/style-match");
-  };
-
   const openStyle = (id: string) => router.push({ pathname: "/hairstyle/[id]", params: { id } });
 
   const continueTitle = continueData.mode === "returning_user" ? "Continue Dreaming" : "Start Your Journey";
@@ -153,20 +145,13 @@ export default function Home() {
             {firstName ? <Text style={s.greetingName}>{firstName}</Text> : null}
             <Text style={s.tagline}>What braid are you dreaming about today?</Text>
           </View>
-          <Pressable testID="home-inspiration" onPress={() => router.push("/inspiration")} hitSlop={8} style={s.avatarBtn}>
-            <Feather name="image" size={18} color={colors.onSurface} />
-          </Pressable>
         </View>
 
-        {/* Search + camera */}
+        {/* Search */}
         <Pressable testID="home-search" onPress={() => router.push("/(tabs)/search")} style={s.searchBar}>
           <Feather name="search" size={18} color={colors.muted} />
           <Text style={s.searchPlaceholder}>Search braid styles…</Text>
-          <Pressable testID="home-camera" onPress={onUploadInspiration} hitSlop={8} style={s.cameraBtn}>
-            <Feather name="camera" size={17} color="#fff" />
-          </Pressable>
         </Pressable>
-        <Text style={s.cameraHint}>Tap the camera to add an inspiration photo · AI Style Match coming soon</Text>
       </View>
 
       {/* ---------------- Quick categories ---------------- */}
@@ -209,7 +194,7 @@ export default function Home() {
                 style={it}
                 variant={idx === 0 ? "editorial" : "standard"}
                 onPress={() => openStyle(it.id)}
-                onSave={() => setSaveTarget(it)}
+                
               />
             ))}
           </ScrollView>
@@ -254,7 +239,7 @@ export default function Home() {
                 style={it}
                 variant={idx === 0 ? "editorial" : "standard"}
                 onPress={() => openStyle(it.id)}
-                onSave={() => setSaveTarget(it)}
+                
               />
             ))
           )}
@@ -284,7 +269,7 @@ export default function Home() {
                   style={it}
                   variant={idx === 0 ? "editorial" : "standard"}
                   onPress={() => openStyle(it.id)}
-                  onSave={() => setSaveTarget(it)}
+                  
                 />
               ))}
             </ScrollView>
@@ -293,14 +278,6 @@ export default function Home() {
       })}
 
       <View style={{ height: 40 }} />
-
-      <SaveSheet
-        visible={!!saveTarget}
-        hairstyleId={saveTarget?.id || ""}
-        hairstyleName={saveTarget?.name}
-        onClose={() => setSaveTarget(null)}
-        onSaved={() => load()}
-      />
     </ScrollView>
   );
 }

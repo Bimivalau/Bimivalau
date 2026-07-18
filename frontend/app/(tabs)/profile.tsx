@@ -1,17 +1,20 @@
-import { useEffect } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { api } from "@/src/api";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
 import { SafeScrollView, ResponsiveHeading, Card, Badge, LoadingState } from "@/src/ui";
 
 /**
- * Customer profile / account tab. Braiders never see this — they use My Studio.
+ * Customer profile / account tab. Braiders never see this — they use their
+ * own /pro tabs. v1 scope: no subscription, no collections, no inspiration.
  */
 export default function Profile() {
   const { user, loading, signOut } = useSession();
   const router = useRouter();
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
@@ -21,22 +24,38 @@ export default function Profile() {
 
   const name = user.name || "You";
   const email = user.email || "";
-  const role = (user.role || "customer").toString();
-  const plan = (user.plan || "free").toString();
   const initial = (name.trim().charAt(0) || "?").toUpperCase();
+  // Joined date — never expose phone numbers.
+  const joined = user.created_at
+    ? new Date(user.created_at).toLocaleDateString(undefined, { month: "short", year: "numeric" })
+    : "—";
 
-  const items: { icon: any; label: string; testID: string; onPress: () => void; badge?: string }[] = [
-    { icon: "bookmark", label: "My Saved Styles", testID: "menu-saves", onPress: () => router.push("/collections") },
-    { icon: "image", label: "My Inspiration Photos", testID: "menu-inspiration", onPress: () => router.push("/inspiration") },
-    { icon: "heart", label: "Favorite Braiders", testID: "menu-favorites", onPress: () => router.push("/favorites") },
-    {
-      icon: "star",
-      label: "Subscription",
-      testID: "menu-subscription",
-      onPress: () => router.push("/subscription"),
-      badge: plan === "unlimited" ? "UNLIMITED" : "FREE",
-    },
+  const doDelete = async () => {
+    setDeleting(true);
+    try {
+      await api("/auth/me", { method: "DELETE" });
+      await signOut();
+      router.replace("/welcome");
+    } catch (e: any) {
+      Alert.alert("Couldn't delete", e?.userMessage || "Please try again.");
+    } finally { setDeleting(false); }
+  };
+
+  const confirmDelete = () => {
+    Alert.alert(
+      "Delete your account?",
+      "This permanently removes your profile, bookings history, saves and favorites. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Delete permanently", style: "destructive", onPress: doDelete },
+      ],
+    );
+  };
+
+  const items: { icon: any; label: string; testID: string; onPress: () => void }[] = [
     { icon: "bell", label: "Notifications", testID: "menu-notifications", onPress: () => router.push("/notifications") },
+    { icon: "shield", label: "Safety & Community Guidelines", testID: "menu-safety", onPress: () => router.push("/safety") },
+    { icon: "help-circle", label: "Help & Support", testID: "menu-help", onPress: () => Alert.alert("Support", "Contact support@braidscommunity.app") },
   ];
 
   return (
@@ -52,8 +71,7 @@ export default function Profile() {
             <Text testID="profile-name" style={s.name} numberOfLines={1}>{name}</Text>
             <Text testID="profile-email" style={s.email} numberOfLines={1}>{email}</Text>
             <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: 6, flexWrap: "wrap" }}>
-              <Badge label={role.toUpperCase()} tone="brand" />
-              <Badge label={plan.toUpperCase()} tone={plan === "unlimited" ? "success" : "neutral"} />
+              <Badge label={`JOINED ${joined.toUpperCase()}`} tone="neutral" />
             </View>
           </View>
         </Card>
@@ -71,7 +89,6 @@ export default function Profile() {
             >
               <View style={s.rowIcon}><Feather name={i.icon} size={16} color={colors.brand} /></View>
               <Text style={s.rowText} numberOfLines={1}>{i.label}</Text>
-              {i.badge ? <Badge label={i.badge} tone="brand" variant="soft" /> : null}
               <Feather name="chevron-right" size={18} color={colors.muted} />
             </Pressable>
           ))}
@@ -85,6 +102,17 @@ export default function Profile() {
           accessibilityLabel="Sign out"
         >
           <Text style={s.signOutText}>Sign out</Text>
+        </Pressable>
+
+        <Pressable
+          testID="delete-account-btn"
+          onPress={confirmDelete}
+          disabled={deleting}
+          style={s.deleteBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Delete account"
+        >
+          <Text style={s.deleteText}>{deleting ? "Deleting…" : "Delete account"}</Text>
         </Pressable>
 
         <Text style={s.legal}>BraidsCommunity · Built for braid lovers.</Text>
@@ -102,7 +130,9 @@ const s = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center", gap: spacing.md, minHeight: 56, borderBottomWidth: 1, borderColor: colors.divider, paddingVertical: spacing.sm },
   rowIcon: { width: 32, height: 32, borderRadius: 16, backgroundColor: colors.brandTertiary, alignItems: "center", justifyContent: "center" },
   rowText: { flex: 1, fontFamily: font.bodyMed, color: colors.onSurface, fontSize: 15, flexShrink: 1 },
-  signOut: { marginTop: spacing.xxl, minHeight: 52, borderRadius: radii.md, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.error },
-  signOutText: { fontFamily: font.bodyBold, color: colors.error, fontSize: 14 },
+  signOut: { marginTop: spacing.xxl, minHeight: 52, borderRadius: radii.md, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.borderStrong },
+  signOutText: { fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 14 },
+  deleteBtn: { marginTop: spacing.md, minHeight: 52, borderRadius: radii.md, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.error },
+  deleteText: { fontFamily: font.bodyBold, color: colors.error, fontSize: 14 },
   legal: { textAlign: "center", marginTop: spacing.xxl, fontFamily: font.body, fontSize: 11, color: colors.muted },
 });

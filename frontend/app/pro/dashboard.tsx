@@ -25,21 +25,18 @@ export default function ProDashboard() {
   const [data, setData] = useState<any>(null);
   const [verification, setVerification] = useState<any>(null);
   const [studioStatus, setStudioStatus] = useState<any>(null);
-  const [score, setScore] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const [d, ver, st, sc] = await Promise.all([
+      const [d, ver, st] = await Promise.all([
         api("/hairdressers/me/dashboard"),
         api("/hairdressers/me/verification").catch(() => null),
         api("/hairdressers/me/studio-status").catch(() => null),
-        api("/braiders/me/business-score").catch(() => null),
       ]);
       setData(d);
       setVerification(ver);
       setStudioStatus(st);
-      setScore(sc);
     } finally { setLoading(false); }
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -69,7 +66,7 @@ export default function ProDashboard() {
         {setupIncomplete && (
           <Pressable
             testID="setup-banner"
-            onPress={() => router.push(`/pro/studio${studioStatus.first_incomplete ? `?focus=${studioStatus.first_incomplete}` : ""}` as any)}
+            onPress={() => router.push(`/pro/studio` as any)}
             style={{ marginTop: spacing.lg }}
           >
             <Card variant="tinted" padding={spacing.md} style={styles.setupCard}>
@@ -130,12 +127,6 @@ export default function ProDashboard() {
         <View style={styles.statRow}>
           <StatBlock label="Today" value={todays.length} sub="appointments" />
           <StatBlock label="Upcoming" value={upcoming.length} sub="next 30 days" />
-          <StatBlock
-            label="Success Score"
-            value={score?.score ?? "—"}
-            sub={score?.tier || "Building"}
-            onPress={() => router.push("/pro/growth")}
-          />
         </View>
 
         {/* Today's schedule */}
@@ -144,7 +135,7 @@ export default function ProDashboard() {
           <Card variant="tinted" padding={spacing.lg} style={{ alignItems: "center" }}>
             <Feather name="coffee" size={22} color={colors.brand} />
             <Text style={styles.emptyTitle}>Free day.</Text>
-            <Text style={styles.emptyMsg} numberOfLines={2}>Enjoy it — or open the Growth tab to see what to optimise next.</Text>
+            <Text style={styles.emptyMsg} numberOfLines={2}>Enjoy it — new bookings will show here as they come in.</Text>
           </Card>
         ) : (
           todays.map((b: any) => (

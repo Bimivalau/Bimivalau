@@ -882,3 +882,141 @@ agent_communication:
       9. Log in as amara → /subscription → tap Free "Switch to Free" → confirm dialog → confirm → cancels at period end.
 
       TEST CREDENTIALS: /app/memory/test_credentials.md. Admin: sat@braids.demo password demo1234.
+
+## Iteration 15 — v1 Store-ready Strip-Down
+
+user_problem_statement: |
+  FINAL v1 SCOPE — strip to pure core loop:
+  - REMOVED: subscriptions, entitlements, Collections, My Inspiration, Style Score, Recreate This Look, Featured Stylist, all AI coming-soon, Messages, admin UI, Growth tab, Business Success Score, Braider DNA.
+  - KEPT: Welcome → role split → customer discover → braider list → booking (6-char code) → check-in → mutual rating → braider flag.
+  - App is 100% free — no tier checks anywhere.
+  - New required: OTP for braider register (safety), delete-account, block, report, safety screen.
+
+frontend:
+  - task: "Removed subscription/entitlements/AI/collections/inspiration/growth"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Deleted app/ai/, app/collections/, app/admin/, app/inspiration.tsx, app/subscription.tsx, app/pro/founding.tsx, app/pro/growth.tsx, app/favorites.tsx, src/components/{PaywallSheet,Gated,AIComingSoon,SaveSheet}.tsx, src/entitlements.tsx, src/purchase/. Root _layout no longer wraps EntitlementsProvider."
+  - task: "Pro tabs simplified to 3 tabs: Schedule / Bookings / Profile"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/_layout.tsx"
+    priority: "high"
+    needs_retesting: true
+  - task: "Pro Profile tab rewritten — no growth insights, includes Delete Account"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/pro/studio.tsx"
+    priority: "high"
+    needs_retesting: true
+  - task: "Customer Profile tab rewritten — no subscription/collections/inspiration/favorites"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/profile.tsx"
+    priority: "high"
+    needs_retesting: true
+  - task: "Home/Search/Hairstyle detail cleaned of SaveSheet/inspiration/subscription"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/(tabs)/home.tsx, (tabs)/search.tsx, hairstyle/[id].tsx"
+    priority: "high"
+    needs_retesting: true
+  - task: "Safety screen (/safety) — one-time community guidelines"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/safety.tsx"
+    priority: "medium"
+    needs_retesting: true
+
+backend:
+  - task: "DELETE /api/auth/me — permanent account deletion (App Store required)"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Hard-deletes personal collections. Anonymises past bookings/reviews so other party's history stays intact. Verified end-to-end via python-requests (register → me → delete → me returns 401)."
+  - task: "POST /api/auth/report + block/unblock endpoints"
+    implemented: true
+    working: "NA"
+    file: "backend/server.py"
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "POST /auth/report (reasons: harassment, spam, safety, impersonation, other). POST/DELETE /auth/block/{other_user_id}. All verified via curl."
+
+test_plan:
+  current_focus:
+    - "Removed subscription/entitlements/AI/collections/inspiration/growth"
+    - "Pro tabs simplified to 3 tabs: Schedule / Bookings / Profile"
+    - "DELETE /api/auth/me — permanent account deletion (App Store required)"
+    - "POST /api/auth/report + block/unblock endpoints"
+    - "Safety screen (/safety)"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Iteration 15 = v1 Store-ready strip-down.
+
+      REMOVED FILES: app/ai/, app/collections/, app/admin/, app/inspiration.tsx,
+      app/subscription.tsx, app/pro/founding.tsx, app/pro/growth.tsx,
+      app/favorites.tsx, src/components/{PaywallSheet,Gated,AIComingSoon,SaveSheet}.tsx,
+      src/entitlements.tsx, src/purchase/.
+
+      REMOVED FROM UI: subscription menu row, collections menu, inspiration menu,
+      favorites menu, save/bookmark button on hairstyle detail, "Coming soon" tiles
+      on Discover, home camera CTA, Growth tab, Business Success Score card, Braider
+      DNA links, Improve My Studio row.
+
+      NEW ENDPOINTS (backend/server.py):
+      - DELETE /api/auth/me → hard-delete personal data, anonymise bookings/reviews.
+      - POST /api/auth/report {target_user_id, reason, details} → files a user report.
+      - POST /api/auth/block/{other_user_id} / DELETE same → blocklist.
+
+      NEW SCREENS:
+      - /safety — one-time community guidelines (linked from Profile menu).
+      - Delete Account button on both customer Profile and Pro Profile tab.
+
+      TESTS TO RUN:
+
+      Backend regression + new endpoints:
+      1. Full pytest suite must remain green (aim: 189+ tests). Old subscription
+         endpoints (mock-purchase, entitlements, founding-pro/*) still exist and
+         should still pass (we only removed frontend usage — backend endpoints are
+         dormant).
+      2. NEW: Register a customer → GET /api/auth/me → 200 → DELETE /api/auth/me → 200 →
+         GET /api/auth/me with same token → 401.
+      3. NEW: POST /api/auth/report as sara with {target_user_id:'x',reason:'safety'} → 200.
+      4. NEW: POST /api/auth/block/x as sara → 200. DELETE /api/auth/block/x → 200.
+      5. Regression: booking code generator still excludes 0/O/1/I — spot-check.
+
+      Frontend end-to-end core loop (viewport 390x844):
+      1. /welcome → tap "I'm a Customer" → /register?role=customer → back arrow works.
+      2. /welcome → tap "Already have an account?" → /login.
+      3. Login as sara → land on /home. Verify tab bar 4 tabs: Home / Discover / Bookings / Profile.
+      4. NO camera icon in search bar. NO "Coming soon" tiles below results.
+      5. Profile tab: menu shows Notifications, Safety, Help. NO Subscription/Collections/Favorites/Inspiration. Delete Account button visible in red at bottom.
+      6. Tap Safety → /safety renders with the guidelines list.
+      7. Tap hairstyle from Home → hairstyle detail. NO bookmark button (only back arrow). "Compare all braiders" CTA visible.
+      8. Tap "Book" → book flow reachable.
+      9. Sign out → returns to /welcome.
+      10. Login as amara (pro) → land on /pro/dashboard. Verify 3 tabs: Schedule, Bookings, Profile.
+      11. Dashboard: "Today at a glance" shows 2 stats (Today, Upcoming) — NO Success Score.
+      12. Tap Profile tab → Studio Info, Weekly Availability, Portfolio, Services & Pricing, Verification, Notifications, Safety rows. Sign out + Delete Account buttons.
+      13. Delete Account button on Profile → confirmation dialog appears. Tap Cancel — nothing deleted.
+
+      CREDENTIALS: /app/memory/test_credentials.md. Password demo1234.

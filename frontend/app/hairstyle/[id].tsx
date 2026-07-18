@@ -15,7 +15,6 @@ import { Feather } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 import StyleCard, { Hairstyle } from "@/src/components/StyleCard";
-import SaveSheet from "@/src/components/SaveSheet";
 import { cldTransform } from "@/src/utils/cloudinary";
 const durationLabel = (m: number) => {
   const h = Math.floor(m / 60);
@@ -31,16 +30,13 @@ export default function HairstyleDetail() {
   const insets = useSafeAreaInsets();
   const [style, setStyle] = useState<any>(null);
   const [hds, setHds] = useState<any[]>([]);
-  const [gated, setGated] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [saveOpen, setSaveOpen] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
         const [st, res] = await Promise.all([api(`/hairstyles/${id}`), api(`/hairstyles/${id}/hairdressers`)]);
-        setStyle(st); setHds(res.results); setGated(res.gated);
-        // Best-effort view tracking — fuels "Continue Dreaming" and future analytics.
+        setStyle(st); setHds(res.results);
         api(`/hairstyles/${id}/view`, { method: "POST" }).catch(() => {});
       } finally { setLoading(false); }
     })();
@@ -71,9 +67,6 @@ export default function HairstyleDetail() {
               <Feather name="arrow-left" size={20} color="#fff" />
             </Pressable>
             <View style={{ flex: 1 }} />
-            <Pressable testID="hs-save" onPress={() => setSaveOpen(true)} style={s.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={isSaved ? "Remove from collections" : "Save style"}>
-              <Feather name="bookmark" size={18} color={isSaved ? colors.brand : "#fff"} />
-            </Pressable>
           </View>
 
           {/* Hero text */}
@@ -163,14 +156,6 @@ export default function HairstyleDetail() {
           <Text style={s.section}>Professionals near you</Text>
           <Text style={s.sub}>Braiders who specialize in {style.name}.</Text>
 
-          {gated && (
-            <View style={s.gated}>
-              <Feather name="award" size={13} color={colors.brandSecondary} />
-              <Text style={s.gatedText}>All results visible — Unlimited adds AI-powered ranking.</Text>
-              <Pressable onPress={() => router.push("/subscription")}><Text style={s.gatedLink}>Learn more →</Text></Pressable>
-            </View>
-          )}
-
           <Pressable testID="compare-cta" onPress={() => router.push(`/compare/${style.id}`)} style={s.compareCta}>
             <Feather name="git-compare" size={15} color="#fff" />
             <Text style={s.compareCtaText}>Compare all braiders side-by-side</Text>
@@ -216,8 +201,6 @@ export default function HairstyleDetail() {
           </View>
         )}
       </ScrollView>
-
-      <SaveSheet visible={saveOpen} hairstyleId={style.id} hairstyleName={style.name} onClose={() => setSaveOpen(false)} onSaved={() => setStyle({ ...style, is_saved: true })} />
     </View>
   );
 }

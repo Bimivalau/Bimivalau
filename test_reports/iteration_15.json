@@ -1,0 +1,96 @@
+{
+  "summary": "Iteration 15 v1 store-ready strip-down tested. Backend: 208/209 pytest pass (target >=189 exceeded). All 6 new iteration-15 tests pass (DELETE /auth/me, report, block/unblock, self-report/self-block 400s, booking code format). Frontend: core happy-paths for customer & pro all working — no crashes, no dead ends. However 4 leftover subscription/AI/style-score UI surfaces remain visible on Home, Hairstyle Detail, Notifications and Pro Portfolio screens — iteration 15's 'strip-down' mandate not fully honored.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "test_iteration14_subscription.py::TestProSubscriptionMe::test_amara_snapshot",
+        "issue": "Legacy dormant test expects amara.plan_slug='braider_unlimited' but seed now returns 'braider_standard'. Since subscriptions are dormant in v1, either delete this obsolete assertion or fix seed."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "app/(tabs)/home.tsx",
+        "issue": "'Continue Dreaming' section still rendered on /home for returning users (uses /continue-dreaming/me endpoint). Iteration 15 explicitly requires 'No Continue Dreaming AI teasers.' The whole block (lines 176-202) must be removed.",
+        "testID": "home",
+        "priority": "P1"
+      },
+      {
+        "component": "app/hairstyle/[id].tsx",
+        "issue": "Style Score badge in hero ('Style Score 94') and full 'Style Intelligence' card (lines 92-95 + 109-134) still visible. Iteration 15 mandates style-score is GONE from frontend.",
+        "testID": "style-name",
+        "priority": "P1"
+      },
+      {
+        "component": "app/notifications.tsx",
+        "issue": "Notifications screen shows a subscription/plan banner: 'You're now on Standard. Your Studio, portfolio, and...' — subscription UI should be stripped from v1.",
+        "testID": "notifications",
+        "priority": "P1"
+      },
+      {
+        "component": "app/pro/portfolio.tsx",
+        "issue": "Portfolio screen shows plan-cap copy: '6/5 photos — free plan cap.' — subscription/tier gating text should be removed (backend cap can remain dormant, but UI copy must go).",
+        "testID": "pro-portfolio",
+        "priority": "P1"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Customer delete-account confirmation on web",
+        "issue": "React Native Alert.alert() does NOT render on Expo web preview — the confirmation dialog (Cancel / Delete permanently) is invisible in the web build. This is a known Expo limitation and will work on iOS/Android native. Flag: cannot QA the destructive flow via web preview. Consider a custom Modal for web parity.",
+        "affected_testIDs": ["delete-account-btn"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "app/pro/_layout.tsx",
+        "issues": [
+          "Comment block at top of file (lines 8-19) still describes 4 tabs (Dashboard/Bookings/Growth/My Studio) but code now renders 3 (Schedule/Bookings/Profile). Update docstring."
+        ]
+      }
+    ],
+    "react_native_issues": [
+      {
+        "component": "shadow* style props",
+        "issue": "Deprecated 'shadow*' style props detected in console (react-native-web deprecation warning). Migrate to 'boxShadow' — used in app/(tabs)/home.tsx searchBar style (shadowColor/shadowOpacity/shadowRadius/shadowOffset)."
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration15_v1_ready.py",
+    "/app/test_reports/pytest/iteration15_v1.xml",
+    "/app/test_reports/pytest/iteration15_full.xml"
+  ],
+  "action_items": [
+    "P1: Remove 'Continue Dreaming'/'Start Your Journey' block from app/(tabs)/home.tsx (lines 176-202) and the /continue-dreaming/me API call.",
+    "P1: Remove Style Score hero badge (lines 92-95) and entire Style Intelligence card (lines 109-134) from app/hairstyle/[id].tsx.",
+    "P1: Strip plan/subscription banner from app/notifications.tsx.",
+    "P1: Remove 'X/Y photos — free plan cap.' copy from app/pro/portfolio.tsx.",
+    "P2: Delete obsolete assertion in tests/test_iteration14_subscription.py::TestProSubscriptionMe::test_amara_snapshot (or re-seed amara as braider_unlimited) — dormant subscription regression.",
+    "P2: Update /app/frontend/app/pro/_layout.tsx docstring to match new 3-tab layout (Schedule/Bookings/Profile).",
+    "P2: Migrate shadow* style props to boxShadow in app/(tabs)/home.tsx searchBar to silence RN-web deprecation warnings.",
+    "P3: Consider adding a web-compatible Modal for the Delete-Account confirmation since Alert.alert does not render on Expo web."
+  ],
+  "critical_code_review_comments": [
+    "backend/server.py DELETE /auth/me at line 724 cascades correctly (favorites, saves, notifications, portfolio, bookings anonymised) and returns {ok:true}. Confirmed token invalidated (returns 401 on subsequent /auth/me).",
+    "backend/server.py POST /auth/report (line 786) & /auth/block/{id} (line 760) both correctly enforce target != self with 400.",
+    "gen_code() at server.py:26 strips 0/O/I/1 correctly — verified generated code '9ZMWNW'-style with no confusables.",
+    "server.py is 3488 lines — should be split into modules (auth, bookings, hairdressers, hairstyles, subscriptions) for maintainability.",
+    "app/hairstyle/[id].tsx still imports & renders style_score / Style Intelligence — mismatch with iteration 15 spec."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration15_v1_ready.py (created)"
+  ],
+  "success_rate": {
+    "backend": "99.5% (208/209 pytest, 1 dormant subscription regression)",
+    "frontend": "80% (16/20 spec checks — 4 leftover UI surfaces from strip-down)"
+  },
+  "seed_data_creation": "Registered ephemeral test_del_<hex>@braids.demo customer inside TestDeleteAccount; account is deleted at end of test so no residual data.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "After E1 removes the 4 leftover UI surfaces, re-verify: (1) /home has no Continue Dreaming block, (2) /hairstyle/{id} has no Style Score/Intelligence, (3) /notifications no plan banner, (4) /pro/portfolio no 'X/Y photos — free plan cap.' copy. Backend regression already passing — no need to re-run pytest unless server.py edited. Delete-Account confirmation Alert.alert() will not display on web preview; must be tested on native or a Modal-based fallback.",
+  "rca_of_issue": "Iteration 15 was described as a 'massive removal' from the frontend but 4 files (home.tsx, hairstyle/[id].tsx, notifications.tsx, pro/portfolio.tsx) still render subscription/AI/style-score UI blocks. Root cause: partial strip-down — the pages themselves weren't touched even though the surrounding scaffolding (tab bar, profile menu) was successfully cleaned.",
+  "release_readiness_score": "72/100 — core booking loop and account lifecycle work end-to-end; blockers are copy/tier UI cleanup, not functionality."
+}

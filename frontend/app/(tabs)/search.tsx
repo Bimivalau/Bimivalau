@@ -11,7 +11,6 @@ import { Feather } from "@expo/vector-icons";
 import { api, ApiError } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 import StyleCard, { Hairstyle } from "@/src/components/StyleCard";
-import SaveSheet from "@/src/components/SaveSheet";
 
 const TAG_FILTERS = [
   { key: "", label: "All" },
@@ -31,15 +30,6 @@ const TAG_FILTERS = [
   { key: "quick", label: "Quick" },
 ];
 
-const FUTURE = [
-  { key: "ai_match", label: "AI Style Match", icon: "zap", route: "/ai/style-match" },
-  { key: "recreate_look", label: "Recreate This Look", icon: "camera", route: "/ai/recreate-look" },
-  { key: "recommendations", label: "AI Recommendations", icon: "target", route: "/ai/recommendations" },
-  { key: "price_alerts", label: "Price Alerts", icon: "bell", route: "/ai/price-alerts" },
-  { key: "beauty_journal", label: "Beauty Journal", icon: "book-open", route: "/ai/beauty-journal" },
-  { key: "travel_planning", label: "Travel Planning", icon: "map", route: "/ai/travel-planning" },
-];
-
 export default function Discover() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -49,7 +39,6 @@ export default function Discover() {
   const [results, setResults] = useState<Hairstyle[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saveTarget, setSaveTarget] = useState<Hairstyle | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,31 +109,12 @@ export default function Discover() {
           <View style={s.grid}>
             {results.map((h) => (
               <View key={h.id} style={{ width: "48%", marginBottom: spacing.xl }}>
-                <StyleCard style={h} variant="compact" onPress={() => router.push({ pathname: "/hairstyle/[id]", params: { id: h.id } })} onSave={() => setSaveTarget(h)} />
+                <StyleCard style={h} variant="compact" onPress={() => router.push({ pathname: "/hairstyle/[id]", params: { id: h.id } })} />
               </View>
             ))}
           </View>
         )}
-
-        {/* Future placeholders */}
-        <Text style={s.section}>Coming soon to BraidsCommunity</Text>
-        <View style={s.futureGrid}>
-          {FUTURE.map((f) => (
-            <Pressable
-              key={f.key}
-              testID={`ai-tile-${f.key}`}
-              onPress={() => router.push(f.route as any)}
-              style={s.futureCard}
-            >
-              <View style={s.futureIcon}><Feather name={f.icon as any} size={16} color={colors.brand} /></View>
-              <Text style={s.futureLabel}>{f.label}</Text>
-              <Text style={s.futureTag}>Soon</Text>
-            </Pressable>
-          ))}
-        </View>
       </ScrollView>
-
-      <SaveSheet visible={!!saveTarget} hairstyleId={saveTarget?.id || ""} hairstyleName={saveTarget?.name} onClose={() => setSaveTarget(null)} />
     </View>
   );
 }
