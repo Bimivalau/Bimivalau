@@ -138,7 +138,7 @@ const s = StyleSheet.create({
   chipActive: { backgroundColor: colors.surfaceInverse, borderColor: colors.surfaceInverse },
   chipText: { fontFamily: font.bodyMed, color: colors.onSurfaceSecondary, fontSize: 12 },
   chipTextActive: { color: colors.onSurfaceInverse },
-  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
+  grid: { flexDirection: "row", flexWrap: "wrap", columnGap: GRID_COLUMN_GAP, rowGap: spacing.xl },
   empty: { alignItems: "center", padding: spacing.xxxl },
   emptyTitle: { fontFamily: font.display, fontSize: 20, color: colors.onSurface, marginTop: spacing.md },
   emptyDesc: { fontFamily: font.body, fontSize: 13, color: colors.onSurfaceTertiary, marginTop: 4 },
