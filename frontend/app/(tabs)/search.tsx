@@ -4,7 +4,7 @@
  * Includes disabled "Coming Soon" placeholders for future features.
  */
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, ActivityIndicator, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -30,10 +30,15 @@ const TAG_FILTERS = [
   { key: "quick", label: "Quick" },
 ];
 
+const GRID_COLUMN_GAP = spacing.md;
+
 export default function Discover() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ tag?: string; label?: string }>();
+  const { width: windowWidth } = useWindowDimensions();
+  // Two even columns inside the ScrollView's horizontal padding, minus one column gap between them.
+  const cardWidth = Math.floor((windowWidth - spacing.xl * 2 - GRID_COLUMN_GAP) / 2);
   const [q, setQ] = useState("");
   const [tag, setTag] = useState<string>(params.tag || "");
   const [results, setResults] = useState<Hairstyle[]>([]);
@@ -108,9 +113,13 @@ export default function Discover() {
         ) : (
           <View style={s.grid}>
             {results.map((h) => (
-              <View key={h.id} style={{ width: "48%", marginBottom: spacing.xl }}>
-                <StyleCard style={h} variant="compact" onPress={() => router.push({ pathname: "/hairstyle/[id]", params: { id: h.id } })} />
-              </View>
+              <StyleCard
+                key={h.id}
+                style={h}
+                variant="compact"
+                width={cardWidth}
+                onPress={() => router.push({ pathname: "/hairstyle/[id]", params: { id: h.id } })}
+              />
             ))}
           </View>
         )}
