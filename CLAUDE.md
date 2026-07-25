@@ -10,6 +10,7 @@ See `memory/PRD.md` for the full, versioned product spec (currently "v14") — r
 - **Frontend**: Expo Router + React Native (Expo 54, React Native 0.81, React 19), file-based routing under `frontend/app/`.
 - **Media**: Cloudinary signed direct-upload (backend never proxies image bytes; optional — features degrade gracefully if unconfigured).
 - **Payments**: mocked (`subscription_service.py`); architected to swap in RevenueCat without a rework — see PRD "Store-submission checklist".
+- **Subscription tiers**: disabled for year one by business decision — `platform_config.launch_mode` (default `true`) makes every customer and braider entitlement resolve to fully unlocked, and the handful of legacy `user.plan`-based 402 checks in `server.py` (portfolio caps, analytics/report access, Featured Stylist eligibility) are all short-circuited while it's on. The `subscriptions` collection, `plan` field, and `ENTITLEMENTS` matrix are untouched — flipping `launch_mode` to `false` via `PUT /api/subscription/admin/config` reactivates tiered gating with no code changes.
 - **Auth**: email/password is fully self-contained; Google Sign-In is routed through Emergent's hosted OAuth broker (`auth.emergentagent.com`) — an external dependency, not something you can run offline.
 
 ## Repository Layout
@@ -108,10 +109,10 @@ This creates the hairstyles catalog and these accounts (password **`demo1234`** 
 |---|---|
 | `sara@braids.demo` | customer |
 | `admin@braids.demo` | admin |
-| `amara@braids.demo` | braider — Unlimited, Founding Pro |
-| `zara@braids.demo` | braider — Unlimited, Founding Pro |
-| `kenya@braids.demo` | braider — Standard |
-| `simone@braids.demo` | braider — Free |
+| `amara@braids.demo` | braider |
+| `zara@braids.demo` | braider |
+| `kenya@braids.demo` | braider |
+| `simone@braids.demo` | braider |
 
 ### 3. Find your computer's LAN IP
 

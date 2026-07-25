@@ -28,10 +28,10 @@ load_dotenv(BACKEND_DIR.parent / "frontend" / ".env")
 DEMO_ACCOUNTS = [
     ("sara@braids.demo", "customer"),
     ("admin@braids.demo", "admin"),
-    ("amara@braids.demo", "braider — Unlimited, Founding Pro"),
-    ("zara@braids.demo", "braider — Unlimited, Founding Pro"),
-    ("kenya@braids.demo", "braider — Standard"),
-    ("simone@braids.demo", "braider — Free"),
+    ("amara@braids.demo", "braider"),
+    ("zara@braids.demo", "braider"),
+    ("kenya@braids.demo", "braider"),
+    ("simone@braids.demo", "braider"),
 ]
 
 

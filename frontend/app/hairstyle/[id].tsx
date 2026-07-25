@@ -242,10 +242,6 @@ const s = StyleSheet.create({
   compareCta: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, padding: spacing.md, backgroundColor: colors.surfaceInverse, borderRadius: radii.md, marginBottom: spacing.md, marginTop: spacing.sm },
   compareCtaText: { color: colors.onSurfaceInverse, fontFamily: font.bodyBold, fontSize: 14 },
 
-  gated: { padding: spacing.md, backgroundColor: colors.brandTertiary, borderRadius: radii.md, flexDirection: "row", gap: spacing.sm, alignItems: "center", marginBottom: spacing.sm },
-  gatedText: { flex: 1, fontFamily: font.bodyMed, color: colors.onBrandTertiary, fontSize: 12 },
-  gatedLink: { fontFamily: font.bodyBold, color: colors.brandSecondary, fontSize: 13 },
-
   hdRow: { flexDirection: "row", gap: spacing.md, alignItems: "center", padding: spacing.md, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, marginBottom: spacing.sm },
   hdImg: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.surfaceSecondary },
   hdName: { fontFamily: font.bodyBold, fontSize: 15, color: colors.onSurface },

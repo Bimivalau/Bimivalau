@@ -48,7 +48,6 @@ export default function Compare() {
         <Text style={s.title}>{data.hairstyle.name}</Text>
         <Text style={s.sub}>
           {data.total_matches} braider{data.total_matches === 1 ? "" : "s"} near you offer this style
-          {data.gated ? ` · showing top ${data.shown}` : ""}
         </Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow}>
@@ -109,11 +108,6 @@ const s = StyleSheet.create({
   chipActive: { backgroundColor: colors.surfaceInverse, borderColor: colors.surfaceInverse },
   chipText: { fontFamily: font.bodyMed, color: colors.onSurface, fontSize: 12 },
   chipTextActive: { color: colors.onSurfaceInverse },
-  gated: { flexDirection: "row", gap: spacing.md, alignItems: "center", padding: spacing.md, backgroundColor: colors.brandTertiary, borderRadius: radii.md, marginBottom: spacing.md },
-  gatedTitle: { fontFamily: font.bodyBold, color: colors.onBrandTertiary, fontSize: 14 },
-  gatedMsg: { fontFamily: font.body, color: colors.onBrandTertiary, fontSize: 12 },
-  gatedBtn: { backgroundColor: colors.brand, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radii.md },
-  gatedBtnText: { color: "#fff", fontFamily: font.bodyBold, fontSize: 12 },
   card: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, marginBottom: spacing.md, overflow: "hidden" },
   cardImg: { width: "100%", height: 160, backgroundColor: colors.surfaceSecondary },
   cardName: { fontFamily: font.display, fontSize: 20, color: colors.onSurface },

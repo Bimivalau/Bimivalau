@@ -1203,10 +1203,12 @@ async def my_portfolio(user: UserOut = Depends(get_user)):
 async def add_portfolio(body: PortfolioItemIn, user: UserOut = Depends(get_user)):
     if user.role != "hairdresser":
         raise HTTPException(403, "Only hairdressers")
-    count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
-    cap = PORTFOLIO_CAPS.get(user.plan, 10)
-    if count >= cap:
-        raise HTTPException(402, f"Your {user.plan.title()} plan is capped at {cap} portfolio photos. Upgrade to unlock more.")
+    cfg = await _get_config()
+    if not cfg.get("launch_mode", True):
+        count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
+        cap = PORTFOLIO_CAPS.get(user.plan, 10)
+        if count >= cap:
+            raise HTTPException(402, f"Your {user.plan.title()} plan is capped at {cap} portfolio photos. Upgrade to unlock more.")
     item = {"id": str(uuid.uuid4()), "hairdresser_id": user.id, **body.dict()}
     await db.portfolio_items.insert_one(item)
     return clean(item)
@@ -1257,9 +1259,11 @@ async def media_sign(body: _MediaSignRequest, user: UserOut = Depends(get_user))
         if user.role != "hairdresser":
             raise HTTPException(403, "Only hairdressers can upload portfolio photos.")
         body.hairdresser_id = user.id
-        count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
-        if user.plan != "unlimited" and count >= PORTFOLIO_CAPS.get(user.plan, 10):
-            raise HTTPException(402, f"Your {user.plan.title()} plan is capped at {PORTFOLIO_CAPS.get(user.plan, 10)} portfolio photos. Upgrade to unlock more.")
+        cfg = await _get_config()
+        if not cfg.get("launch_mode", True):
+            count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
+            if user.plan != "unlimited" and count >= PORTFOLIO_CAPS.get(user.plan, 10):
+                raise HTTPException(402, f"Your {user.plan.title()} plan is capped at {PORTFOLIO_CAPS.get(user.plan, 10)} portfolio photos. Upgrade to unlock more.")
     elif body.context == "license":
         if user.role != "hairdresser":
             raise HTTPException(403, "Only hairdressers can upload verification documents.")
@@ -1303,10 +1307,12 @@ async def media_complete(body: _MediaCompleteIn, user: UserOut = Depends(get_use
             raise HTTPException(403, "Only hairdressers can save portfolio photos.")
         if not body.hairstyle_id:
             raise HTTPException(400, "hairstyle_id required for portfolio photos.")
-        count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
-        cap = PORTFOLIO_CAPS.get(user.plan, 10)
-        if count >= cap:
-            raise HTTPException(402, f"Your {user.plan.title()} plan is capped at {cap} portfolio photos.")
+        cfg = await _get_config()
+        if not cfg.get("launch_mode", True):
+            count = await db.portfolio_items.count_documents({"hairdresser_id": user.id})
+            cap = PORTFOLIO_CAPS.get(user.plan, 10)
+            if count >= cap:
+                raise HTTPException(402, f"Your {user.plan.title()} plan is capped at {cap} portfolio photos.")
         item = {
             "id": str(uuid.uuid4()),
             "hairdresser_id": user.id,
@@ -2598,12 +2604,14 @@ async def my_ai_waitlist(user: UserOut = Depends(get_user)):
 @api.get("/braiders/me/analytics")
 async def my_analytics(user: UserOut = Depends(get_user)):
     """
-    Profile analytics gated behind Standard+ plans.
+    Profile analytics — gated behind Standard+ plans once tiers are reactivated
+    (see `launch_mode` in platform_config; every braider has access while it's on).
     Returns view counts, save counts, portfolio clicks, booking pipeline.
     """
     if user.role != "hairdresser":
         raise HTTPException(403, "Only braiders")
-    if user.plan == "free":
+    cfg = await _get_config()
+    if not cfg.get("launch_mode", True) and user.plan == "free":
         raise HTTPException(402, "Upgrade to Standard to unlock analytics.")
     now = datetime.now(timezone.utc)
     since_30d = (now - timedelta(days=30)).isoformat()
@@ -2633,7 +2641,8 @@ async def my_trending_report(user: UserOut = Depends(get_user)):
     """Top trending styles inside the braider's specialty categories."""
     if user.role != "hairdresser":
         raise HTTPException(403, "Only braiders")
-    if user.plan == "free":
+    cfg = await _get_config()
+    if not cfg.get("launch_mode", True) and user.plan == "free":
         raise HTTPException(402, "Upgrade to Standard to unlock the trending report.")
     hd = await db.hairdressers.find_one({"user_id": user.id}, {"_id": 0}) or {}
     specialty_ids = hd.get("specialty_ids") or []
@@ -2653,7 +2662,8 @@ async def my_weekly_report(user: UserOut = Depends(get_user)):
     """Weekly business report — one screen the braider can share with themselves each Monday."""
     if user.role != "hairdresser":
         raise HTTPException(403, "Only braiders")
-    if user.plan == "free":
+    cfg = await _get_config()
+    if not cfg.get("launch_mode", True) and user.plan == "free":
         raise HTTPException(402, "Upgrade to Standard for weekly reports.")
     now = datetime.now(timezone.utc)
     week_start = (now - timedelta(days=now.weekday())).replace(hour=0, minute=0, second=0, microsecond=0)
@@ -2699,8 +2709,10 @@ async def track_profile_view(hid: str, user: Optional[UserOut] = Depends(maybe_u
 
 @api.get("/featured-stylist")
 async def featured_stylist():
-    """Cached weekly pick from unlimited+approved pros, weighted by rating & inverse-recency of last feature.
-    Result is memoized into `featured_stylists` collection so the same pro shows all week."""
+    """Cached weekly pick from approved pros, weighted by rating & inverse-recency of last feature.
+    Result is memoized into `featured_stylists` collection so the same pro shows all week.
+    Eligibility is restricted to Unlimited-plan pros once tiers are reactivated (see
+    `launch_mode` in platform_config); every approved pro is eligible while it's on."""
     week_start, week_end = _iso_week_range()
     existing = await db.featured_stylists.find_one({"week_start": week_start.isoformat()}, {"_id": 0})
     if existing:
@@ -2711,8 +2723,10 @@ async def featured_stylist():
             hd["selection_reason"] = existing.get("selection_reason")
             return hd
 
-    # Build eligibility pool: approved pros with active Unlimited subscription
-    pros_users = await db.users.find({"role": "hairdresser", "plan": "unlimited"}, {"_id": 0, "password_hash": 0}).to_list(500)
+    # Build eligibility pool: approved pros, restricted to Unlimited plan once tiers reactivate.
+    cfg = await _get_config()
+    pros_q = {"role": "hairdresser"} if cfg.get("launch_mode", True) else {"role": "hairdresser", "plan": "unlimited"}
+    pros_users = await db.users.find(pros_q, {"_id": 0, "password_hash": 0}).to_list(500)
     if not pros_users:
         return None
     ids = [u["id"] for u in pros_users]

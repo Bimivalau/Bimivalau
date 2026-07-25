@@ -103,29 +103,17 @@ export default function StudioPage() {
           <View style={s.grid}>
             {(() => {
               // Discovery is universal — every portfolio photo is visible.
-              const cap = h.portfolio.length;
-              const shown = h.portfolio.slice(0, cap);
-              const encodedUrls = shown.map((p: any) => encodeURIComponent(p.photo_url)).join(",");
-              return (
-                <>
-                  {shown.map((p: any, i: number) => (
-                    <Pressable
-                      key={p.id}
-                      testID={`portfolio-photo-${p.id}`}
-                      onPress={() => router.push(`/viewer?photos=${encodedUrls}&index=${i}`)}
-                      style={s.gridItem}
-                    >
-                      <Image source={{ uri: p.photo_url }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
-                    </Pressable>
-                  ))}
-                  {cap < h.portfolio.length && (
-                    <View style={s.moreLocked}>
-                      <Feather name="lock" size={20} color={colors.brand} />
-                      <Text style={s.moreLockedText}>+{h.portfolio.length - cap} more with Unlimited</Text>
-                    </View>
-                  )}
-                </>
-              );
+              const encodedUrls = h.portfolio.map((p: any) => encodeURIComponent(p.photo_url)).join(",");
+              return h.portfolio.map((p: any, i: number) => (
+                <Pressable
+                  key={p.id}
+                  testID={`portfolio-photo-${p.id}`}
+                  onPress={() => router.push(`/viewer?photos=${encodedUrls}&index=${i}`)}
+                  style={s.gridItem}
+                >
+                  <Image source={{ uri: p.photo_url }} style={{ width: "100%", height: "100%" }} contentFit="cover" />
+                </Pressable>
+              ));
             })()}
             {h.portfolio.length === 0 && <Text style={{ paddingHorizontal: spacing.xl, color: colors.muted, fontFamily: font.body }}>No portfolio yet.</Text>}
           </View>
@@ -150,7 +138,6 @@ export default function StudioPage() {
               <Feather name="map-pin" size={14} color={colors.brand} />
               <Text style={s.aboutText}>{h.address}</Text>
             </View>
-            {h.location_blurred && <Text style={{ color: colors.warning, fontFamily: font.bodyMed, fontSize: 12 }}>Exact address unlocked with Unlimited plan or confirmed booking.</Text>}
             <Text style={[s.aboutText, { marginTop: spacing.md, fontFamily: font.bodyBold }]}>Specialties</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
               {h.specialties.map((sp: any) => (
@@ -211,8 +198,6 @@ const s = StyleSheet.create({
   tabTextActive: { color: colors.onSurface },
   grid: { flexDirection: "row", flexWrap: "wrap", padding: 2, marginTop: spacing.sm },
   gridItem: { width: "33.33%", aspectRatio: 1, padding: 2 },
-  moreLocked: { width: "33.33%", aspectRatio: 1, padding: 2, alignItems: "center", justifyContent: "center", backgroundColor: colors.brandTertiary },
-  moreLockedText: { fontFamily: font.bodyMed, color: colors.onBrandTertiary, fontSize: 10, textAlign: "center", marginTop: 4, paddingHorizontal: 6 },
   review: { borderBottomWidth: 1, borderColor: colors.divider, paddingBottom: spacing.md, gap: spacing.xs },
   revName: { fontFamily: font.bodyBold, color: colors.onSurface },
   revText: { fontFamily: font.body, color: colors.onSurfaceSecondary, fontSize: 14 },

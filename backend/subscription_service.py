@@ -142,11 +142,14 @@ def _founding_pro_active(user: dict) -> bool:
 
 def has_entitlement(user: dict, feature_key: str, config: Optional[dict] = None) -> bool:
     """Central gate — returns True iff the user's plan (or launch-mode override)
-    unlocks this feature. Trials count as full paid entitlements while active."""
+    unlocks this feature. Trials count as full paid entitlements while active.
+
+    Launch mode unlocks EVERY feature for EVERY user (customer and braider) —
+    year-one has no active subscription tiers. Turning launch_mode off restores
+    tier-based gating from `ENTITLEMENTS` without any code changes."""
     cfg = config or {}
     slug = resolve_plan_slug(user)
-    # Launch mode unlocks all `customer.*` features for everyone.
-    if cfg.get("launch_mode") and feature_key.startswith("customer."):
+    if cfg.get("launch_mode"):
         return True
     # Trial support — during an active trial we treat the user as if they were on that paid plan.
     trial_slug = _active_trial_slug(user)
@@ -177,7 +180,11 @@ def _active_trial_slug(user: dict) -> Optional[str]:
 
 
 def portfolio_cap(user: dict, config: Optional[dict] = None) -> int:
-    cfg = (config or {}).get("portfolio_caps", DEFAULT_CONFIG["portfolio_caps"])
+    config = config or {}
+    cfg = config.get("portfolio_caps", DEFAULT_CONFIG["portfolio_caps"])
+    # Launch mode grants every braider the top cap — no tier differentiation year-one.
+    if config.get("launch_mode"):
+        return int(cfg.get("unlimited", 40))
     if user.get("founding_pro") and _founding_pro_active(user):
         return int(cfg.get("founding_pro", 40))
     plan = (user.get("plan") or "free").lower()

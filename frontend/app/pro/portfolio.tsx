@@ -8,8 +8,6 @@ import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 import { pickCompressUploadPersist, cldTransform } from "@/src/utils/cloudinary";
 
-const PORTFOLIO_CAP = 40;
-
 export default function ProPortfolio() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -29,12 +27,9 @@ export default function ProPortfolio() {
     api("/media/config").then((c) => setCloudinaryOk(!!c.cloudinary_configured)).catch(() => setCloudinaryOk(false));
   }, []);
 
-  const atCap = items.length >= FREE_CAP;
-
   const addFromDevice = async () => {
     setErr(null);
     if (!styleId) { setErr("Pick a style first."); return; }
-    if (atCap) { setErr(`Free plan is capped at ${FREE_CAP} photos.`); return; }
     if (cloudinaryOk === false) {
       Alert.alert("Uploads not configured", "Ask admin to add Cloudinary keys before uploading photos.");
       return;
@@ -58,7 +53,6 @@ export default function ProPortfolio() {
   const addFromUrl = async () => {
     setErr(null);
     if (!url || !styleId) { setErr("Photo URL and style required."); return; }
-    if (atCap) { setErr(`Free plan is capped at ${FREE_CAP} photos.`); return; }
     try {
       await api("/portfolio", { method: "POST", body: JSON.stringify({ photo_url: url, hairstyle_id: styleId, caption: "" }) });
       setUrl(""); await load();
@@ -75,7 +69,7 @@ export default function ProPortfolio() {
           <Feather name="arrow-left" size={22} color={colors.onSurface} />
         </Pressable>
         <Text style={s.title}>Portfolio</Text>
-        <Text style={s.sub}>{items.length}/{FREE_CAP} photos — free plan cap.</Text>
+        <Text style={s.sub}>{items.length} photo{items.length === 1 ? "" : "s"}</Text>
 
         <View style={s.form}>
           <Text style={s.label}>1. Pick a style</Text>
@@ -91,8 +85,8 @@ export default function ProPortfolio() {
           <Pressable
             testID="portfolio-pick"
             onPress={addFromDevice}
-            disabled={busy || atCap}
-            style={[s.primaryBtn, (busy || atCap) && { opacity: 0.5 }]}
+            disabled={busy}
+            style={[s.primaryBtn, busy && { opacity: 0.5 }]}
           >
             {busy ? <ActivityIndicator color="#fff" /> : (
               <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
@@ -110,12 +104,11 @@ export default function ProPortfolio() {
 
           <Text style={s.orRow}>— or paste a URL —</Text>
           <TextInput testID="portfolio-url" value={url} onChangeText={setUrl} placeholder="https://…" placeholderTextColor={colors.muted} style={s.input} autoCapitalize="none" />
-          <Pressable testID="portfolio-add" onPress={addFromUrl} disabled={atCap} style={[s.ghostBtn, atCap && { opacity: 0.5 }]}>
+          <Pressable testID="portfolio-add" onPress={addFromUrl} style={s.ghostBtn}>
             <Text style={s.ghostText}>Add from URL</Text>
           </Pressable>
 
           {err && <Text testID="port-err" style={{ color: colors.error, fontFamily: font.body, marginTop: spacing.sm }}>{err}</Text>}
-          {atCap && <Text style={s.capMsg}>You&apos;ve reached your {FREE_CAP}-photo cap. Delete one to add another, or upgrade for more.</Text>}
         </View>
 
         <View style={s.grid}>
@@ -152,7 +145,6 @@ const s = StyleSheet.create({
   orRow: { textAlign: "center", fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 12, marginTop: spacing.md, marginBottom: spacing.xs },
   ghostBtn: { marginTop: spacing.xs, padding: spacing.md, borderRadius: radii.md, borderWidth: 1, borderColor: colors.borderStrong, alignItems: "center" },
   ghostText: { color: colors.onSurface, fontFamily: font.bodyMed, fontSize: 13 },
-  capMsg: { color: colors.onSurfaceTertiary, fontFamily: font.body, fontSize: 12, marginTop: spacing.sm, textAlign: "center" },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 4, marginTop: spacing.md },
   item: { width: "32.5%", aspectRatio: 1, position: "relative" },
   delBtn: { position: "absolute", top: 6, right: 6, backgroundColor: "rgba(0,0,0,0.6)", width: 24, height: 24, borderRadius: 12, alignItems: "center", justifyContent: "center" },
