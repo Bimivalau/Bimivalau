@@ -4,7 +4,7 @@
  * Includes disabled "Coming Soon" placeholders for future features.
  */
 import { useCallback, useEffect, useState } from "react";
-import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, ActivityIndicator, useWindowDimensions } from "react-native";
+import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
@@ -30,15 +30,10 @@ const TAG_FILTERS = [
   { key: "quick", label: "Quick" },
 ];
 
-const GRID_COLUMN_GAP = spacing.md;
-
 export default function Discover() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams<{ tag?: string; label?: string }>();
-  const { width: windowWidth } = useWindowDimensions();
-  // Two even columns inside the ScrollView's horizontal padding, minus one column gap between them.
-  const cardWidth = Math.floor((windowWidth - spacing.xl * 2 - GRID_COLUMN_GAP) / 2);
   const [q, setQ] = useState("");
   const [tag, setTag] = useState<string>(params.tag || "");
   const [results, setResults] = useState<Hairstyle[]>([]);
@@ -113,13 +108,9 @@ export default function Discover() {
         ) : (
           <View style={s.grid}>
             {results.map((h) => (
-              <StyleCard
-                key={h.id}
-                style={h}
-                variant="compact"
-                width={cardWidth}
-                onPress={() => router.push({ pathname: "/hairstyle/[id]", params: { id: h.id } })}
-              />
+              <View key={h.id} style={{ width: "48%", marginBottom: spacing.xl }}>
+                <StyleCard style={h} variant="compact" onPress={() => router.push({ pathname: "/hairstyle/[id]", params: { id: h.id } })} />
+              </View>
             ))}
           </View>
         )}
@@ -138,7 +129,7 @@ const s = StyleSheet.create({
   chipActive: { backgroundColor: colors.surfaceInverse, borderColor: colors.surfaceInverse },
   chipText: { fontFamily: font.bodyMed, color: colors.onSurfaceSecondary, fontSize: 12 },
   chipTextActive: { color: colors.onSurfaceInverse },
-  grid: { flexDirection: "row", flexWrap: "wrap", columnGap: GRID_COLUMN_GAP, rowGap: spacing.xl },
+  grid: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between" },
   empty: { alignItems: "center", padding: spacing.xxxl },
   emptyTitle: { fontFamily: font.display, fontSize: 20, color: colors.onSurface, marginTop: spacing.md },
   emptyDesc: { fontFamily: font.body, fontSize: 13, color: colors.onSurfaceTertiary, marginTop: 4 },
