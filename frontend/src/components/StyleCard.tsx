@@ -5,8 +5,12 @@
  *   - "standard"  → 210×310  · rest of the row (or grid)
  *   - "compact"   → 172×250  · dense grids (Discover)
  *
+ * Pass an explicit `width` to fit a responsive grid column (e.g. a 2-column
+ * Discover grid) — height scales to preserve the variant's aspect ratio, and
+ * the card's own inter-item margin is dropped since the caller controls
+ * gutter spacing (via `gap`) in that case.
+ *
  * Signature elements:
- *   - Circular gold→bronze "Style Intelligence" badge (score only, no label)
  *   - Optional "Saved / Last viewed" ribbon on top-left
  *   - Trending flame chip
  *   - Minimal metadata under the photo: name · $ · duration · nearby braiders
@@ -44,6 +48,8 @@ type Variant = "editorial" | "standard" | "compact";
 interface Props {
   style: Hairstyle;
   variant?: Variant;
+  /** Explicit width override for responsive grid columns; height scales to match the variant's aspect ratio. */
+  width?: number;
   onPress: () => void;
   onSave?: () => void;
   onShare?: () => void;
@@ -63,13 +69,14 @@ const DIM = {
   compact: { w: 172, h: 250, radius: 20 },
 };
 
-export default function StyleCard({ style, variant = "standard", onPress, onSave, onShare }: Props) {
+export default function StyleCard({ style, variant = "standard", width, onPress, onSave, onShare }: Props) {
   const dim = DIM[variant];
+  const cardWidth = width ?? dim.w;
+  const cardHeight = width ? Math.round(width * (dim.h / dim.w)) : dim.h;
   const [imgError, setImgError] = useState(false);
   const [pressed, setPressed] = useState(false);
   const isTrending = (style.tags || []).includes("trending");
-  const img = cldTransform(style.cover_photo, { w: dim.w * 2, h: dim.h * 2, c: "fill", g: "auto", q: "auto", f: "auto" });
-  const score = Math.round(style.style_score || 0);
+  const img = cldTransform(style.cover_photo, { w: cardWidth * 2, h: cardHeight * 2, c: "fill", g: "auto", q: "auto", f: "auto" });
 
   const share = async () => {
     if (onShare) return onShare();
@@ -84,9 +91,9 @@ export default function StyleCard({ style, variant = "standard", onPress, onSave
       onPress={onPress}
       onPressIn={() => setPressed(true)}
       onPressOut={() => setPressed(false)}
-      style={[s.card, { width: dim.w, transform: [{ scale: pressed ? 0.98 : 1 }] }]}
+      style={[s.card, width != null && s.cardNoGutter, { width: cardWidth, transform: [{ scale: pressed ? 0.98 : 1 }] }]}
     >
-      <View style={[s.image, { height: dim.h, borderRadius: dim.radius }]}>
+      <View style={[s.image, { height: cardHeight, borderRadius: dim.radius }]}>
         <Image
           source={imgError ? FALLBACK_URI : { uri: img }}
           style={StyleSheet.absoluteFillObject}
@@ -96,7 +103,7 @@ export default function StyleCard({ style, variant = "standard", onPress, onSave
           onError={() => setImgError(true)}
         />
 
-        {/* subtle top-fade for legibility of the score badge & reason ribbon */}
+        {/* subtle top-fade for legibility of the reason ribbon */}
         <LinearGradient colors={["rgba(0,0,0,0.35)", "transparent"]} style={s.topFade} />
 
         {/* Reason ribbon (Saved / Last viewed) */}
@@ -106,13 +113,6 @@ export default function StyleCard({ style, variant = "standard", onPress, onSave
             <Text style={s.reasonText}>{style.personal_reason.toUpperCase()}</Text>
           </View>
         )}
-
-        {/* Style Intelligence badge (top-right, gold→bronze gradient) */}
-        <Pressable onPress={onPress} style={s.scoreWrap} hitSlop={6}>
-          <LinearGradient colors={["#F5C77E", "#B78141", "#8B5A2B"]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.scoreCircle}>
-            <Text style={s.scoreText}>{score || "—"}</Text>
-          </LinearGradient>
-        </Pressable>
 
         {/* Trending flame — small, discreet */}
         {isTrending && !style.personal_reason && (
@@ -165,6 +165,10 @@ const s = StyleSheet.create({
       default: {},
     }),
   },
+  // Used when `width` is passed explicitly (responsive grid columns) — the
+  // caller controls gutter spacing via `gap`, so the card's own margin would
+  // double up the spacing and break the column math.
+  cardNoGutter: { marginRight: 0 },
   image: {
     overflow: "hidden",
     backgroundColor: colors.surfaceSecondary,
@@ -172,15 +176,6 @@ const s = StyleSheet.create({
   },
   topFade: { position: "absolute", top: 0, left: 0, right: 0, height: "22%" },
   bottomFade: { position: "absolute", bottom: 0, left: 0, right: 0, height: "50%" },
-
-  // Score badge
-  scoreWrap: { position: "absolute", top: spacing.md, right: spacing.md, zIndex: 3 },
-  scoreCircle: {
-    width: 40, height: 40, borderRadius: 20,
-    alignItems: "center", justifyContent: "center",
-    borderWidth: 1.5, borderColor: "rgba(255,255,255,0.6)",
-  },
-  scoreText: { color: "#fff", fontFamily: font.bodyBold, fontSize: 13, letterSpacing: 0.3 },
 
   // Reason ribbon
   reasonRibbon: {

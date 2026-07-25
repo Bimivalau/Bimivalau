@@ -2808,7 +2808,7 @@ async def seed(force: bool = False):
         # (name, category, description, price, duration_min, cover, difficulty, hair_length, maintenance, lasts_weeks, tags, style_score, saves, recommended_for, country_tags)
         ("Box Braids", "Box Braids", "Classic long box braids with sleek partings. A protective staple.",
          180, 300,
-         "https://images.unsplash.com/photo-1594254773847-9fce26e950bc?w=800&q=85",
+         "https://images.pexels.com/photos/9168132/pexels-photo-9168132.jpeg",
          "Medium", "Long", "Low", 8,
          ["trending", "most_loved", "protective"], 92.4, 3120,
          ["Adults", "Natural Hair", "Relaxed Hair", "Vacation"], ["US", "NG", "GH", "JM", "GB"]),
@@ -2822,14 +2822,14 @@ async def seed(force: bool = False):
 
         ("Cornrows", "Cornrows", "Sleek straight-back cornrows — quick, timeless and workout-friendly.",
          90, 120,
-         "https://images.unsplash.com/photo-1481385694031-f2b14f8621d5?w=800&q=85",
+         "https://images.pexels.com/photos/10825829/pexels-photo-10825829.jpeg",
          "Easy", "Short", "Low", 3,
          ["quick", "office", "protective", "new"], 78.2, 1420,
          ["Children", "Adults", "Office"], ["US", "KE", "ZA", "GH"]),
 
         ("Feed-in Braids", "Cornrows", "Perfectly parted feed-in cornrows with natural gradient hair addition.",
          120, 180,
-         "https://images.unsplash.com/photo-1673470907547-1c0c6a996095?w=800&q=85",
+         "https://images.pexels.com/photos/5301531/pexels-photo-5301531.jpeg",
          "Medium", "Mid-length", "Low", 4,
          ["office", "trending", "protective"], 84.5, 2010,
          ["Adults", "Office", "Vacation"], ["NG", "GH", "US", "CI", "CM"]),
@@ -2850,7 +2850,7 @@ async def seed(force: bool = False):
 
         ("Passion Twists", "Twists", "Boho passion twists — soft, wavy, and endlessly photogenic.",
          210, 360,
-         "https://images.unsplash.com/photo-1653263169788-9332cdbf07f5?w=800&q=85",
+         "https://images.pexels.com/photos/5301538/pexels-photo-5301538.jpeg",
          "Medium", "Long", "Low", 6,
          ["vacation", "new", "most_loved", "protective"], 88.6, 2340,
          ["Adults", "Natural Hair", "Vacation"], ["US", "JM", "BR", "GB"]),
@@ -2871,14 +2871,14 @@ async def seed(force: bool = False):
 
         ("Kids Box Braids", "Kids Braids", "Gentle, size-appropriate box braids designed for kids' scalps.",
          120, 180,
-         "https://images.unsplash.com/photo-1535043883-2548fb805573?w=800&q=85",
+         "https://images.pexels.com/photos/4671331/pexels-photo-4671331.jpeg",
          "Medium", "Mid-length", "Low", 6,
          ["kids", "protective", "new"], 79.7, 1560,
          ["Children"], ["US", "NG", "GB", "FR"]),
 
         ("Colorful Vacation Braids", "Box Braids", "Ocean-ready ombre color braids — bold, playful and sun-safe.",
          260, 420,
-         "https://images.unsplash.com/photo-1774773131630-a89d57efa2dc?w=800&q=85",
+         "https://images.pexels.com/photos/35382770/pexels-photo-35382770.jpeg",
          "Advanced", "Long", "Medium", 6,
          ["vacation", "color", "luxury", "trending"], 87.9, 2140,
          ["Adults", "Vacation"], ["BR", "JM", "US", "FR"]),
@@ -2892,7 +2892,7 @@ async def seed(force: bool = False):
 
         ("Micro Tribal Braids", "Micro Braids", "Ultra-fine micro braids — meticulous, delicate craftsmanship.",
          320, 600,
-         "https://images.unsplash.com/photo-1709342548703-a675702f19ef?w=800&q=85",
+         "https://images.pexels.com/photos/11482130/pexels-photo-11482130.jpeg",
          "Expert", "Extra Long", "Medium", 10,
          ["luxury", "celebrity", "trending"], 90.2, 1650,
          ["Adults", "Wedding", "Event"], ["US", "NG", "GH", "CM", "SN"]),
@@ -2906,7 +2906,7 @@ async def seed(force: bool = False):
 
         ("Braided Ponytail", "Cornrows", "Sleek cornrowed base blending into a luxurious high ponytail.",
          160, 240,
-         "https://images.unsplash.com/photo-1547547700-b3954043b1b8?w=800&q=85",
+         "https://images.pexels.com/photos/16563139/pexels-photo-16563139.jpeg",
          "Medium", "Long", "Low", 4,
          ["office", "quick", "event"], 82.8, 1310,
          ["Adults", "Office", "Event"], ["US", "KE", "GB", "NG"]),
@@ -2927,7 +2927,7 @@ async def seed(force: bool = False):
 
         ("Sleek Bun Cornrows", "Cornrows", "Refined cornrow bun — polished for the office or an evening out.",
          100, 150,
-         "https://images.unsplash.com/photo-1616166183781-0fdd2ef83374?w=800&q=85",
+         "https://images.pexels.com/photos/33664383/pexels-photo-33664383.jpeg",
          "Easy", "Short", "Low", 3,
          ["office", "quick", "new"], 76.4, 970,
          ["Adults", "Office"], ["GB", "US", "FR", "KE"]),
