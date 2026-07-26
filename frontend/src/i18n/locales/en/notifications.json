@@ -1,1 +1,8 @@
-{}
+{
+  "title": "Notifications",
+  "subtitle": "Booking updates, reminders, and account activity.",
+  "loading": "Loading notifications…",
+  "load_error": "Could not load notifications.",
+  "empty_title": "You're all caught up",
+  "empty_message": "Booking updates, reminders, and account activity will appear here."
+}

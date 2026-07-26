@@ -1,1 +1,33 @@
-{}
+{
+  "tab": {
+    "title": "Profile",
+    "loading": "Loading your account…",
+    "you_fallback": "You",
+    "joined_badge": "JOINED {{date}}",
+    "menu": {
+      "notifications": "Notifications",
+      "safety": "Safety & Community Guidelines",
+      "settings": "Settings",
+      "help": "Help & Support"
+    },
+    "support_alert_title": "Support",
+    "support_alert_message": "Contact support@braidscommunity.app",
+    "delete_confirm_title": "Delete your account?",
+    "delete_confirm_message": "This permanently removes your profile, bookings history, saves and favorites. This cannot be undone.",
+    "delete_error_title": "Couldn't delete",
+    "delete_error_default": "Please try again.",
+    "delete_account": "Delete account",
+    "footer": "BraidsCommunity · Built for braid lovers."
+  },
+  "completion": {
+    "title": "Where are you?",
+    "subtitle": "So we can show you braid artists nearby.",
+    "country_label": "Country",
+    "country_placeholder": "United States",
+    "city_label": "City or postal code",
+    "city_placeholder": "Brooklyn, NY",
+    "help": "Profile picture is optional — you can add one from your Profile tab later.",
+    "save_error": "Save failed",
+    "submit_cta": "Finish — take me to the app"
+  }
+}

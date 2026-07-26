@@ -1,1 +1,8 @@
-{}
+{
+  "title": "Notifications",
+  "subtitle": "Mises à jour de réservations, rappels et activité de votre compte.",
+  "loading": "Chargement des notifications…",
+  "load_error": "Impossible de charger les notifications.",
+  "empty_title": "Vous êtes à jour",
+  "empty_message": "Les mises à jour de réservations, rappels et l'activité de votre compte apparaîtront ici."
+}

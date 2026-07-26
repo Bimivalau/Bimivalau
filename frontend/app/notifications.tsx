@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { colors, spacing, font } from "@/src/theme";
@@ -12,6 +13,8 @@ import { SafeScrollView, ResponsiveHeading, Card, EmptyState, LoadingState, Erro
  */
 export default function Notifications() {
   const router = useRouter();
+  const { t } = useTranslation("notifications");
+  const { t: tCommon } = useTranslation("common");
   const [items, setItems] = useState<any[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -21,13 +24,13 @@ export default function Notifications() {
       const d = await api("/notifications/me");
       setItems(Array.isArray(d) ? d : []);
     } catch (e: any) {
-      setErr(e?.userMessage || "Could not load notifications.");
+      setErr(e?.userMessage || t("load_error"));
     }
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (err && !items) return <ErrorState message={err} onRetry={load} />;
-  if (!items) return <LoadingState label="Loading notifications…" />;
+  if (!items) return <LoadingState label={t("loading")} />;
 
   return (
     <SafeScrollView>
@@ -39,20 +42,20 @@ export default function Notifications() {
             hitSlop={12}
             style={s.backBtn}
             accessibilityRole="button"
-            accessibilityLabel="Back"
+            accessibilityLabel={tCommon("buttons.back")}
           >
             <Feather name="arrow-left" size={22} color={colors.onSurface} />
           </Pressable>
         </View>
-        <ResponsiveHeading size={30} style={{ marginTop: spacing.sm }}>Notifications</ResponsiveHeading>
-        <Text style={s.sub}>Booking updates, reminders, and account activity.</Text>
+        <ResponsiveHeading size={30} style={{ marginTop: spacing.sm }}>{t("title")}</ResponsiveHeading>
+        <Text style={s.sub}>{t("subtitle")}</Text>
 
         {items.length === 0 ? (
           <View style={{ marginTop: spacing.xxxl }}>
             <EmptyState
               icon="bell"
-              title="You&apos;re all caught up"
-              message="Booking updates, reminders, and account activity will appear here."
+              title={t("empty_title")}
+              message={t("empty_message")}
             />
           </View>
         ) : (

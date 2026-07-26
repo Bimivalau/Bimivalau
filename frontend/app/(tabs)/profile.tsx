@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { View, Text, Pressable, StyleSheet, Alert } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { useSession } from "@/src/session";
@@ -14,15 +15,17 @@ import { SafeScrollView, ResponsiveHeading, Card, Badge, LoadingState } from "@/
 export default function Profile() {
   const { user, loading, signOut } = useSession();
   const router = useRouter();
+  const { t } = useTranslation("profile");
+  const { t: tCommon } = useTranslation("common");
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.replace("/login");
   }, [loading, user, router]);
 
-  if (loading || !user) return <LoadingState label="Loading your account…" />;
+  if (loading || !user) return <LoadingState label={t("tab.loading")} />;
 
-  const name = user.name || "You";
+  const name = user.name || t("tab.you_fallback");
   const email = user.email || "";
   const initial = (name.trim().charAt(0) || "?").toUpperCase();
   // Joined date — never expose phone numbers.
@@ -37,32 +40,32 @@ export default function Profile() {
       await signOut();
       router.replace("/welcome");
     } catch (e: any) {
-      Alert.alert("Couldn't delete", e?.userMessage || "Please try again.");
+      Alert.alert(t("tab.delete_error_title"), e?.userMessage || t("tab.delete_error_default"));
     } finally { setDeleting(false); }
   };
 
   const confirmDelete = () => {
     Alert.alert(
-      "Delete your account?",
-      "This permanently removes your profile, bookings history, saves and favorites. This cannot be undone.",
+      t("tab.delete_confirm_title"),
+      t("tab.delete_confirm_message"),
       [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete permanently", style: "destructive", onPress: doDelete },
+        { text: tCommon("buttons.cancel"), style: "cancel" },
+        { text: tCommon("buttons.delete_permanently"), style: "destructive", onPress: doDelete },
       ],
     );
   };
 
   const items: { icon: any; label: string; testID: string; onPress: () => void }[] = [
-    { icon: "bell", label: "Notifications", testID: "menu-notifications", onPress: () => router.push("/notifications") },
-    { icon: "shield", label: "Safety & Community Guidelines", testID: "menu-safety", onPress: () => router.push("/safety") },
-    { icon: "settings", label: "Settings", testID: "menu-settings", onPress: () => router.push("/settings") },
-    { icon: "help-circle", label: "Help & Support", testID: "menu-help", onPress: () => Alert.alert("Support", "Contact support@braidscommunity.app") },
+    { icon: "bell", label: t("tab.menu.notifications"), testID: "menu-notifications", onPress: () => router.push("/notifications") },
+    { icon: "shield", label: t("tab.menu.safety"), testID: "menu-safety", onPress: () => router.push("/safety") },
+    { icon: "settings", label: t("tab.menu.settings"), testID: "menu-settings", onPress: () => router.push("/settings") },
+    { icon: "help-circle", label: t("tab.menu.help"), testID: "menu-help", onPress: () => Alert.alert(t("tab.support_alert_title"), t("tab.support_alert_message")) },
   ];
 
   return (
     <SafeScrollView testID="profile-screen">
       <View style={{ paddingTop: spacing.md }}>
-        <ResponsiveHeading size={30}>Profile</ResponsiveHeading>
+        <ResponsiveHeading size={30}>{t("tab.title")}</ResponsiveHeading>
 
         <Card padding={spacing.lg} style={s.card}>
           <View style={s.avatar}>
@@ -72,7 +75,7 @@ export default function Profile() {
             <Text testID="profile-name" style={s.name} numberOfLines={1}>{name}</Text>
             <Text testID="profile-email" style={s.email} numberOfLines={1}>{email}</Text>
             <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: 6, flexWrap: "wrap" }}>
-              <Badge label={`JOINED ${joined.toUpperCase()}`} tone="neutral" />
+              <Badge label={t("tab.joined_badge", { date: joined.toUpperCase() })} tone="neutral" />
             </View>
           </View>
         </Card>
@@ -100,9 +103,9 @@ export default function Profile() {
           onPress={async () => { await signOut(); router.replace("/welcome"); }}
           style={s.signOut}
           accessibilityRole="button"
-          accessibilityLabel="Sign out"
+          accessibilityLabel={tCommon("buttons.sign_out")}
         >
-          <Text style={s.signOutText}>Sign out</Text>
+          <Text style={s.signOutText}>{tCommon("buttons.sign_out")}</Text>
         </Pressable>
 
         <Pressable
@@ -111,12 +114,12 @@ export default function Profile() {
           disabled={deleting}
           style={s.deleteBtn}
           accessibilityRole="button"
-          accessibilityLabel="Delete account"
+          accessibilityLabel={t("tab.delete_account")}
         >
-          <Text style={s.deleteText}>{deleting ? "Deleting…" : "Delete account"}</Text>
+          <Text style={s.deleteText}>{deleting ? tCommon("states.deleting") : t("tab.delete_account")}</Text>
         </Pressable>
 
-        <Text style={s.legal}>BraidsCommunity · Built for braid lovers.</Text>
+        <Text style={s.legal}>{t("tab.footer")}</Text>
       </View>
     </SafeScrollView>
   );
