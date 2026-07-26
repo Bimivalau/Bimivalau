@@ -7,6 +7,7 @@ import { Feather } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
+import { openDirections, hasDirectionsTarget } from "@/src/utils/directions";
 
 export default function BookingDetail() {
   const { id, confirmed } = useLocalSearchParams<{ id: string; confirmed?: string }>();
@@ -87,6 +88,18 @@ export default function BookingDetail() {
         <Row label="Salon" value={b.salon_name} />
         <Row label="Price" value={`$${b.price}`} />
         <Row label="Status" value={b.status.replace("_", " ").toUpperCase()} />
+
+        {b.status === "confirmed" && hasDirectionsTarget({ latitude: b.latitude, longitude: b.longitude, address: b.address }) && (
+          <Pressable
+            testID="bd-directions"
+            onPress={() => openDirections({ latitude: b.latitude, longitude: b.longitude, address: b.address, label: b.salon_name })}
+            style={s.directionsBtn}
+            accessibilityRole="button"
+          >
+            <Feather name="navigation" size={14} color={colors.brand} />
+            <Text style={s.directionsText}>Get Directions</Text>
+          </Pressable>
+        )}
 
         {b.status === "confirmed" && (
           <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
@@ -213,4 +226,6 @@ const s = StyleSheet.create({
   codeInput: { borderBottomWidth: 1, borderColor: colors.borderStrong, paddingVertical: spacing.md, fontFamily: font.display, fontSize: 24, letterSpacing: 6, textAlign: "center", color: colors.onSurface },
   flagRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, paddingVertical: spacing.sm },
   flagText: { fontFamily: font.bodyMed, color: colors.onSurface, fontSize: 14 },
+  directionsBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginTop: spacing.md, paddingVertical: spacing.md, borderRadius: radii.md, borderWidth: 1, borderColor: colors.brand },
+  directionsText: { fontFamily: font.bodyMed, color: colors.brand, fontSize: 14 },
 });

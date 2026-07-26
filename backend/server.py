@@ -1502,6 +1502,12 @@ async def _enrich_booking(b: dict) -> dict:
     b["hairstyle_name"] = hs["name"] if hs else ""
     b["hairstyle_photo"] = hs["cover_photo"] if hs else ""
     b["customer_name"] = cu["name"] if cu else ""
+    # Location fields — power the "Get Directions" deep link (native maps app, no map SDK).
+    b["address"] = hd.get("address") if hd else None
+    b["city"] = hd.get("city") if hd else None
+    b["service_area"] = hd.get("service_area") if hd else None
+    b["latitude"] = hd.get("latitude") if hd else None
+    b["longitude"] = hd.get("longitude") if hd else None
     return b
 
 @api.get("/bookings/me")

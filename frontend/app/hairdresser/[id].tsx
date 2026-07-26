@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
+import { openDirections, hasDirectionsTarget } from "@/src/utils/directions";
 
 export default function StudioPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -136,8 +137,19 @@ export default function StudioPage() {
             <Text style={s.aboutBio}>{h.bio}</Text>
             <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "center" }}>
               <Feather name="map-pin" size={14} color={colors.brand} />
-              <Text style={s.aboutText}>{h.address}</Text>
+              <Text style={[s.aboutText, { flex: 1 }]}>{h.address}</Text>
             </View>
+            {hasDirectionsTarget({ latitude: h.latitude, longitude: h.longitude, address: h.address }) && (
+              <Pressable
+                testID="hd-directions"
+                onPress={() => openDirections({ latitude: h.latitude, longitude: h.longitude, address: h.address, label: h.salon_name || h.name })}
+                style={s.directionsBtn}
+                accessibilityRole="button"
+              >
+                <Feather name="navigation" size={14} color={colors.brand} />
+                <Text style={s.directionsText}>Get Directions</Text>
+              </Pressable>
+            )}
             <Text style={[s.aboutText, { marginTop: spacing.md, fontFamily: font.bodyBold }]}>Specialties</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
               {h.specialties.map((sp: any) => (
@@ -203,6 +215,8 @@ const s = StyleSheet.create({
   revText: { fontFamily: font.body, color: colors.onSurfaceSecondary, fontSize: 14 },
   aboutBio: { fontFamily: font.body, color: colors.onSurfaceSecondary, fontSize: 15, lineHeight: 22 },
   aboutText: { fontFamily: font.body, color: colors.onSurfaceSecondary, fontSize: 14 },
+  directionsBtn: { flexDirection: "row", alignItems: "center", gap: spacing.sm, alignSelf: "flex-start", paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.brand },
+  directionsText: { fontFamily: font.bodyMed, color: colors.brand, fontSize: 13 },
   chip: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, backgroundColor: colors.surfaceSecondary, borderRadius: radii.pill },
   chipText: { fontFamily: font.bodyMed, color: colors.onSurface, fontSize: 12 },
   bookBar: { position: "absolute", left: 0, right: 0, bottom: 0, flexDirection: "row", alignItems: "center", padding: spacing.lg, backgroundColor: colors.surface, borderTopWidth: 1, borderColor: colors.divider, gap: spacing.md },
