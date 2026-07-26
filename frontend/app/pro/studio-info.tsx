@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { View, Text, TextInput, StyleSheet, Pressable } from "react-native";
 import { useRouter } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { api } from "@/src/api";
 import { colors, font, spacing, radii } from "@/src/theme";
 import { SafeScrollView, ResponsiveHeading, Card, BottomCTA, LoadingState } from "@/src/ui";
 
 export default function StudioInfo() {
   const router = useRouter();
+  const { t } = useTranslation("pro_studio");
+  const { t: tCommon } = useTranslation("common");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -22,7 +25,7 @@ export default function StudioInfo() {
       try {
         const me = await api("/hairdressers/me");
         setBio(me.bio || ""); setSalonName(me.salon_name || ""); setCity(me.city || ""); setAddress(me.address || "");
-      } catch (e: any) { setErr(e?.userMessage || "Could not load your Studio."); }
+      } catch (e: any) { setErr(e?.userMessage || t("studio_info.load_error")); }
       finally { setLoading(false); }
     })();
   }, []);
@@ -31,12 +34,12 @@ export default function StudioInfo() {
     setSaving(true); setErr(null); setMsg(null);
     try {
       await api("/hairdressers/me", { method: "PUT", body: JSON.stringify({ bio, salon_name: salonName, city, address, latitude: 0, longitude: 0, cover_photo: "" }) });
-      setMsg("Saved"); setTimeout(() => setMsg(null), 1500);
-    } catch (e: any) { setErr(e?.userMessage || "Could not save."); }
+      setMsg(t("studio_info.saved")); setTimeout(() => setMsg(null), 1500);
+    } catch (e: any) { setErr(e?.userMessage || t("studio_info.save_error")); }
     finally { setSaving(false); }
   };
 
-  if (loading) return <LoadingState label="Loading Studio information…" />;
+  if (loading) return <LoadingState label={t("studio_info.loading")} />;
 
   return (
     <SafeScrollView>
@@ -44,20 +47,20 @@ export default function StudioInfo() {
         <Pressable testID="info-back" onPress={() => router.back()} hitSlop={12} style={{ marginBottom: spacing.md }}>
           <Feather name="arrow-left" size={22} color={colors.onSurface} />
         </Pressable>
-        <ResponsiveHeading size={30}>Studio Information</ResponsiveHeading>
-        <Text style={s.sub}>Your public Studio identity. Customers see this when they visit your page.</Text>
+        <ResponsiveHeading size={30}>{t("studio_info.heading")}</ResponsiveHeading>
+        <Text style={s.sub}>{t("studio_info.subtitle")}</Text>
 
         <Card padding={spacing.lg} style={{ marginTop: spacing.lg, gap: spacing.md }}>
-          <Field label="Studio Name" value={salonName} onChange={setSalonName} placeholder="e.g. Nia's Studio" />
-          <Field label="City" value={city} onChange={setCity} placeholder="e.g. Brooklyn" />
-          <Field label="Address" value={address} onChange={setAddress} placeholder="Optional — street address" />
-          <Field label="Bio" value={bio} onChange={setBio} placeholder="Tell customers about your Studio." multiline />
+          <Field label={t("studio_info.fields.studio_name_label")} value={salonName} onChange={setSalonName} placeholder={t("studio_info.fields.studio_name_placeholder")} />
+          <Field label={t("studio_info.fields.city_label")} value={city} onChange={setCity} placeholder={t("studio_info.fields.city_placeholder")} />
+          <Field label={t("studio_info.fields.address_label")} value={address} onChange={setAddress} placeholder={t("studio_info.fields.address_placeholder")} />
+          <Field label={t("studio_info.fields.bio_label")} value={bio} onChange={setBio} placeholder={t("studio_info.fields.bio_placeholder")} multiline />
         </Card>
 
         {err ? <Text style={s.err}>{err}</Text> : null}
         {msg ? <Text style={s.ok}>{msg}</Text> : null}
 
-        <BottomCTA testID="info-save" label={saving ? "Saving…" : "Save changes"} onPress={save} loading={saving} />
+        <BottomCTA testID="info-save" label={saving ? tCommon("states.saving") : t("studio_info.save_button")} onPress={save} loading={saving} />
       </View>
     </SafeScrollView>
   );

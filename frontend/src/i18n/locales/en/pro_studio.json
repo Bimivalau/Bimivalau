@@ -1,1 +1,78 @@
-{}
+{
+  "studio": {
+    "heading": "Profile",
+    "you_fallback": "You",
+    "joined_label": "JOINED",
+    "verified_badge": "VERIFIED PRO",
+    "rows": {
+      "studio_info": "Studio Information",
+      "availability": "Weekly Availability",
+      "portfolio": "Portfolio",
+      "services": "Services & Pricing",
+      "verification": "Verification",
+      "notifications": "Notifications",
+      "safety": "Safety & Community Guidelines",
+      "settings": "Settings"
+    },
+    "delete_account_button": "Delete account",
+    "delete_confirm_title": "Delete your account?",
+    "delete_confirm_message": "This permanently removes your Studio, portfolio, bookings and reviews. This cannot be undone.",
+    "delete_error_title": "Couldn't delete",
+    "delete_error_fallback": "Please try again."
+  },
+  "studio_info": {
+    "loading": "Loading Studio information…",
+    "heading": "Studio Information",
+    "subtitle": "Your public Studio identity. Customers see this when they visit your page.",
+    "fields": {
+      "studio_name_label": "Studio Name",
+      "studio_name_placeholder": "e.g. Nia's Studio",
+      "city_label": "City",
+      "city_placeholder": "e.g. Brooklyn",
+      "address_label": "Address",
+      "address_placeholder": "Optional — street address",
+      "bio_label": "Bio",
+      "bio_placeholder": "Tell customers about your Studio."
+    },
+    "load_error": "Could not load your Studio.",
+    "save_error": "Could not save.",
+    "saved": "Saved",
+    "save_button": "Save changes"
+  },
+  "availability": {
+    "loading": "Loading your hours…",
+    "load_error": "Could not load your hours.",
+    "save_error": "Could not save your hours.",
+    "heading": "Availability",
+    "subtitle": "Set your working hours per weekday. Customers can only book you inside these windows.",
+    "days": {
+      "Mon": "Mon",
+      "Tue": "Tue",
+      "Wed": "Wed",
+      "Thu": "Thu",
+      "Fri": "Fri",
+      "Sat": "Sat",
+      "Sun": "Sun"
+    },
+    "status_on": "on",
+    "status_off": "off",
+    "saved": "Saved",
+    "save_button": "Save availability"
+  },
+  "portfolio": {
+    "title": "Portfolio",
+    "photo_count_one": "{{count}} photo",
+    "photo_count_other": "{{count}} photos",
+    "pick_style_label": "1. Pick a style",
+    "add_photo_label": "2. Add a photo",
+    "choose_from_library": "Choose from library",
+    "or_separator": "— or paste a URL —",
+    "url_placeholder": "https://…",
+    "add_from_url": "Add from URL",
+    "pick_style_first_error": "Pick a style first.",
+    "upload_not_configured_title": "Uploads not configured",
+    "upload_not_configured_message": "Ask admin to add Cloudinary keys before uploading photos.",
+    "upload_failed_error": "Upload failed. Please try again.",
+    "url_and_style_required_error": "Photo URL and style required."
+  }
+}

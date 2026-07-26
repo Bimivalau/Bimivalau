@@ -1,1 +1,78 @@
-{}
+{
+  "studio": {
+    "heading": "Profil",
+    "you_fallback": "Vous",
+    "joined_label": "MEMBRE DEPUIS",
+    "verified_badge": "PRO VÉRIFIÉE",
+    "rows": {
+      "studio_info": "Informations du Studio",
+      "availability": "Disponibilités hebdomadaires",
+      "portfolio": "Portfolio",
+      "services": "Services et tarifs",
+      "verification": "Vérification",
+      "notifications": "Notifications",
+      "safety": "Sécurité et règles de la communauté",
+      "settings": "Paramètres"
+    },
+    "delete_account_button": "Supprimer le compte",
+    "delete_confirm_title": "Supprimer votre compte ?",
+    "delete_confirm_message": "Cette action supprime définitivement votre Studio, votre portfolio, vos réservations et vos avis. Cette action est irréversible.",
+    "delete_error_title": "Suppression impossible",
+    "delete_error_fallback": "Veuillez réessayer."
+  },
+  "studio_info": {
+    "loading": "Chargement des informations du Studio…",
+    "heading": "Informations du Studio",
+    "subtitle": "L'identité publique de votre Studio. Les clients la voient en visitant votre page.",
+    "fields": {
+      "studio_name_label": "Nom du Studio",
+      "studio_name_placeholder": "ex. Studio de Nia",
+      "city_label": "Ville",
+      "city_placeholder": "ex. Brooklyn",
+      "address_label": "Adresse",
+      "address_placeholder": "Facultatif — adresse postale",
+      "bio_label": "Bio",
+      "bio_placeholder": "Parlez de votre Studio à vos clients."
+    },
+    "load_error": "Impossible de charger votre Studio.",
+    "save_error": "Impossible d'enregistrer.",
+    "saved": "Enregistré",
+    "save_button": "Enregistrer les modifications"
+  },
+  "availability": {
+    "loading": "Chargement de vos horaires…",
+    "load_error": "Impossible de charger vos horaires.",
+    "save_error": "Impossible d'enregistrer vos horaires.",
+    "heading": "Disponibilités",
+    "subtitle": "Définissez vos horaires de travail pour chaque jour. Les clients ne peuvent réserver que sur ces créneaux.",
+    "days": {
+      "Mon": "Lun",
+      "Tue": "Mar",
+      "Wed": "Mer",
+      "Thu": "Jeu",
+      "Fri": "Ven",
+      "Sat": "Sam",
+      "Sun": "Dim"
+    },
+    "status_on": "activé",
+    "status_off": "désactivé",
+    "saved": "Enregistré",
+    "save_button": "Enregistrer les disponibilités"
+  },
+  "portfolio": {
+    "title": "Portfolio",
+    "photo_count_one": "{{count}} photo",
+    "photo_count_other": "{{count}} photos",
+    "pick_style_label": "1. Choisissez un style",
+    "add_photo_label": "2. Ajoutez une photo",
+    "choose_from_library": "Choisir depuis la bibliothèque",
+    "or_separator": "— ou collez une URL —",
+    "url_placeholder": "https://…",
+    "add_from_url": "Ajouter depuis une URL",
+    "pick_style_first_error": "Choisissez d'abord un style.",
+    "upload_not_configured_title": "Envois non configurés",
+    "upload_not_configured_message": "Demandez à l'admin d'ajouter les clés Cloudinary avant d'envoyer des photos.",
+    "upload_failed_error": "Échec de l'envoi. Veuillez réessayer.",
+    "url_and_style_required_error": "URL de la photo et style requis."
+  }
+}

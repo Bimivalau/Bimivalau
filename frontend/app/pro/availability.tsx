@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { View, Text, Pressable, StyleSheet, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 import { SafeScrollView, ResponsiveHeading, LoadingState, BottomCTA } from "@/src/ui";
@@ -15,6 +16,8 @@ type Slot = { day_of_week: number; start_time: string; end_time: string };
 
 export default function ProAvailability() {
   const router = useRouter();
+  const { t } = useTranslation("pro_studio");
+  const { t: tCommon } = useTranslation("common");
   const [items, setItems] = useState<Slot[] | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -22,11 +25,11 @@ export default function ProAvailability() {
 
   const load = useCallback(async () => {
     try { const d = await api("/availability/me"); setItems(Array.isArray(d) ? d : []); }
-    catch (e: any) { setErr(e?.userMessage || "Could not load your hours."); setItems([]); }
+    catch (e: any) { setErr(e?.userMessage || t("availability.load_error")); setItems([]); }
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (!items) return <LoadingState label="Loading your hours…" />;
+  if (!items) return <LoadingState label={t("availability.loading")} />;
 
   const toggle = (d: number) => {
     setItems(prev => (prev || []).find(i => i.day_of_week === d)
@@ -40,8 +43,8 @@ export default function ProAvailability() {
     setSaving(true); setErr(null);
     try {
       await api("/availability/me", { method: "PUT", body: JSON.stringify(items) });
-      setMsg("Saved"); setTimeout(() => setMsg(null), 1800);
-    } catch (e: any) { setErr(e?.userMessage || "Could not save your hours."); }
+      setMsg(t("availability.saved")); setTimeout(() => setMsg(null), 1800);
+    } catch (e: any) { setErr(e?.userMessage || t("availability.save_error")); }
     finally { setSaving(false); }
   };
 
@@ -58,17 +61,18 @@ export default function ProAvailability() {
             hitSlop={12}
             style={s.backBtn}
             accessibilityRole="button"
-            accessibilityLabel="Back"
+            accessibilityLabel={tCommon("buttons.back")}
           >
             <Feather name="arrow-left" size={22} color={colors.onSurface} />
           </Pressable>
-          <ResponsiveHeading size={30} style={{ marginTop: spacing.sm }}>Availability</ResponsiveHeading>
-          <Text style={s.sub}>Set your working hours per weekday. Customers can only book you inside these windows.</Text>
+          <ResponsiveHeading size={30} style={{ marginTop: spacing.sm }}>{t("availability.heading")}</ResponsiveHeading>
+          <Text style={s.sub}>{t("availability.subtitle")}</Text>
 
           <View style={{ marginTop: spacing.lg }}>
             {DAYS.map(({ key, i }) => {
               const item = (items || []).find(it => it.day_of_week === i);
               const isOn = !!item;
+              const dayLabel = t(`availability.days.${key}`);
               return (
                 <View key={key} style={s.row}>
                   <Pressable
@@ -77,9 +81,9 @@ export default function ProAvailability() {
                     style={[s.dayBtn, isOn && s.dayBtnOn]}
                     accessibilityRole="switch"
                     accessibilityState={{ checked: isOn }}
-                    accessibilityLabel={`${key} — ${isOn ? "on" : "off"}`}
+                    accessibilityLabel={`${dayLabel} — ${isOn ? t("availability.status_on") : t("availability.status_off")}`}
                   >
-                    <Text style={[s.dayText, isOn && { color: "#fff" }]}>{key}</Text>
+                    <Text style={[s.dayText, isOn && { color: "#fff" }]}>{dayLabel}</Text>
                   </Pressable>
                   {isOn && item && (
                     <View style={s.timeRow}>
@@ -114,7 +118,7 @@ export default function ProAvailability() {
           {msg && <Text style={s.ok} accessibilityLiveRegion="polite">{msg}</Text>}
           {err && <Text style={s.err} accessibilityLiveRegion="polite">{err}</Text>}
 
-          <BottomCTA testID="avail-save" label={saving ? "Saving…" : "Save availability"} onPress={save} loading={saving} />
+          <BottomCTA testID="avail-save" label={saving ? tCommon("states.saving") : t("availability.save_button")} onPress={save} loading={saving} />
         </View>
       </SafeScrollView>
     </KeyboardAvoidingView>

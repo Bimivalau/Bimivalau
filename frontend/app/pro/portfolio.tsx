@@ -4,6 +4,7 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 import { pickCompressUploadPersist, cldTransform } from "@/src/utils/cloudinary";
@@ -11,6 +12,8 @@ import { pickCompressUploadPersist, cldTransform } from "@/src/utils/cloudinary"
 export default function ProPortfolio() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation("pro_studio");
+  const { t: tCommon } = useTranslation("common");
   const [items, setItems] = useState<any[]>([]);
   const [styles_, setStyles] = useState<any[]>([]);
   const [url, setUrl] = useState("");
@@ -29,9 +32,9 @@ export default function ProPortfolio() {
 
   const addFromDevice = async () => {
     setErr(null);
-    if (!styleId) { setErr("Pick a style first."); return; }
+    if (!styleId) { setErr(t("portfolio.pick_style_first_error")); return; }
     if (cloudinaryOk === false) {
-      Alert.alert("Uploads not configured", "Ask admin to add Cloudinary keys before uploading photos.");
+      Alert.alert(t("portfolio.upload_not_configured_title"), t("portfolio.upload_not_configured_message"));
       return;
     }
     setBusy(true); setUploadProgress(0);
@@ -43,7 +46,7 @@ export default function ProPortfolio() {
       });
       if (res) await load();
     } catch (e: any) {
-      setErr(e.message || "Upload failed. Please try again.");
+      setErr(e.message || t("portfolio.upload_failed_error"));
     } finally {
       setBusy(false);
       setUploadProgress(null);
@@ -52,7 +55,7 @@ export default function ProPortfolio() {
 
   const addFromUrl = async () => {
     setErr(null);
-    if (!url || !styleId) { setErr("Photo URL and style required."); return; }
+    if (!url || !styleId) { setErr(t("portfolio.url_and_style_required_error")); return; }
     try {
       await api("/portfolio", { method: "POST", body: JSON.stringify({ photo_url: url, hairstyle_id: styleId, caption: "" }) });
       setUrl(""); await load();
@@ -65,14 +68,14 @@ export default function ProPortfolio() {
     <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.surface }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
     <ScrollView style={{ backgroundColor: colors.surface }} contentContainerStyle={{ paddingBottom: spacing.xxxl + insets.bottom }} keyboardShouldPersistTaps="handled">
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.xl }}>
-        <Pressable testID="port-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/pro/studio"))} hitSlop={12} style={{ minHeight: 44, width: 44, justifyContent: "center" }} accessibilityRole="button" accessibilityLabel="Back">
+        <Pressable testID="port-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/pro/studio"))} hitSlop={12} style={{ minHeight: 44, width: 44, justifyContent: "center" }} accessibilityRole="button" accessibilityLabel={tCommon("buttons.back")}>
           <Feather name="arrow-left" size={22} color={colors.onSurface} />
         </Pressable>
-        <Text style={s.title}>Portfolio</Text>
-        <Text style={s.sub}>{items.length} photo{items.length === 1 ? "" : "s"}</Text>
+        <Text style={s.title}>{t("portfolio.title")}</Text>
+        <Text style={s.sub}>{t("portfolio.photo_count", { count: items.length })}</Text>
 
         <View style={s.form}>
-          <Text style={s.label}>1. Pick a style</Text>
+          <Text style={s.label}>{t("portfolio.pick_style_label")}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, marginTop: spacing.sm }}>
             {styles_.map(st => (
               <Pressable key={st.id} testID={`portfolio-style-${st.id}`} onPress={() => setStyleId(st.id)} style={[s.chip, styleId === st.id && s.chipActive]}>
@@ -81,7 +84,7 @@ export default function ProPortfolio() {
             ))}
           </ScrollView>
 
-          <Text style={[s.label, { marginTop: spacing.md }]}>2. Add a photo</Text>
+          <Text style={[s.label, { marginTop: spacing.md }]}>{t("portfolio.add_photo_label")}</Text>
           <Pressable
             testID="portfolio-pick"
             onPress={addFromDevice}
@@ -91,7 +94,7 @@ export default function ProPortfolio() {
             {busy ? <ActivityIndicator color="#fff" /> : (
               <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
                 <Feather name="upload-cloud" size={16} color="#fff" />
-                <Text style={s.primaryText}>Choose from library</Text>
+                <Text style={s.primaryText}>{t("portfolio.choose_from_library")}</Text>
               </View>
             )}
           </Pressable>
@@ -102,10 +105,10 @@ export default function ProPortfolio() {
             </View>
           )}
 
-          <Text style={s.orRow}>— or paste a URL —</Text>
-          <TextInput testID="portfolio-url" value={url} onChangeText={setUrl} placeholder="https://…" placeholderTextColor={colors.muted} style={s.input} autoCapitalize="none" />
+          <Text style={s.orRow}>{t("portfolio.or_separator")}</Text>
+          <TextInput testID="portfolio-url" value={url} onChangeText={setUrl} placeholder={t("portfolio.url_placeholder")} placeholderTextColor={colors.muted} style={s.input} autoCapitalize="none" />
           <Pressable testID="portfolio-add" onPress={addFromUrl} style={s.ghostBtn}>
-            <Text style={s.ghostText}>Add from URL</Text>
+            <Text style={s.ghostText}>{t("portfolio.add_from_url")}</Text>
           </Pressable>
 
           {err && <Text testID="port-err" style={{ color: colors.error, fontFamily: font.body, marginTop: spacing.sm }}>{err}</Text>}

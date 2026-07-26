@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, Pressable, Alert } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { api } from "@/src/api";
 import { useSession } from "@/src/session";
 import { colors, font, radii, spacing } from "@/src/theme";
@@ -14,6 +15,8 @@ import { SafeScrollView, ResponsiveHeading, Card, Badge, LoadingState } from "@/
 export default function ProProfile() {
   const router = useRouter();
   const { user, signOut } = useSession();
+  const { t } = useTranslation("pro_studio");
+  const { t: tCommon } = useTranslation("common");
   const [hd, setHd] = useState<any>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -22,9 +25,9 @@ export default function ProProfile() {
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (!user) return <LoadingState label="Loading…" />;
+  if (!user) return <LoadingState label={tCommon("states.loading")} />;
 
-  const name = user.name || "You";
+  const name = user.name || t("studio.you_fallback");
   const initial = (name.trim().charAt(0) || "?").toUpperCase();
   const joined = user.created_at
     ? new Date(user.created_at).toLocaleDateString(undefined, { month: "short", year: "numeric" })
@@ -38,36 +41,36 @@ export default function ProProfile() {
       await signOut();
       router.replace("/welcome");
     } catch (e: any) {
-      Alert.alert("Couldn't delete", e?.userMessage || "Please try again.");
+      Alert.alert(t("studio.delete_error_title"), e?.userMessage || t("studio.delete_error_fallback"));
     } finally { setDeleting(false); }
   };
 
   const confirmDelete = () => {
     Alert.alert(
-      "Delete your account?",
-      "This permanently removes your Studio, portfolio, bookings and reviews. This cannot be undone.",
+      t("studio.delete_confirm_title"),
+      t("studio.delete_confirm_message"),
       [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete permanently", style: "destructive", onPress: doDelete },
+        { text: tCommon("buttons.cancel"), style: "cancel" },
+        { text: tCommon("buttons.delete_permanently"), style: "destructive", onPress: doDelete },
       ],
     );
   };
 
   const rows: { icon: any; label: string; testID: string; onPress: () => void }[] = [
-    { icon: "user", label: "Studio Information", testID: "studio-info", onPress: () => router.push("/pro/studio-info") },
-    { icon: "clock", label: "Weekly Availability", testID: "studio-availability", onPress: () => router.push("/pro/availability") },
-    { icon: "image", label: "Portfolio", testID: "studio-portfolio", onPress: () => router.push("/pro/portfolio") },
-    { icon: "tag", label: "Services & Pricing", testID: "studio-services", onPress: () => router.push("/pro/services") },
-    { icon: "shield", label: "Verification", testID: "studio-verification", onPress: () => router.push("/pro/verification") },
-    { icon: "bell", label: "Notifications", testID: "menu-notifications", onPress: () => router.push("/notifications") },
-    { icon: "shield", label: "Safety & Community Guidelines", testID: "menu-safety", onPress: () => router.push("/safety") },
-    { icon: "settings", label: "Settings", testID: "menu-settings", onPress: () => router.push("/settings") },
+    { icon: "user", label: t("studio.rows.studio_info"), testID: "studio-info", onPress: () => router.push("/pro/studio-info") },
+    { icon: "clock", label: t("studio.rows.availability"), testID: "studio-availability", onPress: () => router.push("/pro/availability") },
+    { icon: "image", label: t("studio.rows.portfolio"), testID: "studio-portfolio", onPress: () => router.push("/pro/portfolio") },
+    { icon: "tag", label: t("studio.rows.services"), testID: "studio-services", onPress: () => router.push("/pro/services") },
+    { icon: "shield", label: t("studio.rows.verification"), testID: "studio-verification", onPress: () => router.push("/pro/verification") },
+    { icon: "bell", label: t("studio.rows.notifications"), testID: "menu-notifications", onPress: () => router.push("/notifications") },
+    { icon: "shield", label: t("studio.rows.safety"), testID: "menu-safety", onPress: () => router.push("/safety") },
+    { icon: "settings", label: t("studio.rows.settings"), testID: "menu-settings", onPress: () => router.push("/settings") },
   ];
 
   return (
     <SafeScrollView>
       <View style={{ paddingTop: spacing.md }}>
-        <ResponsiveHeading size={30}>Profile</ResponsiveHeading>
+        <ResponsiveHeading size={30}>{t("studio.heading")}</ResponsiveHeading>
 
         <Card padding={spacing.lg} style={s.card}>
           <View style={s.avatar}><Text style={s.avatarText}>{initial}</Text></View>
@@ -75,8 +78,8 @@ export default function ProProfile() {
             <Text style={s.name} numberOfLines={1}>{name}</Text>
             <Text style={s.email} numberOfLines={1}>{user.email}</Text>
             <View style={{ flexDirection: "row", gap: spacing.xs, marginTop: 6, flexWrap: "wrap" }}>
-              <Badge label={`JOINED ${joined.toUpperCase()}`} tone="neutral" />
-              {verified && <Badge label="VERIFIED PRO" tone="success" />}
+              <Badge label={`${t("studio.joined_label")} ${joined.toUpperCase()}`} tone="neutral" />
+              {verified && <Badge label={t("studio.verified_badge")} tone="success" />}
             </View>
           </View>
         </Card>
@@ -100,11 +103,11 @@ export default function ProProfile() {
         </View>
 
         <Pressable testID="signout-btn" onPress={async () => { await signOut(); router.replace("/welcome"); }} style={s.signOut} accessibilityRole="button">
-          <Text style={s.signOutText}>Sign out</Text>
+          <Text style={s.signOutText}>{tCommon("buttons.sign_out")}</Text>
         </Pressable>
 
         <Pressable testID="delete-account-btn" onPress={confirmDelete} disabled={deleting} style={s.deleteBtn} accessibilityRole="button">
-          <Text style={s.deleteText}>{deleting ? "Deleting…" : "Delete account"}</Text>
+          <Text style={s.deleteText}>{deleting ? tCommon("states.deleting") : t("studio.delete_account_button")}</Text>
         </Pressable>
       </View>
     </SafeScrollView>
