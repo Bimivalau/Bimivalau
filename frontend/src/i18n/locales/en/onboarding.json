@@ -1,1 +1,26 @@
-{}
+{
+  "loading_error": "Could not load setup status. Check your connection and try again.",
+  "load_error_title": "Couldn't load your setup",
+  "go_to_dashboard": "Go to Dashboard",
+  "live_badge": "YOUR STUDIO IS LIVE",
+  "title": "Your Studio is live.",
+  "subtitle": "Customers can already discover your Studio. Complete these recommendations to attract even more bookings.",
+  "required_section": "Required",
+  "availability_title": "Set Weekly Availability",
+  "availability_desc_done": "You're accepting bookings on your weekly hours.",
+  "availability_desc_todo": "Tell customers when you're available so they can book you.",
+  "recommended_section": "Recommended",
+  "portfolio_title": "Showcase Your Work",
+  "optional_tag": "OPTIONAL",
+  "portfolio_desc": "Upload portfolio photos — improves customer trust and ranking.",
+  "verify_title": "Apply for Verified Pro",
+  "verify_desc": "Submit ID or license — earns the Verified badge and stronger visibility.",
+  "activate_error": "Could not activate bookings. Please try again.",
+  "finishing": "Finishing…",
+  "finish_button": "Start Receiving Bookings",
+  "finish_hint": "Set your weekly hours to start receiving bookings.",
+  "recs_pre": "You're all set. Add portfolio photos or apply for Verified Pro anytime from the",
+  "recs_my_studio": "My Studio",
+  "recs_post": " tab.",
+  "skip_to_dashboard": "Skip for now — go to Dashboard"
+}

@@ -1,1 +1,26 @@
-{}
+{
+  "loading_error": "Impossible de charger l'état de votre configuration. Vérifiez votre connexion et réessayez.",
+  "load_error_title": "Impossible de charger votre configuration",
+  "go_to_dashboard": "Aller au tableau de bord",
+  "live_badge": "VOTRE STUDIO EST EN LIGNE",
+  "title": "Votre Studio est en ligne.",
+  "subtitle": "Les clients peuvent déjà découvrir votre Studio. Complétez ces recommandations pour attirer encore plus de réservations.",
+  "required_section": "Obligatoire",
+  "availability_title": "Définir vos disponibilités hebdomadaires",
+  "availability_desc_done": "Vous acceptez des réservations selon vos horaires hebdomadaires.",
+  "availability_desc_todo": "Indiquez aux clients vos disponibilités pour qu'ils puissent réserver.",
+  "recommended_section": "Recommandé",
+  "portfolio_title": "Mettez votre travail en valeur",
+  "optional_tag": "FACULTATIF",
+  "portfolio_desc": "Ajoutez des photos de portfolio — renforce la confiance des clients et améliore votre classement.",
+  "verify_title": "Demander le statut de professionnel(le) vérifié(e)",
+  "verify_desc": "Envoyez une pièce d'identité ou une licence — permet d'obtenir le badge Vérifié et une meilleure visibilité.",
+  "activate_error": "Impossible d'activer les réservations. Veuillez réessayer.",
+  "finishing": "Finalisation…",
+  "finish_button": "Commencer à recevoir des réservations",
+  "finish_hint": "Définissez vos horaires hebdomadaires pour commencer à recevoir des réservations.",
+  "recs_pre": "Vous êtes prêt(e). Ajoutez des photos de portfolio ou demandez le statut de professionnel(le) vérifié(e) à tout moment depuis l'onglet",
+  "recs_my_studio": "Mon Studio",
+  "recs_post": ".",
+  "skip_to_dashboard": "Passer pour l'instant — aller au tableau de bord"
+}

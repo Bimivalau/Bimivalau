@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Pla
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { api } from "@/src/api";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
@@ -11,6 +12,8 @@ export default function VerifyEmail() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { user, refresh } = useSession();
+  const { t } = useTranslation("auth");
+  const { t: tCommon } = useTranslation("common");
   const [digits, setDigits] = useState(["", "", "", "", "", ""]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -31,12 +34,12 @@ export default function VerifyEmail() {
         router.replace("/");
         return;
       }
-      setInfo(`Code sent to ${r.email}`);
+      setInfo(t("verify_email.code_sent", { email: r.email }));
       if (r.dev_code) setDevCode(r.dev_code);
       setCooldown(r.resend_after_sec || 45);
     } catch (e: any) {
       if (e.status === 429) setErr(e.message);
-      else setErr(e.message || "Could not send code");
+      else setErr(e.message || t("verify_email.errors.send_failed"));
     }
   };
 
@@ -66,7 +69,7 @@ export default function VerifyEmail() {
       // Route based on role — customer → profile completion; pro → onboarding
       if (user?.role === "hairdresser") router.replace("/pro/onboarding");
       else router.replace("/customer/profile");
-    } catch (e: any) { setErr(e.message || "Verification failed"); }
+    } catch (e: any) { setErr(e.message || t("verify_email.errors.verify_failed")); }
     finally { setBusy(false); }
   };
 
@@ -80,7 +83,7 @@ export default function VerifyEmail() {
       setDigits(["", "", "", "", "", ""]);
       await refresh();
       await sendCode();
-    } catch (e: any) { setErr(e.message || "Change failed"); }
+    } catch (e: any) { setErr(e.message || t("verify_email.errors.change_failed")); }
     finally { setBusy(false); }
   };
 
@@ -92,13 +95,13 @@ export default function VerifyEmail() {
         <Pressable testID="verify-back" onPress={() => router.back()}>
           <Feather name="arrow-left" size={22} color={colors.onSurface} />
         </Pressable>
-        <Text style={s.title}>Check your email</Text>
-        <Text style={s.sub}>We sent a 6-digit code to <Text style={{ fontFamily: font.bodyBold }}>{user?.email}</Text>. It expires in 10 minutes.</Text>
+        <Text style={s.title}>{t("verify_email.title")}</Text>
+        <Text style={s.sub}>{t("verify_email.subtitle_prefix")}<Text style={{ fontFamily: font.bodyBold }}>{user?.email}</Text>{t("verify_email.subtitle_suffix")}</Text>
 
         {devCode && (
           <View testID="dev-code-banner" style={s.devBanner}>
             <Feather name="alert-circle" size={14} color={colors.warning} />
-            <Text style={s.devText}>Dev mode — email delivery not configured. Your code: <Text style={{ fontFamily: font.bodyBold }}>{devCode}</Text></Text>
+            <Text style={s.devText}>{t("verify_email.dev_banner_prefix")}<Text style={{ fontFamily: font.bodyBold }}>{devCode}</Text></Text>
           </View>
         )}
 
@@ -123,41 +126,41 @@ export default function VerifyEmail() {
         {info && !err && <Text style={s.info}>{info}</Text>}
 
         <Pressable testID="verify-submit" onPress={submit} disabled={!complete || busy} style={[s.btn, (!complete || busy) && { opacity: 0.4 }]}>
-          <Text style={s.btnText}>{busy ? "Verifying…" : "Verify"}</Text>
+          <Text style={s.btnText}>{busy ? t("verify_email.verifying") : t("verify_email.verify")}</Text>
         </Pressable>
 
         <View style={{ flexDirection: "row", justifyContent: "center", gap: spacing.sm, marginTop: spacing.lg }}>
-          <Text style={{ fontFamily: font.body, color: colors.muted, fontSize: 13 }}>Didn&apos;t get it?</Text>
+          <Text style={{ fontFamily: font.body, color: colors.muted, fontSize: 13 }}>{t("verify_email.no_code_question")}</Text>
           <Pressable testID="verify-resend" onPress={sendCode} disabled={cooldown > 0}>
             <Text style={{ fontFamily: font.bodyBold, color: cooldown > 0 ? colors.muted : colors.brand, fontSize: 13 }}>
-              {cooldown > 0 ? `Resend in ${cooldown}s` : "Resend code"}
+              {cooldown > 0 ? t("verify_email.resend_in", { seconds: cooldown }) : t("verify_email.resend_code")}
             </Text>
           </Pressable>
         </View>
 
         {!changing ? (
           <Pressable testID="change-email-open" onPress={() => setChanging(true)} style={{ padding: spacing.md, alignItems: "center", marginTop: spacing.md }}>
-            <Text style={{ fontFamily: font.bodyMed, color: colors.onSurfaceTertiary, fontSize: 13 }}>Change email address</Text>
+            <Text style={{ fontFamily: font.bodyMed, color: colors.onSurfaceTertiary, fontSize: 13 }}>{t("verify_email.change_email")}</Text>
           </Pressable>
         ) : (
           <View style={{ marginTop: spacing.lg, gap: spacing.sm }}>
-            <Text style={s.label}>New email</Text>
+            <Text style={s.label}>{t("verify_email.new_email_label")}</Text>
             <TextInput
               testID="change-email-input"
               value={newEmail}
               onChangeText={setNewEmail}
               autoCapitalize="none"
               keyboardType="email-address"
-              placeholder="you@example.com"
+              placeholder={t("verify_email.email_placeholder")}
               placeholderTextColor={colors.muted}
               style={s.input}
             />
             <View style={{ flexDirection: "row", gap: spacing.sm }}>
               <Pressable testID="change-email-cancel" onPress={() => { setChanging(false); setNewEmail(""); }} style={[s.btn, s.btnGhost, { flex: 1 }]}>
-                <Text style={[s.btnText, { color: colors.onSurface }]}>Cancel</Text>
+                <Text style={[s.btnText, { color: colors.onSurface }]}>{tCommon("buttons.cancel")}</Text>
               </Pressable>
               <Pressable testID="change-email-save" onPress={changeEmail} disabled={!newEmail.trim() || busy} style={[s.btn, { flex: 1 }, (!newEmail.trim() || busy) && { opacity: 0.4 }]}>
-                <Text style={s.btnText}>Update & resend</Text>
+                <Text style={s.btnText}>{t("verify_email.update_and_resend")}</Text>
               </Pressable>
             </View>
           </View>

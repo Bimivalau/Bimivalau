@@ -1,1 +1,28 @@
-{}
+{
+  "title": "Sécurité sur BraidsCommunity",
+  "subtitle": "Les règles de la communauté pour une expérience sûre pour tous.",
+  "rows": {
+    "verified_studios": {
+      "title": "Studios vérifiés",
+      "desc": "Recherchez le badge Professionnel vérifié, mais tous les Studios sont autorisés à accueillir des clients."
+    },
+    "phone_privacy": {
+      "title": "Votre numéro de téléphone reste privé",
+      "desc": "Nous ne communiquons jamais votre numéro à l'autre partie sans votre accord."
+    },
+    "report": {
+      "title": "Signalez tout comportement qui vous semble anormal",
+      "desc": "Utilisez le bouton Signaler sur n'importe quel profil. Trois signalements provenant de coiffeuses différentes limitent la capacité d'un(e) client(e) à réserver."
+    },
+    "pay_at_counter": {
+      "title": "Paiement sur place",
+      "desc": "Le paiement s'effectue en personne entre vous et la coiffeuse. BraidsCommunity ne traite aucun paiement."
+    },
+    "meet_safely": {
+      "title": "Rencontrez-vous dans des lieux professionnels",
+      "desc": "Les coiffeuses doivent indiquer une adresse de Studio ou convenir d'un lieu public sûr avant le rendez-vous."
+    }
+  },
+  "legal": "En utilisant BraidsCommunity, vous vous engagez à traiter chaque membre avec respect. Toute discrimination, tout harcèlement et tout comportement dangereux constituent un motif d'exclusion immédiate.",
+  "acknowledge": "J'ai compris"
+}

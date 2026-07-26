@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
 
@@ -12,6 +13,7 @@ export default function Login() {
   const { signIn, signInWithGoogle } = useSession();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation("auth");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
@@ -23,7 +25,7 @@ export default function Login() {
     try {
       await signIn(email.trim(), password);
       router.replace("/");
-    } catch (e: any) { setErr(e.message || "Login failed"); }
+    } catch (e: any) { setErr(e.message || t("login.errors.login_failed")); }
     finally { setBusy(false); }
   };
 
@@ -34,7 +36,7 @@ export default function Login() {
       if (!res) { setBusy(false); return; }
       if (res.needs_pro_completion) router.replace("/pro/onboarding");
       else router.replace("/");
-    } catch (e: any) { setErr(e.message || "Google sign-in failed"); }
+    } catch (e: any) { setErr(e.message || t("login.errors.google_failed")); }
     finally { setBusy(false); }
   };
 
@@ -45,14 +47,14 @@ export default function Login() {
           <Image source={{ uri: "https://images.unsplash.com/photo-1592520113018-180c8bc831c9?w=800&q=85" }} style={StyleSheet.absoluteFill} contentFit="cover" />
           <LinearGradient colors={["rgba(0,0,0,0.1)", "rgba(0,0,0,0.75)"]} style={StyleSheet.absoluteFill} />
           <View style={{ flex: 1, justifyContent: "flex-end", padding: spacing.xl, paddingTop: insets.top + spacing.lg }}>
-            <Text style={styles.eyebrow}>BRAIDSCOMMUNITY</Text>
-            <Text style={styles.hero}>Where braids{"\n"}are art.</Text>
+            <Text style={styles.eyebrow}>{t("login.eyebrow")}</Text>
+            <Text style={styles.hero}>{t("login.hero_line1")}{"\n"}{t("login.hero_line2")}</Text>
           </View>
         </View>
         <View style={{ padding: spacing.xl, gap: spacing.md }}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>{t("login.email_label")}</Text>
           <TextInput testID="login-email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={styles.input} placeholderTextColor={colors.muted} />
-          <Text style={styles.label}>Password</Text>
+          <Text style={styles.label}>{t("login.password_label")}</Text>
           <View style={{ flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderColor: colors.borderStrong }}>
             <TextInput testID="login-password" value={password} onChangeText={setPassword} secureTextEntry={!showPw} style={[styles.input, { flex: 1, borderBottomWidth: 0 }]} placeholderTextColor={colors.muted} />
             <Pressable testID="login-toggle-pw" onPress={() => setShowPw(v => !v)} style={{ padding: spacing.sm }}>
@@ -61,22 +63,22 @@ export default function Login() {
           </View>
           {err && <Text testID="login-error" style={styles.err}>{err}</Text>}
           <Pressable testID="login-submit" onPress={submit} disabled={busy} style={({ pressed }) => [styles.btn, pressed && { opacity: 0.85 }]} accessibilityRole="button">
-            <Text style={styles.btnText}>{busy ? "Signing in…" : "Sign in"}</Text>
+            <Text style={styles.btnText}>{busy ? t("login.signing_in") : t("login.sign_in")}</Text>
           </Pressable>
 
           <View style={styles.divider}>
             <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
+            <Text style={styles.dividerText}>{t("login.or_divider")}</Text>
             <View style={styles.dividerLine} />
           </View>
 
           <Pressable testID="login-google" onPress={google} disabled={busy} style={styles.googleBtn}>
             <View style={styles.googleG}><Text style={styles.googleGText}>G</Text></View>
-            <Text style={styles.googleBtnText}>Continue with Google</Text>
+            <Text style={styles.googleBtnText}>{t("login.google_continue")}</Text>
           </Pressable>
 
           <Pressable testID="go-register" onPress={() => router.push("/welcome")}>
-            <Text style={styles.link}>New here? Get started →</Text>
+            <Text style={styles.link}>{t("login.new_here")}</Text>
           </Pressable>
         </View>
       </ScrollView>

@@ -1,1 +1,28 @@
-{}
+{
+  "title": "Safety on BraidsCommunity",
+  "subtitle": "Community guidelines for a safe experience for everyone.",
+  "rows": {
+    "verified_studios": {
+      "title": "Verified Studios",
+      "desc": "Look for the Verified Pro badge, but every Studio is welcome to serve customers."
+    },
+    "phone_privacy": {
+      "title": "Phone numbers stay private",
+      "desc": "We never share your number with the other party until you agree."
+    },
+    "report": {
+      "title": "Report anything that feels wrong",
+      "desc": "Use the Report button on any profile. Three flags from different braiders restricts a customer's ability to book."
+    },
+    "pay_at_counter": {
+      "title": "Pay at the counter",
+      "desc": "Payment happens in person between you and the braider. BraidsCommunity does not process payments."
+    },
+    "meet_safely": {
+      "title": "Meet in professional locations",
+      "desc": "Braiders should list a Studio address or agree on a safe public location before the appointment."
+    }
+  },
+  "legal": "By using BraidsCommunity, you agree to treat every member with respect. Discrimination, harassment, and unsafe behavior are grounds for immediate removal.",
+  "acknowledge": "Got it"
+}

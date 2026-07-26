@@ -1,5 +1,6 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { colors, spacing, font } from "@/src/theme";
 import { SafeScrollView, ResponsiveHeading, Card } from "@/src/ui";
@@ -11,6 +12,8 @@ import { SafeScrollView, ResponsiveHeading, Card } from "@/src/ui";
  */
 export default function SafetyScreen() {
   const router = useRouter();
+  const { t } = useTranslation("safety");
+  const { t: tCommon } = useTranslation("common");
 
   return (
     <SafeScrollView>
@@ -21,24 +24,24 @@ export default function SafetyScreen() {
           hitSlop={12}
           style={{ minHeight: 44, width: 44, justifyContent: "center" }}
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel={tCommon("buttons.back")}
         >
           <Feather name="arrow-left" size={22} color={colors.onSurface} />
         </Pressable>
 
-        <ResponsiveHeading size={28} style={{ marginTop: spacing.sm }}>Safety on BraidsCommunity</ResponsiveHeading>
-        <Text style={s.sub}>Community guidelines for a safe experience for everyone.</Text>
+        <ResponsiveHeading size={28} style={{ marginTop: spacing.sm }}>{t("title")}</ResponsiveHeading>
+        <Text style={s.sub}>{t("subtitle")}</Text>
 
         <Card padding={spacing.lg} style={{ marginTop: spacing.lg, gap: spacing.md }}>
-          <SafetyRow icon="user-check" title="Verified Studios" desc="Look for the Verified Pro badge, but every Studio is welcome to serve customers." />
-          <SafetyRow icon="phone-off" title="Phone numbers stay private" desc="We never share your number with the other party until you agree." />
-          <SafetyRow icon="alert-circle" title="Report anything that feels wrong" desc="Use the Report button on any profile. Three flags from different braiders restricts a customer's ability to book." />
-          <SafetyRow icon="dollar-sign" title="Pay at the counter" desc="Payment happens in person between you and the braider. BraidsCommunity does not process payments." />
-          <SafetyRow icon="map-pin" title="Meet in professional locations" desc="Braiders should list a Studio address or agree on a safe public location before the appointment." />
+          <SafetyRow icon="user-check" title={t("rows.verified_studios.title")} desc={t("rows.verified_studios.desc")} />
+          <SafetyRow icon="phone-off" title={t("rows.phone_privacy.title")} desc={t("rows.phone_privacy.desc")} />
+          <SafetyRow icon="alert-circle" title={t("rows.report.title")} desc={t("rows.report.desc")} />
+          <SafetyRow icon="dollar-sign" title={t("rows.pay_at_counter.title")} desc={t("rows.pay_at_counter.desc")} />
+          <SafetyRow icon="map-pin" title={t("rows.meet_safely.title")} desc={t("rows.meet_safely.desc")} />
         </Card>
 
         <Text style={s.legal}>
-          By using BraidsCommunity, you agree to treat every member with respect. Discrimination, harassment, and unsafe behavior are grounds for immediate removal.
+          {t("legal")}
         </Text>
 
         <Pressable
@@ -46,9 +49,9 @@ export default function SafetyScreen() {
           onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
           style={s.btn}
           accessibilityRole="button"
-          accessibilityLabel="Got it"
+          accessibilityLabel={t("acknowledge")}
         >
-          <Text style={s.btnText}>Got it</Text>
+          <Text style={s.btnText}>{t("acknowledge")}</Text>
         </Pressable>
       </View>
     </SafeScrollView>

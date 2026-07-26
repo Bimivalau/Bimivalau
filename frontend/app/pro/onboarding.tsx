@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator, BackHandler, Platform } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
@@ -20,6 +21,8 @@ import { colors, spacing, font, radii } from "@/src/theme";
 export default function ProOnboarding() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation("onboarding");
+  const { t: tCommon } = useTranslation("common");
   const [status, setStatus] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -37,9 +40,9 @@ export default function ProOnboarding() {
         router.replace("/pro/dashboard");
       }
     } catch (e: any) {
-      setLoadErr(e?.message || "Could not load setup status. Check your connection and try again.");
+      setLoadErr(e?.message || t("loading_error"));
     }
-  }, [router]);
+  }, [router, t]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
@@ -62,7 +65,7 @@ export default function ProOnboarding() {
         router.replace("/pro/dashboard");
       }
     } catch (e: any) {
-      setErr(e?.message || "Could not activate bookings. Please try again.");
+      setErr(e?.message || t("activate_error"));
     } finally {
       setBusy(false);
     }
@@ -81,16 +84,16 @@ export default function ProOnboarding() {
       <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl }}>
         <Feather name="wifi-off" size={28} color={colors.muted} />
         <Text style={{ fontFamily: font.bodyBold, color: colors.onSurface, fontSize: 16, marginTop: spacing.md, textAlign: "center" }}>
-          Couldn&apos;t load your setup
+          {t("load_error_title")}
         </Text>
         <Text style={{ fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 13, marginTop: spacing.xs, textAlign: "center", lineHeight: 18 }}>
           {loadErr}
         </Text>
         <Pressable testID="onb-retry" onPress={load} style={[s.finishBtn, { marginTop: spacing.lg, paddingHorizontal: spacing.xl }]}>
-          <Text style={s.finishText}>Try again</Text>
+          <Text style={s.finishText}>{tCommon("buttons.retry")}</Text>
         </Pressable>
         <Pressable testID="onb-skip-to-dash" onPress={() => router.replace("/pro/dashboard")} style={{ marginTop: spacing.md }}>
-          <Text style={{ fontFamily: font.bodyMed, color: colors.brand, fontSize: 13 }}>Go to Dashboard</Text>
+          <Text style={{ fontFamily: font.bodyMed, color: colors.brand, fontSize: 13 }}>{t("go_to_dashboard")}</Text>
         </Pressable>
       </View>
     );
@@ -112,13 +115,13 @@ export default function ProOnboarding() {
         </View>
         <View style={s.liveBadge}>
           <View style={s.dot} />
-          <Text style={s.liveBadgeText}>YOUR STUDIO IS LIVE</Text>
+          <Text style={s.liveBadgeText}>{t("live_badge")}</Text>
         </View>
-        <Text testID="onb-title" style={s.title}>Your Studio is live.</Text>
-        <Text style={s.sub}>Customers can already discover your Studio. Complete these recommendations to attract even more bookings.</Text>
+        <Text testID="onb-title" style={s.title}>{t("title")}</Text>
+        <Text style={s.sub}>{t("subtitle")}</Text>
 
         {/* ---- REQUIRED ---- */}
-        <Text style={s.sectionTitle}>Required</Text>
+        <Text style={s.sectionTitle}>{t("required_section")}</Text>
         <Pressable
           testID="onb-availability"
           onPress={() => router.push("/pro/availability")}
@@ -128,18 +131,18 @@ export default function ProOnboarding() {
             {status.has_availability ? <Feather name="check" size={14} color="#fff" /> : <Feather name="clock" size={14} color={colors.brand} />}
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.itemTitle}>Set Weekly Availability</Text>
+            <Text style={s.itemTitle}>{t("availability_title")}</Text>
             <Text style={s.itemDesc}>
               {status.has_availability
-                ? "You're accepting bookings on your weekly hours."
-                : "Tell customers when you're available so they can book you."}
+                ? t("availability_desc_done")
+                : t("availability_desc_todo")}
             </Text>
           </View>
           <Feather name="chevron-right" size={20} color={colors.muted} />
         </Pressable>
 
         {/* ---- RECOMMENDED ---- */}
-        <Text style={s.sectionTitle}>Recommended</Text>
+        <Text style={s.sectionTitle}>{t("recommended_section")}</Text>
         <Pressable testID="onb-portfolio" onPress={() => router.push("/pro/portfolio")} style={s.item}>
           <View style={s.bullet}>
             {status.has_portfolio
@@ -148,10 +151,10 @@ export default function ProOnboarding() {
           </View>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-              <Text style={s.itemTitle}>Showcase Your Work</Text>
-              <Text style={s.optionalTag}>OPTIONAL</Text>
+              <Text style={s.itemTitle}>{t("portfolio_title")}</Text>
+              <Text style={s.optionalTag}>{t("optional_tag")}</Text>
             </View>
-            <Text style={s.itemDesc}>Upload portfolio photos — improves customer trust and ranking.</Text>
+            <Text style={s.itemDesc}>{t("portfolio_desc")}</Text>
           </View>
           <Feather name="chevron-right" size={20} color={colors.muted} />
         </Pressable>
@@ -162,10 +165,10 @@ export default function ProOnboarding() {
           </View>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
-              <Text style={s.itemTitle}>Apply for Verified Pro</Text>
-              <Text style={s.optionalTag}>OPTIONAL</Text>
+              <Text style={s.itemTitle}>{t("verify_title")}</Text>
+              <Text style={s.optionalTag}>{t("optional_tag")}</Text>
             </View>
-            <Text style={s.itemDesc}>Submit ID or license — earns the Verified badge and stronger visibility.</Text>
+            <Text style={s.itemDesc}>{t("verify_desc")}</Text>
           </View>
           <Feather name="chevron-right" size={20} color={colors.muted} />
         </Pressable>
@@ -179,15 +182,15 @@ export default function ProOnboarding() {
           style={[s.finishBtn, (!canFinish || busy) && s.finishBtnDisabled]}
         >
           <Text style={[s.finishText, (!canFinish || busy) && { color: colors.muted }]}>
-            {busy ? "Finishing…" : "Start Receiving Bookings"}
+            {busy ? t("finishing") : t("finish_button")}
           </Text>
         </Pressable>
         {!canFinish && (
-          <Text testID="onb-hint" style={s.hint}>Set your weekly hours to start receiving bookings.</Text>
+          <Text testID="onb-hint" style={s.hint}>{t("finish_hint")}</Text>
         )}
         {canFinish && (
           <Text testID="onb-recs" style={s.recs}>
-            You&apos;re all set. Add portfolio photos or apply for Verified Pro anytime from the <Text style={{ fontFamily: font.bodyBold, color: colors.brand }}>My Studio</Text> tab.
+            {t("recs_pre")} <Text style={{ fontFamily: font.bodyBold, color: colors.brand }}>{t("recs_my_studio")}</Text>{t("recs_post")}
           </Text>
         )}
 
@@ -198,7 +201,7 @@ export default function ProOnboarding() {
           style={{ marginTop: spacing.lg, alignSelf: "center", paddingVertical: spacing.sm }}
         >
           <Text style={{ fontFamily: font.bodyMed, color: colors.brand, fontSize: 13 }}>
-            Skip for now — go to Dashboard
+            {t("skip_to_dashboard")}
           </Text>
         </Pressable>
       </View>

@@ -3,6 +3,7 @@ import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Pla
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { api, setToken } from "@/src/api";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
@@ -11,6 +12,8 @@ export default function Register() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { refresh } = useSession();
+  const { t } = useTranslation("auth");
+  const { t: tCommon } = useTranslation("common");
   const params = useLocalSearchParams<{ role?: string }>();
   const role: "customer" | "hairdresser" = params.role === "hairdresser" ? "hairdresser" : "customer";
   const isPro = role === "hairdresser";
@@ -42,7 +45,7 @@ export default function Register() {
       await setToken(res.access_token);
       await refresh();
       router.replace("/verify-email");
-    } catch (e: any) { setErr(e.message || "Sign-up failed"); }
+    } catch (e: any) { setErr(e.message || t("register.errors.signup_failed")); }
     finally { setBusy(false); }
   };
 
@@ -55,19 +58,19 @@ export default function Register() {
           hitSlop={12}
           style={{ minHeight: 44, width: 44, justifyContent: "center" }}
           accessibilityRole="button"
-          accessibilityLabel="Back"
+          accessibilityLabel={tCommon("buttons.back")}
         >
           <Feather name="arrow-left" size={22} color={colors.onSurface} />
         </Pressable>
-        <Text style={s.title}>{isPro ? "Create your\nbraider account" : "Create your\naccount"}</Text>
+        <Text style={s.title}>{isPro ? t("register.title_pro") : t("register.title_customer")}</Text>
 
-        <Text style={s.label}>Full name</Text>
+        <Text style={s.label}>{t("register.full_name_label")}</Text>
         <TextInput testID="reg-name" value={name} onChangeText={setName} style={s.input} />
 
-        <Text style={s.label}>Email</Text>
+        <Text style={s.label}>{t("register.email_label")}</Text>
         <TextInput testID="reg-email" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" style={s.input} />
 
-        <Text style={s.label}>Password (min 6)</Text>
+        <Text style={s.label}>{t("register.password_label")}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", borderBottomWidth: 1, borderColor: colors.borderStrong }}>
           <TextInput testID="reg-password" value={password} onChangeText={setPassword} secureTextEntry={!showPw} style={[s.input, { flex: 1, borderBottomWidth: 0 }]} />
           <Pressable testID="reg-toggle-pw" onPress={() => setShowPw(v => !v)} style={{ padding: spacing.sm }}>
@@ -75,19 +78,19 @@ export default function Register() {
           </Pressable>
         </View>
 
-        <Text style={s.label}>Confirm password</Text>
+        <Text style={s.label}>{t("register.confirm_password_label")}</Text>
         <TextInput testID="reg-confirm" value={confirm} onChangeText={setConfirm} secureTextEntry={!showPw} style={s.input} />
         {confirm.length > 0 && !passwordsMatch && (
-          <Text style={{ color: colors.warning, fontFamily: font.body, fontSize: 12, marginTop: 4 }}>Passwords must match and be at least 6 characters.</Text>
+          <Text style={{ color: colors.warning, fontFamily: font.body, fontSize: 12, marginTop: 4 }}>{t("register.password_mismatch")}</Text>
         )}
 
         {isPro && (
           <>
-            <Text style={s.label}>Private phone number</Text>
+            <Text style={s.label}>{t("register.phone_label")}</Text>
             <TextInput testID="reg-phone" value={phone} onChangeText={setPhone} keyboardType="phone-pad" style={s.input} />
             <View style={s.privacyBox}>
               <Feather name="lock" size={14} color={colors.brand} />
-              <Text style={s.privacyText}>Your phone number is used only for account security and is never displayed publicly.</Text>
+              <Text style={s.privacyText}>{t("register.phone_privacy")}</Text>
             </View>
           </>
         )}
@@ -95,13 +98,13 @@ export default function Register() {
         <Pressable testID="reg-accept" onPress={() => setAccept(a => !a)} style={s.termsRow}>
           <Feather name={accept ? "check-square" : "square"} size={20} color={accept ? colors.brand : colors.borderStrong} />
           <Text style={s.termsText}>
-            I accept the <Text style={{ fontFamily: font.bodyBold, color: colors.brand }}>Terms of Service</Text> and <Text style={{ fontFamily: font.bodyBold, color: colors.brand }}>Privacy Policy</Text>.
+            {t("register.terms.prefix")}<Text style={{ fontFamily: font.bodyBold, color: colors.brand }}>{t("register.terms.tos")}</Text>{t("register.terms.and")}<Text style={{ fontFamily: font.bodyBold, color: colors.brand }}>{t("register.terms.privacy")}</Text>{t("register.terms.suffix")}
           </Text>
         </Pressable>
 
         {err && <Text testID="reg-error" style={{ color: colors.error, fontFamily: font.body, marginTop: spacing.md }}>{err}</Text>}
         <Pressable testID="reg-submit" onPress={submit} disabled={!canSubmit || busy} style={[s.btn, (!canSubmit || busy) && { opacity: 0.4 }]}>
-          <Text style={s.btnText}>{busy ? "Creating account…" : "Continue → verify email"}</Text>
+          <Text style={s.btnText}>{busy ? t("register.creating_account") : t("register.continue_verify")}</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>
