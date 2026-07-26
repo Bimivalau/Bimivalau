@@ -2,11 +2,14 @@ import { useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, TextInput, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 
 export default function ProVerification() {
+  const { t } = useTranslation("pro_dashboard");
+  const { t: tCommon } = useTranslation("common");
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [v, setV] = useState<any>(null);
@@ -49,10 +52,10 @@ export default function ProVerification() {
         keyboardShouldPersistTaps="handled"
       >
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.xl }}>
-        <Pressable testID="ver-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/pro/studio"))} hitSlop={12} style={{ minHeight: 44, width: 44, justifyContent: "center" }} accessibilityRole="button" accessibilityLabel="Back">
+        <Pressable testID="ver-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/pro/studio"))} hitSlop={12} style={{ minHeight: 44, width: 44, justifyContent: "center" }} accessibilityRole="button" accessibilityLabel={tCommon("buttons.back")}>
           <Feather name="arrow-left" size={22} color={colors.onSurface} />
         </Pressable>
-        <Text style={s.title}>License verification</Text>
+        <Text style={s.title}>{t("verification.title")}</Text>
 
         {/* ---------- Fresh account, never submitted (UNVERIFIED = optional pitch) ---------- */}
         {isUnverified && !justResubmitted && (
@@ -61,36 +64,36 @@ export default function ProVerification() {
               <View style={s.optionalBadge}>
                 <Feather name="shield" size={22} color={colors.brand} />
               </View>
-              <Text style={s.optionalTitle}>Get the “Verified Pro” badge</Text>
+              <Text style={s.optionalTitle}>{t("verification.optional_title")}</Text>
               <Text style={s.optionalSub}>
-                Verification is <Text style={{ fontFamily: font.bodyBold }}>optional</Text> — you&apos;re already live in customer search. Verified stylists get a badge on their profile and tend to earn more bookings.
+                {t("verification.optional_sub_lead")} <Text style={{ fontFamily: font.bodyBold }}>{t("verification.optional_word")}</Text> {t("verification.optional_sub_tail")}
               </Text>
             </View>
 
-            <Text style={[s.section, { marginTop: spacing.xl }]}>Why verify?</Text>
+            <Text style={[s.section, { marginTop: spacing.xl }]}>{t("verification.why_verify")}</Text>
             <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
-              <Perk icon="award" title="Verified Pro badge" desc="Shown on your profile, portfolio, and search results." />
-              <Perk icon="trending-up" title="More trust, more bookings" desc="Customers filter for verified stylists in busy cities." />
-              <Perk icon="clock" title="Fast turnaround" desc="Admins review within 3 business days." />
+              <Perk icon="award" title={t("verification.perk_badge_title")} desc={t("verification.perk_badge_desc")} />
+              <Perk icon="trending-up" title={t("verification.perk_trust_title")} desc={t("verification.perk_trust_desc")} />
+              <Perk icon="clock" title={t("verification.perk_turnaround_title")} desc={t("verification.perk_turnaround_desc")} />
             </View>
 
-            <Text style={[s.section, { marginTop: spacing.xl }]}>Submit ID / business license</Text>
-            <Text style={s.help}>Paste a URL to a photo of your government-issued ID or braiding license.</Text>
+            <Text style={[s.section, { marginTop: spacing.xl }]}>{t("verification.submit_section")}</Text>
+            <Text style={s.help}>{t("verification.submit_help")}</Text>
             <TextInput
               testID="ver-url"
               value={url}
               onChangeText={setUrl}
-              placeholder="https://…"
+              placeholder={t("verification.url_placeholder")}
               placeholderTextColor={colors.muted}
               style={s.input}
               autoCapitalize="none"
               autoCorrect={false}
             />
             <Pressable testID="ver-submit" onPress={submit} disabled={!url || busy} style={[s.btn, (!url || busy) && { opacity: 0.4 }]}>
-              <Text style={s.btnText}>{busy ? "Submitting…" : "Submit for review"}</Text>
+              <Text style={s.btnText}>{busy ? t("verification.submitting") : t("verification.submit_for_review")}</Text>
             </Pressable>
             <Pressable testID="ver-skip" onPress={() => router.back()} style={s.skipBtn}>
-              <Text style={s.skipText}>Maybe later</Text>
+              <Text style={s.skipText}>{t("verification.skip")}</Text>
             </Pressable>
           </>
         )}
@@ -102,36 +105,36 @@ export default function ProVerification() {
               <View style={s.rejectedIcon}>
                 <Feather name="alert-triangle" size={22} color="#fff" />
               </View>
-              <Text style={s.rejectedTitle}>Application needs attention</Text>
+              <Text style={s.rejectedTitle}>{t("verification.rejected_title")}</Text>
               <Text style={s.rejectedSub}>
-                Your last submission wasn&apos;t approved. Fix the issues below and resubmit — you&apos;ll go back into the queue with a fresh 3-day SLA.
+                {t("verification.rejected_sub")}
               </Text>
             </View>
 
             <View style={s.reasonBox}>
-              <Text style={s.reasonLabel}>ADMIN FEEDBACK</Text>
+              <Text style={s.reasonLabel}>{t("verification.admin_feedback_label")}</Text>
               <Text testID="ver-reason" style={s.reasonText}>
-                “{v.reason || "No specific reason given. Please upload a clearer photo of a government-issued ID or braiding license."}”
+                “{v.reason || t("verification.no_reason_given")}”
               </Text>
               {v.decided_at && (
-                <Text style={s.reasonMeta}>Reviewed {new Date(v.decided_at).toLocaleDateString()}</Text>
+                <Text style={s.reasonMeta}>{t("verification.reviewed_on", { date: new Date(v.decided_at).toLocaleDateString() })}</Text>
               )}
             </View>
 
-            <Text style={s.section}>How to fix it</Text>
+            <Text style={s.section}>{t("verification.how_to_fix")}</Text>
             <View style={{ gap: spacing.sm, marginTop: spacing.sm }}>
-              <Step n={1} title="Read the feedback" desc="Understand what the admin flagged in your previous upload." />
-              <Step n={2} title="Take a clear photo" desc="Well-lit, no glare, full document visible, text readable." />
-              <Step n={3} title="Upload and resubmit" desc="Paste the new URL below. Your profile stays hidden from customers until re-approved." />
+              <Step n={1} title={t("verification.step1_title")} desc={t("verification.step1_desc")} />
+              <Step n={2} title={t("verification.step2_title")} desc={t("verification.step2_desc")} />
+              <Step n={3} title={t("verification.step3_title")} desc={t("verification.step3_desc")} />
             </View>
 
-            <Text style={[s.section, { marginTop: spacing.xl }]}>Upload a new document</Text>
-            <Text style={s.help}>We&apos;ve kept your previous URL so you can adjust it — replace with the new photo before resubmitting.</Text>
+            <Text style={[s.section, { marginTop: spacing.xl }]}>{t("verification.upload_new_document")}</Text>
+            <Text style={s.help}>{t("verification.upload_new_help")}</Text>
             <TextInput
               testID="ver-url"
               value={url}
               onChangeText={setUrl}
-              placeholder="https://…"
+              placeholder={t("verification.url_placeholder")}
               placeholderTextColor={colors.muted}
               style={s.input}
               autoCapitalize="none"
@@ -143,10 +146,10 @@ export default function ProVerification() {
               disabled={!url || busy || url === v.license_url}
               style={[s.btn, (!url || busy || url === v.license_url) && { opacity: 0.4 }]}
             >
-              <Text style={s.btnText}>{busy ? "Resubmitting…" : "Resubmit for review"}</Text>
+              <Text style={s.btnText}>{busy ? t("verification.resubmitting") : t("verification.resubmit_for_review")}</Text>
             </Pressable>
             {url && url === v.license_url && (
-              <Text style={s.hintInline}>Change the URL before resubmitting — otherwise you&apos;ll upload the same document that was rejected.</Text>
+              <Text style={s.hintInline}>{t("verification.same_url_hint")}</Text>
             )}
           </>
         )}
@@ -155,8 +158,8 @@ export default function ProVerification() {
         {isPending && justResubmitted && (
           <View testID="resubmitted-success" style={s.successBox}>
             <Feather name="check-circle" size={28} color={colors.success} />
-            <Text style={s.successTitle}>You&apos;re back in the queue</Text>
-            <Text style={s.successMsg}>Admin has 3 business days to re-review. You&apos;ll get a notification with the outcome.</Text>
+            <Text style={s.successTitle}>{t("verification.success_title")}</Text>
+            <Text style={s.successMsg}>{t("verification.success_message")}</Text>
           </View>
         )}
 
@@ -164,16 +167,16 @@ export default function ProVerification() {
         {isPending && !justResubmitted && (
           <>
             <View style={[s.status, { borderColor: colors.warning }]}>
-              <Text style={[s.statusLabel, { color: colors.warning }]}>PENDING</Text>
-              <Text style={s.statusMsg}>Under review — typically completed within 3 business days.</Text>
+              <Text style={[s.statusLabel, { color: colors.warning }]}>{t("verification.status_pending")}</Text>
+              <Text style={s.statusMsg}>{t("verification.pending_message")}</Text>
               {v.submitted_at && (
                 <Text style={s.statusMeta}>
-                  Submitted {new Date(v.submitted_at).toLocaleDateString()} · {v.overdue ? "Overdue — admin flagged" : `${v.days_left_sla} day(s) remaining in SLA`}
+                  {t("verification.submitted_on", { date: new Date(v.submitted_at).toLocaleDateString() })} · {v.overdue ? t("verification.overdue") : t("verification.days_remaining", { count: v.days_left_sla })}
                 </Text>
               )}
             </View>
             <Text style={[s.help, { marginTop: spacing.lg }]}>
-              Your profile stays hidden from customer search while pending. We&apos;ll notify you as soon as an admin reviews.
+              {t("verification.pending_help")}
             </Text>
           </>
         )}
@@ -181,29 +184,29 @@ export default function ProVerification() {
         {/* ---------- APPROVED ---------- */}
         {isApproved && (
           <View style={[s.status, { borderColor: colors.success }]}>
-            <Text style={[s.statusLabel, { color: colors.success }]}>APPROVED</Text>
-            <Text style={s.statusMsg}>You&apos;re verified. Your profile is live in customer search.</Text>
-            {v.decided_at && <Text style={s.statusMeta}>Approved {new Date(v.decided_at).toLocaleDateString()}</Text>}
+            <Text style={[s.statusLabel, { color: colors.success }]}>{t("verification.status_approved")}</Text>
+            <Text style={s.statusMsg}>{t("verification.approved_message")}</Text>
+            {v.decided_at && <Text style={s.statusMeta}>{t("verification.approved_on", { date: new Date(v.decided_at).toLocaleDateString() })}</Text>}
           </View>
         )}
 
         {/* ---------- Fresh account, no submission yet (legacy 'pending' with no submitted_at — kept for backward compat) ---------- */}
         {isPending && !v.submitted_at && !justResubmitted && (
           <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
-            <Text style={s.section}>Submit ID / business license</Text>
-            <Text style={s.help}>Paste a URL to a photo of your government-issued ID or braiding license. Your profile will be locked until an admin approves.</Text>
+            <Text style={s.section}>{t("verification.submit_section")}</Text>
+            <Text style={s.help}>{t("verification.submit_help_legacy")}</Text>
             <TextInput
               testID="ver-url"
               value={url}
               onChangeText={setUrl}
-              placeholder="https://…"
+              placeholder={t("verification.url_placeholder")}
               placeholderTextColor={colors.muted}
               style={s.input}
               autoCapitalize="none"
               autoCorrect={false}
             />
             <Pressable testID="ver-submit" onPress={submit} disabled={!url || busy} style={[s.btn, (!url || busy) && { opacity: 0.4 }]}>
-              <Text style={s.btnText}>{busy ? "Submitting…" : "Submit for review"}</Text>
+              <Text style={s.btnText}>{busy ? t("verification.submitting") : t("verification.submit_for_review")}</Text>
             </Pressable>
           </View>
         )}

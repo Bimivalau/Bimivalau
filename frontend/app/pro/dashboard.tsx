@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { View, Text, StyleSheet, Pressable } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { api } from "@/src/api";
 import { useSession } from "@/src/session";
@@ -20,6 +21,7 @@ import { SafeScrollView, ResponsiveHeading, Card, Badge, SectionTitle, LoadingSt
  * (Bookings, Growth, My Studio) — no duplicate action grid.
  */
 export default function ProDashboard() {
+  const { t } = useTranslation("pro_dashboard");
   const { user } = useSession();
   const router = useRouter();
   const [data, setData] = useState<any>(null);
@@ -41,7 +43,7 @@ export default function ProDashboard() {
   }, []);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
-  if (loading) return <LoadingState label="Loading your dashboard…" />;
+  if (loading) return <LoadingState label={t("dashboard.loading")} />;
 
   const upcoming = data?.upcoming || [];
   const today = new Date().toDateString();
@@ -52,14 +54,14 @@ export default function ProDashboard() {
   return (
     <SafeScrollView>
       <View style={{ paddingTop: spacing.md }}>
-        <Text style={s.eyebrow}>DASHBOARD</Text>
+        <Text style={s.eyebrow}>{t("dashboard.eyebrow")}</Text>
         <ResponsiveHeading size={30} style={{ marginTop: spacing.xs }}>
-          Hello, {user?.name?.split(" ")[0] || "there"}.
+          {user?.name?.split(" ")[0] ? t("dashboard.hello_named", { name: user.name.split(" ")[0] }) : t("dashboard.hello_generic")}
         </ResponsiveHeading>
         <Text style={s.sub}>
           {todays.length > 0
-            ? `${todays.length} appointment${todays.length > 1 ? "s" : ""} today.`
-            : "No appointments today. Time to grow the business."}
+            ? t("dashboard.appointments_today", { count: todays.length })
+            : t("dashboard.no_appointments")}
         </Text>
 
         {/* Complete Studio Setup — only until 100% */}
@@ -75,11 +77,11 @@ export default function ProDashboard() {
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap", rowGap: 4 }}>
-                  <Text style={styles.setupTitle} numberOfLines={2}>Complete your Studio setup</Text>
+                  <Text style={styles.setupTitle} numberOfLines={2}>{t("dashboard.setup_title")}</Text>
                   <Badge label={`${studioStatus.progress.percent}%`} tone="brand" variant="solid" />
                 </View>
                 <Text style={styles.setupMsg} numberOfLines={2}>
-                  Next up: {studioStatus.sections.find((x: any) => x.key === studioStatus.first_incomplete)?.label || "Improve your Studio"}
+                  {t("dashboard.next_up", { label: studioStatus.sections.find((x: any) => x.key === studioStatus.first_incomplete)?.label || t("dashboard.improve_studio_fallback") })}
                 </Text>
               </View>
               <Feather name="chevron-right" size={20} color={colors.brand} />
@@ -109,12 +111,12 @@ export default function ProDashboard() {
               />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={[styles.verBannerTitle, verification.status === "rejected" && { color: colors.error }]} numberOfLines={2}>
-                  {verification.status === "rejected" ? "Verification rejected" : "Verification under review"}
+                  {verification.status === "rejected" ? t("dashboard.ver_rejected_title") : t("dashboard.ver_pending_title")}
                 </Text>
                 <Text style={styles.verBannerMsg} numberOfLines={2}>
                   {verification.status === "rejected"
-                    ? "Tap to see feedback and resubmit."
-                    : "You're live either way. Result within 3 business days."}
+                    ? t("dashboard.ver_rejected_msg")
+                    : t("dashboard.ver_pending_msg")}
                 </Text>
               </View>
               <Feather name="chevron-right" size={18} color={colors.muted} />
@@ -123,19 +125,19 @@ export default function ProDashboard() {
         )}
 
         {/* Today at a glance */}
-        <SectionTitle title="Today at a glance" />
+        <SectionTitle title={t("dashboard.today_glance")} />
         <View style={styles.statRow}>
-          <StatBlock label="Today" value={todays.length} sub="appointments" />
-          <StatBlock label="Upcoming" value={upcoming.length} sub="next 30 days" />
+          <StatBlock label={t("dashboard.stat_today_label")} value={todays.length} sub={t("dashboard.stat_today_sub")} />
+          <StatBlock label={t("dashboard.stat_upcoming_label")} value={upcoming.length} sub={t("dashboard.stat_upcoming_sub")} />
         </View>
 
         {/* Today's schedule */}
-        <SectionTitle title={`Today's schedule · ${todays.length}`} action="See all" onActionPress={() => router.push("/pro/bookings")} />
+        <SectionTitle title={t("dashboard.todays_schedule", { count: todays.length })} action={t("dashboard.see_all")} onActionPress={() => router.push("/pro/bookings")} />
         {todays.length === 0 ? (
           <Card variant="tinted" padding={spacing.lg} style={{ alignItems: "center" }}>
             <Feather name="coffee" size={22} color={colors.brand} />
-            <Text style={styles.emptyTitle}>Free day.</Text>
-            <Text style={styles.emptyMsg} numberOfLines={2}>Enjoy it — new bookings will show here as they come in.</Text>
+            <Text style={styles.emptyTitle}>{t("dashboard.free_day")}</Text>
+            <Text style={styles.emptyMsg} numberOfLines={2}>{t("dashboard.free_day_message")}</Text>
           </Card>
         ) : (
           todays.map((b: any) => (
@@ -145,7 +147,7 @@ export default function ProDashboard() {
 
         {future.length > 0 && (
           <>
-            <SectionTitle title={`Upcoming · ${future.length}`} action="See all" onActionPress={() => router.push("/pro/bookings")} />
+            <SectionTitle title={t("dashboard.upcoming_count", { count: future.length })} action={t("dashboard.see_all")} onActionPress={() => router.push("/pro/bookings")} />
             {future.map((b: any) => (
               <ApptRow key={b.id} b={b} onPress={() => router.push(`/booking/${b.id}` as any)} showDate />
             ))}
