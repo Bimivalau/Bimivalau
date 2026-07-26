@@ -3,6 +3,7 @@ import { View, Text, ScrollView, Pressable, StyleSheet, ActivityIndicator } from
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 
@@ -10,6 +11,7 @@ export default function BookFlow() {
   const { hairdresserId } = useLocalSearchParams<{ hairdresserId: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation("booking");
   const [hd, setHd] = useState<any>(null);
   const [styleId, setStyleId] = useState<string | null>(null);
   const [date, setDate] = useState(new Date());
@@ -46,10 +48,10 @@ export default function BookFlow() {
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.xl, flexDirection: "row", alignItems: "center", gap: spacing.md, paddingBottom: spacing.md, borderBottomWidth: 1, borderColor: colors.divider }}>
         <Pressable testID="book-back" onPress={() => router.back()}><Feather name="arrow-left" size={22} color={colors.onSurface} /></Pressable>
-        <Text style={s.header}>Book with {hd.name}</Text>
+        <Text style={s.header}>{t("book.header", { name: hd.name })}</Text>
       </View>
       <ScrollView contentContainerStyle={{ padding: spacing.xl, paddingBottom: 120 }}>
-        <Text style={s.section}>1. Choose a style</Text>
+        <Text style={s.section}>{t("book.step1_title")}</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md }}>
           {hd.specialties.map((sp: any) => (
             <Pressable key={sp.id} testID={`style-${sp.id}`} onPress={() => setStyleId(sp.id)} style={[s.chip, styleId === sp.id && s.chipActive]}>
@@ -58,7 +60,7 @@ export default function BookFlow() {
           ))}
         </View>
 
-        <Text style={s.section}>2. Pick a date</Text>
+        <Text style={s.section}>{t("book.step2_title")}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, marginTop: spacing.md }}>
           {days.map(d => {
             const active = d.toDateString() === date.toDateString();
@@ -71,9 +73,9 @@ export default function BookFlow() {
           })}
         </ScrollView>
 
-        <Text style={s.section}>3. Available slots</Text>
+        <Text style={s.section}>{t("book.step3_title")}</Text>
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md }}>
-          {slots.length === 0 && <Text style={{ color: colors.muted, fontFamily: font.body }}>No slots for this day.</Text>}
+          {slots.length === 0 && <Text style={{ color: colors.muted, fontFamily: font.body }}>{t("book.no_slots")}</Text>}
           {slots.map(sl => (
             <Pressable key={sl} testID={`slot-${sl}`} onPress={() => setSlot(sl)} style={[s.slot, slot === sl && s.slotActive]}>
               <Text style={[s.slotText, slot === sl && s.slotTextActive]}>{new Date(sl).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
@@ -83,14 +85,14 @@ export default function BookFlow() {
 
         <View style={s.policy}>
           <Feather name="info" size={16} color={colors.brand} />
-          <Text style={s.policyText}>You&apos;ll pay <Text style={{ fontFamily: font.bodyBold }}>at the counter</Text> at the appointment. If you don&apos;t check in within 15 min of the scheduled time, the booking is auto-cancelled.</Text>
+          <Text style={s.policyText}>{t("book.policy_pre")}<Text style={{ fontFamily: font.bodyBold }}>{t("book.policy_bold")}</Text>{t("book.policy_post")}</Text>
         </View>
         {err && <Text testID="book-err" style={{ color: colors.error, marginTop: spacing.md, fontFamily: font.body }}>{err}</Text>}
       </ScrollView>
 
       <View style={[s.bar, { paddingBottom: insets.bottom + spacing.md }]}>
         <Pressable testID="confirm-book" disabled={!slot || !styleId || busy} onPress={confirm} style={[s.confirm, (!slot || !styleId) && { opacity: 0.4 }]}>
-          <Text style={s.confirmText}>{busy ? "Booking…" : "Confirm booking"}</Text>
+          <Text style={s.confirmText}>{busy ? t("book.confirming") : t("book.confirm_button")}</Text>
         </Pressable>
       </View>
     </View>

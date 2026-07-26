@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { api } from "@/src/api";
 import { colors, font, radii, spacing } from "@/src/theme";
 import { SafeScrollView, ResponsiveHeading, Card, Badge, SectionTitle, EmptyState, LoadingState, ErrorState } from "@/src/ui";
@@ -16,17 +17,18 @@ type Booking = {
 
 export default function ProBookings() {
   const router = useRouter();
+  const { t } = useTranslation("booking");
   const [data, setData] = useState<any>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try { setErr(null); const d = await api("/hairdressers/me/dashboard"); setData(d); }
-    catch (e: any) { setErr(e?.userMessage || "Could not load your bookings."); }
-  }, []);
+    catch (e: any) { setErr(e?.userMessage || t("pro_bookings.load_error")); }
+  }, [t]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (err && !data) return <ErrorState message={err} onRetry={load} />;
-  if (!data) return <LoadingState label="Loading your bookings…" />;
+  if (!data) return <LoadingState label={t("pro_bookings.loading_label")} />;
 
   const upcoming: Booking[] = data.upcoming || [];
   const today = new Date().toDateString();
@@ -36,37 +38,37 @@ export default function ProBookings() {
   return (
     <SafeScrollView>
       <View style={{ paddingTop: spacing.md }}>
-        <Text style={s.eyebrow}>SCHEDULE</Text>
-        <ResponsiveHeading size={30} style={{ marginTop: spacing.xs }}>Bookings</ResponsiveHeading>
-        <Text style={s.sub}>Your calendar of appointments and booking requests.</Text>
+        <Text style={s.eyebrow}>{t("pro_bookings.eyebrow")}</Text>
+        <ResponsiveHeading size={30} style={{ marginTop: spacing.xs }}>{t("pro_bookings.heading")}</ResponsiveHeading>
+        <Text style={s.sub}>{t("pro_bookings.subtitle")}</Text>
 
         <View style={{ flexDirection: "row", gap: spacing.md, marginTop: spacing.lg }}>
           <Pressable testID="bk-avail" onPress={() => router.push("/pro/availability")} style={{ flex: 1 }} accessibilityRole="button">
             <Card padding={spacing.md} variant="tinted">
               <Feather name="clock" size={18} color={colors.brand} />
-              <Text style={s.quickTitle}>Availability</Text>
-              <Text style={s.quickSub}>Weekly hours</Text>
+              <Text style={s.quickTitle}>{t("pro_bookings.availability_title")}</Text>
+              <Text style={s.quickSub}>{t("pro_bookings.availability_sub")}</Text>
             </Card>
           </Pressable>
           <Pressable testID="bk-services" onPress={() => router.push("/pro/services")} style={{ flex: 1 }} accessibilityRole="button">
             <Card padding={spacing.md} variant="tinted">
               <Feather name="tag" size={18} color={colors.brand} />
-              <Text style={s.quickTitle}>Services</Text>
-              <Text style={s.quickSub}>Prices & durations</Text>
+              <Text style={s.quickTitle}>{t("pro_bookings.services_title")}</Text>
+              <Text style={s.quickSub}>{t("pro_bookings.services_sub")}</Text>
             </Card>
           </Pressable>
         </View>
 
-        <SectionTitle title={`Today · ${todays.length}`} />
+        <SectionTitle title={t("pro_bookings.today_section", { count: todays.length })} />
         {todays.length === 0 ? (
-          <EmptyState icon="coffee" title="No bookings today" message="Enjoy the day. New requests will appear here." />
+          <EmptyState icon="coffee" title={t("pro_bookings.no_today_title")} message={t("pro_bookings.no_today_message")} />
         ) : (
           todays.map(b => <Appt key={b.id} b={b} onPress={() => router.push(`/booking/${b.id}` as any)} showDate={false} />)
         )}
 
-        <SectionTitle title={`Upcoming · ${future.length}`} />
+        <SectionTitle title={t("pro_bookings.upcoming_section", { count: future.length })} />
         {future.length === 0 ? (
-          <EmptyState icon="calendar" title="Nothing on the horizon" message="Once customers book, appointments will show here." />
+          <EmptyState icon="calendar" title={t("pro_bookings.no_upcoming_title")} message={t("pro_bookings.no_upcoming_message")} />
         ) : (
           future.slice(0, 10).map(b => <Appt key={b.id} b={b} onPress={() => router.push(`/booking/${b.id}` as any)} showDate />)
         )}

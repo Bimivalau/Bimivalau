@@ -4,12 +4,15 @@ import { Image } from "expo-image";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 
 export default function Bookings() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useTranslation("booking");
+  const { t: tCommon } = useTranslation("common");
   const [items, setItems] = useState<any[]>([]);
   const [tab, setTab] = useState<"upcoming" | "past">("upcoming");
   const [loading, setLoading] = useState(true);
@@ -34,11 +37,11 @@ export default function Bookings() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.xl, paddingBottom: spacing.md }}>
-        <Text style={s.header}>My bookings</Text>
+        <Text style={s.header}>{t("my_bookings.header")}</Text>
         <View style={s.tabs}>
-          {(["upcoming", "past"] as const).map(t => (
-            <Pressable key={t} testID={`bookings-tab-${t}`} onPress={() => setTab(t)} style={[s.tab, tab === t && s.tabActive]}>
-              <Text style={[s.tabText, tab === t && s.tabTextActive]}>{t === "upcoming" ? "Upcoming" : "Past"}</Text>
+          {(["upcoming", "past"] as const).map(tabKey => (
+            <Pressable key={tabKey} testID={`bookings-tab-${tabKey}`} onPress={() => setTab(tabKey)} style={[s.tab, tab === tabKey && s.tabActive]}>
+              <Text style={[s.tabText, tab === tabKey && s.tabTextActive]}>{tabKey === "upcoming" ? t("my_bookings.tab_upcoming") : t("my_bookings.tab_past")}</Text>
             </Pressable>
           ))}
         </View>
@@ -53,7 +56,7 @@ export default function Bookings() {
           {filt.length === 0 ? (
             <View style={{ alignItems: "center", marginTop: spacing.xxxl }}>
               <Feather name="calendar" size={40} color={colors.borderStrong} />
-              <Text style={{ marginTop: spacing.md, fontFamily: font.body, color: colors.muted }}>No {tab} bookings.</Text>
+              <Text style={{ marginTop: spacing.md, fontFamily: font.body, color: colors.muted }}>{tab === "upcoming" ? t("my_bookings.no_upcoming") : t("my_bookings.no_past")}</Text>
             </View>
           ) : filt.map(b => {
             const dt = new Date(b.appointment_datetime);
@@ -62,7 +65,7 @@ export default function Bookings() {
                 <Image source={{ uri: b.hairstyle_photo }} style={s.thumb} contentFit="cover" />
                 <View style={{ flex: 1, gap: 2 }}>
                   <Text style={s.style}>{b.hairstyle_name}</Text>
-                  <Text style={s.sub}>with {b.hairdresser_name}</Text>
+                  <Text style={s.sub}>{t("my_bookings.with_prefix")} {b.hairdresser_name}</Text>
                   <Text style={s.date}>{dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })} · {dt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
                   <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, flexWrap: "wrap" }}>
                     <Text style={[s.badge, s[`badge_${b.status}`]]}>{b.status.replace("_", " ").toUpperCase()}</Text>
@@ -72,8 +75,8 @@ export default function Bookings() {
                   </View>
                   {tab === "upcoming" && b.status === "confirmed" && (
                     <View style={{ flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm }}>
-                      <Pressable testID={`open-${b.id}`} onPress={() => router.push(`/booking/${b.id}`)} style={s.mini}><Text style={s.miniText}>Open · Check-in</Text></Pressable>
-                      <Pressable testID={`cancel-${b.id}`} onPress={() => cancel(b.id)} style={[s.mini, s.miniGhost]}><Text style={[s.miniText, { color: colors.onSurface }]}>Cancel</Text></Pressable>
+                      <Pressable testID={`open-${b.id}`} onPress={() => router.push(`/booking/${b.id}`)} style={s.mini}><Text style={s.miniText}>{t("my_bookings.open_checkin")}</Text></Pressable>
+                      <Pressable testID={`cancel-${b.id}`} onPress={() => cancel(b.id)} style={[s.mini, s.miniGhost]}><Text style={[s.miniText, { color: colors.onSurface }]}>{tCommon("buttons.cancel")}</Text></Pressable>
                     </View>
                   )}
                 </View>
