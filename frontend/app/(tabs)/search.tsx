@@ -7,27 +7,28 @@ import { useCallback, useEffect, useState } from "react";
 import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, ActivityIndicator, useWindowDimensions } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { api, ApiError } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 import StyleCard, { Hairstyle } from "@/src/components/StyleCard";
 
 const TAG_FILTERS = [
-  { key: "", label: "All" },
-  { key: "trending", label: "Trending" },
-  { key: "new", label: "New" },
-  { key: "most_loved", label: "Most Saved" },
-  { key: "kids", label: "Kids" },
-  { key: "bridal", label: "Bridal" },
-  { key: "vacation", label: "Vacation" },
-  { key: "office", label: "Office" },
-  { key: "event", label: "Event" },
-  { key: "protective", label: "Protective" },
-  { key: "luxury", label: "Luxury" },
-  { key: "color", label: "Color" },
-  { key: "celebrity", label: "Celebrity" },
-  { key: "natural", label: "Natural" },
-  { key: "quick", label: "Quick" },
+  { key: "", i18nKey: "all" },
+  { key: "trending", i18nKey: "trending" },
+  { key: "new", i18nKey: "new" },
+  { key: "most_loved", i18nKey: "most_loved" },
+  { key: "kids", i18nKey: "kids" },
+  { key: "bridal", i18nKey: "bridal" },
+  { key: "vacation", i18nKey: "vacation" },
+  { key: "office", i18nKey: "office" },
+  { key: "event", i18nKey: "event" },
+  { key: "protective", i18nKey: "protective" },
+  { key: "luxury", i18nKey: "luxury" },
+  { key: "color", i18nKey: "color" },
+  { key: "celebrity", i18nKey: "celebrity" },
+  { key: "natural", i18nKey: "natural" },
+  { key: "quick", i18nKey: "quick" },
 ];
 
 const GRID_COLUMN_GAP = spacing.md;
@@ -35,6 +36,8 @@ const GRID_COLUMN_GAP = spacing.md;
 export default function Discover() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useTranslation("search");
+  const { t: tCommon } = useTranslation("common");
   const params = useLocalSearchParams<{ tag?: string; label?: string }>();
   const { width: windowWidth } = useWindowDimensions();
   // Two even columns inside the ScrollView's horizontal padding, minus one column gap between them.
@@ -54,11 +57,11 @@ export default function Discover() {
       const filtered = q.trim() ? arr.filter((h) => (h.name + " " + (h.category || "")).toLowerCase().includes(q.toLowerCase())) : arr;
       setResults(filtered);
     } catch (e: any) {
-      const msg = e instanceof ApiError ? e.userMessage : "We couldn't load braid styles. Please try again.";
+      const msg = e instanceof ApiError ? e.userMessage : t("error_load");
       setError(msg);
       setResults([]);
     } finally { setLoading(false); }
-  }, [q, tag]);
+  }, [q, tag, t]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { if (params.tag && params.tag !== tag) setTag(params.tag); }, [params.tag]);
@@ -66,8 +69,8 @@ export default function Discover() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
       <View style={{ paddingTop: insets.top + spacing.md, paddingHorizontal: spacing.xl }}>
-        <Text style={s.header}>Discover</Text>
-        <Text style={s.sub}>Find your dream braid style.</Text>
+        <Text style={s.header}>{t("header")}</Text>
+        <Text style={s.sub}>{t("subtitle")}</Text>
 
         <View style={s.searchBox}>
           <Feather name="search" size={16} color={colors.muted} />
@@ -76,7 +79,7 @@ export default function Discover() {
             value={q}
             onChangeText={setQ}
             onSubmitEditing={load}
-            placeholder="Search braid styles…"
+            placeholder={t("search_placeholder")}
             placeholderTextColor={colors.muted}
             style={s.searchInput}
             returnKeyType="search"
@@ -87,7 +90,7 @@ export default function Discover() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow}>
         {TAG_FILTERS.map((f) => (
           <Pressable key={f.key || "all"} testID={`discover-tag-${f.key || "all"}`} onPress={() => setTag(f.key)} style={[s.chip, tag === f.key && s.chipActive]}>
-            <Text style={[s.chipText, tag === f.key && s.chipTextActive]}>{f.label}</Text>
+            <Text style={[s.chipText, tag === f.key && s.chipTextActive]}>{t(`tag_filters.${f.i18nKey}`)}</Text>
           </Pressable>
         ))}
       </ScrollView>
@@ -98,17 +101,17 @@ export default function Discover() {
         ) : error ? (
           <View style={s.empty}>
             <Feather name="cloud-off" size={40} color={colors.borderStrong} />
-            <Text style={s.emptyTitle}>Can&apos;t load styles</Text>
+            <Text style={s.emptyTitle}>{t("error_title")}</Text>
             <Text style={s.emptyDesc}>{error}</Text>
             <Pressable testID="discover-retry" onPress={load} style={{ marginTop: spacing.lg, backgroundColor: colors.brand, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radii.md }}>
-              <Text style={{ color: "#fff", fontFamily: font.bodyBold, fontSize: 13 }}>Try again</Text>
+              <Text style={{ color: "#fff", fontFamily: font.bodyBold, fontSize: 13 }}>{tCommon("buttons.retry")}</Text>
             </Pressable>
           </View>
         ) : results.length === 0 ? (
           <View style={s.empty}>
             <Feather name="search" size={40} color={colors.borderStrong} />
-            <Text style={s.emptyTitle}>No styles yet</Text>
-            <Text style={s.emptyDesc}>Try a different filter or category.</Text>
+            <Text style={s.emptyTitle}>{t("empty_title")}</Text>
+            <Text style={s.emptyDesc}>{t("empty_desc")}</Text>
           </View>
         ) : (
           <View style={s.grid}>

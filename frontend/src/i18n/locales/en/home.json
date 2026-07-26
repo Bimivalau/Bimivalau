@@ -1,1 +1,48 @@
-{}
+{
+  "greeting": {
+    "morning": "Good morning",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening"
+  },
+  "tagline": "What braid are you dreaming about today?",
+  "search_placeholder": "Search braid styles…",
+  "categories": {
+    "trending": "Trending",
+    "new": "New",
+    "most_loved": "Most Saved",
+    "protective": "Protective",
+    "kids": "Kids",
+    "bridal": "Bridal",
+    "vacation": "Vacation",
+    "office": "Office",
+    "event": "Event",
+    "luxury": "Luxury",
+    "quick": "Quick"
+  },
+  "themed_sections": {
+    "bridal": "Bridal Collection",
+    "vacation": "Vacation Looks",
+    "kids": "Kids Braids",
+    "office": "Office Friendly",
+    "event": "Event Hairstyles",
+    "protective": "Protective Styles",
+    "luxury": "Luxury Braids",
+    "new": "Fresh Drops"
+  },
+  "continue_dreaming": {
+    "title": "Continue Dreaming",
+    "subtitle": "Picking up where you left off"
+  },
+  "start_journey": {
+    "title": "Start Your Journey",
+    "subtitle": "Curated to help you find your first favorite"
+  },
+  "trending_worldwide": {
+    "title": "Trending Worldwide",
+    "subtitle": "Braid trends from every corner of the world"
+  },
+  "empty_trending": "No trending styles for this country yet.",
+  "see_all": "See all",
+  "error_title": "Can't reach BraidsCommunity",
+  "error_load": "We couldn't load braid styles. Please try again."
+}

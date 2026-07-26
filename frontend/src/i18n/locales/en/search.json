@@ -1,1 +1,26 @@
-{}
+{
+  "header": "Discover",
+  "subtitle": "Find your dream braid style.",
+  "search_placeholder": "Search braid styles…",
+  "tag_filters": {
+    "all": "All",
+    "trending": "Trending",
+    "new": "New",
+    "most_loved": "Most Saved",
+    "kids": "Kids",
+    "bridal": "Bridal",
+    "vacation": "Vacation",
+    "office": "Office",
+    "event": "Event",
+    "protective": "Protective",
+    "luxury": "Luxury",
+    "color": "Color",
+    "celebrity": "Celebrity",
+    "natural": "Natural",
+    "quick": "Quick"
+  },
+  "error_title": "Can't load styles",
+  "error_load": "We couldn't load braid styles. Please try again.",
+  "empty_title": "No styles yet",
+  "empty_desc": "Try a different filter or category."
+}

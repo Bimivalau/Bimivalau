@@ -13,50 +13,53 @@ import { useCallback, useEffect, useState } from "react";
 import { View, Text, ScrollView, Pressable, StyleSheet, RefreshControl, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { api, ApiError } from "@/src/api";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
 import StyleCard, { Hairstyle } from "@/src/components/StyleCard";
 
-const QUICK_CATEGORIES: { key: string; label: string; icon: any }[] = [
-  { key: "trending", label: "Trending", icon: "trending-up" },
-  { key: "new", label: "New", icon: "star" },
-  { key: "most_loved", label: "Most Saved", icon: "heart" },
-  { key: "protective", label: "Protective", icon: "shield" },
-  { key: "kids", label: "Kids", icon: "smile" },
-  { key: "bridal", label: "Bridal", icon: "gift" },
-  { key: "vacation", label: "Vacation", icon: "sun" },
-  { key: "office", label: "Office", icon: "briefcase" },
-  { key: "event", label: "Event", icon: "award" },
-  { key: "luxury", label: "Luxury", icon: "star" },
-  { key: "quick", label: "Quick", icon: "zap" },
+const QUICK_CATEGORIES: { key: string; icon: any }[] = [
+  { key: "trending", icon: "trending-up" },
+  { key: "new", icon: "star" },
+  { key: "most_loved", icon: "heart" },
+  { key: "protective", icon: "shield" },
+  { key: "kids", icon: "smile" },
+  { key: "bridal", icon: "gift" },
+  { key: "vacation", icon: "sun" },
+  { key: "office", icon: "briefcase" },
+  { key: "event", icon: "award" },
+  { key: "luxury", icon: "star" },
+  { key: "quick", icon: "zap" },
 ];
 
-const THEMED_SECTIONS: { key: string; title: string; emoji: string }[] = [
-  { key: "bridal", title: "Bridal Collection", emoji: "👑" },
-  { key: "vacation", title: "Vacation Looks", emoji: "🏖" },
-  { key: "kids", title: "Kids Braids", emoji: "👧" },
-  { key: "office", title: "Office Friendly", emoji: "💼" },
-  { key: "event", title: "Event Hairstyles", emoji: "🎉" },
-  { key: "protective", title: "Protective Styles", emoji: "🛡" },
-  { key: "luxury", title: "Luxury Braids", emoji: "💎" },
-  { key: "new", title: "Fresh Drops", emoji: "✨" },
+const THEMED_SECTIONS: { key: string; emoji: string }[] = [
+  { key: "bridal", emoji: "👑" },
+  { key: "vacation", emoji: "🏖" },
+  { key: "kids", emoji: "👧" },
+  { key: "office", emoji: "💼" },
+  { key: "event", emoji: "🎉" },
+  { key: "protective", emoji: "🛡" },
+  { key: "luxury", emoji: "💎" },
+  { key: "new", emoji: "✨" },
 ];
 
 interface Country { code: string; flag: string; name: string; }
 
-const greeting = () => {
+const greeting = (t: (key: string) => string) => {
   const h = new Date().getHours();
-  if (h < 12) return "Good morning";
-  if (h < 18) return "Good afternoon";
-  return "Good evening";
+  if (h < 12) return t("greeting.morning");
+  if (h < 18) return t("greeting.afternoon");
+  return t("greeting.evening");
 };
 
 export default function Home() {
   const { user } = useSession();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation("home");
+  const { t: tCommon } = useTranslation("common");
   const [byKey, setByKey] = useState<Record<string, Hairstyle[]>>({});
   const [continueData, setContinueData] = useState<{ mode: "new_user" | "returning_user"; items: Hairstyle[] }>({ mode: "new_user", items: [] });
   const [countries, setCountries] = useState<Country[]>([]);
@@ -89,10 +92,10 @@ export default function Home() {
       setCountries(cRes as any);
       setTrending(trendRes as any);
     } catch (e: any) {
-      const msg = e instanceof ApiError ? e.userMessage : "We couldn't load braid styles. Please try again.";
+      const msg = e instanceof ApiError ? e.userMessage : t("error_load");
       setError(msg);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => { (async () => { setLoading(true); await load(); setLoading(false); })(); }, [load]);
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
@@ -109,7 +112,7 @@ export default function Home() {
 
   const openStyle = (id: string) => router.push({ pathname: "/hairstyle/[id]", params: { id } });
 
-  const continueTitle = continueData.mode === "returning_user" ? "Continue Dreaming" : "Start Your Journey";
+  const continueTitle = continueData.mode === "returning_user" ? t("continue_dreaming.title") : t("start_journey.title");
   const continueEmoji = "✨";
   const continueItems = continueData.mode === "returning_user"
     ? continueData.items
@@ -122,9 +125,9 @@ export default function Home() {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface, padding: spacing.xl }}>
         <Feather name="cloud-off" size={48} color={colors.borderStrong} />
-        <Text style={{ fontFamily: font.display, fontSize: 24, color: colors.onSurface, marginTop: spacing.md, textAlign: "center" }}>Can&apos;t reach BraidsCommunity</Text>
+        <Text style={{ fontFamily: font.display, fontSize: 24, color: colors.onSurface, marginTop: spacing.md, textAlign: "center" }}>{t("error_title")}</Text>
         <Text style={{ fontFamily: font.body, fontSize: 13, color: colors.onSurfaceTertiary, marginTop: spacing.xs, textAlign: "center", maxWidth: 320 }}>{error}</Text>
-        <Pressable testID="home-retry" onPress={async () => { setLoading(true); await load(); setLoading(false); }} style={{ marginTop: spacing.xl, backgroundColor: colors.brand, paddingHorizontal: spacing.xxl, paddingVertical: spacing.md, borderRadius: radii.md }}>          <Text style={{ color: "#fff", fontFamily: font.bodyBold, fontSize: 14 }}>Try again</Text>
+        <Pressable testID="home-retry" onPress={async () => { setLoading(true); await load(); setLoading(false); }} style={{ marginTop: spacing.xl, backgroundColor: colors.brand, paddingHorizontal: spacing.xxl, paddingVertical: spacing.md, borderRadius: radii.md }}>          <Text style={{ color: "#fff", fontFamily: font.bodyBold, fontSize: 14 }}>{tCommon("buttons.retry")}</Text>
         </Pressable>
       </View>
     );
@@ -141,16 +144,16 @@ export default function Home() {
       <View style={[s.header, { paddingTop: insets.top + spacing.lg }]}>
         <View style={{ flexDirection: "row", alignItems: "flex-start" }}>
           <View style={{ flex: 1 }}>
-            <Text style={s.greeting}>{greeting()}{firstName ? "," : ""}</Text>
+            <Text style={s.greeting}>{greeting(t)}{firstName ? "," : ""}</Text>
             {firstName ? <Text style={s.greetingName}>{firstName}</Text> : null}
-            <Text style={s.tagline}>What braid are you dreaming about today?</Text>
+            <Text style={s.tagline}>{t("tagline")}</Text>
           </View>
         </View>
 
         {/* Search */}
         <Pressable testID="home-search" onPress={() => router.push("/(tabs)/search")} style={s.searchBar}>
           <Feather name="search" size={18} color={colors.muted} />
-          <Text style={s.searchPlaceholder}>Search braid styles…</Text>
+          <Text style={s.searchPlaceholder}>{t("search_placeholder")}</Text>
         </Pressable>
       </View>
 
@@ -160,17 +163,20 @@ export default function Home() {
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: spacing.xl, gap: spacing.sm, paddingTop: spacing.lg }}
       >
-        {QUICK_CATEGORIES.map((c) => (
-          <Pressable
-            key={c.key}
-            testID={`filter-${c.key}`}
-            onPress={() => router.push({ pathname: "/(tabs)/search", params: { tag: c.key, label: c.label } })}
-            style={s.chip}
-          >
-            <Feather name={c.icon} size={13} color={colors.onSurfaceSecondary} />
-            <Text style={s.chipText}>{c.label}</Text>
-          </Pressable>
-        ))}
+        {QUICK_CATEGORIES.map((c) => {
+          const label = t(`categories.${c.key}`);
+          return (
+            <Pressable
+              key={c.key}
+              testID={`filter-${c.key}`}
+              onPress={() => router.push({ pathname: "/(tabs)/search", params: { tag: c.key, label } })}
+              style={s.chip}
+            >
+              <Feather name={c.icon} size={13} color={colors.onSurfaceSecondary} />
+              <Text style={s.chipText}>{label}</Text>
+            </Pressable>
+          );
+        })}
       </ScrollView>
 
       {/* ---------------- Continue Dreaming / Start Your Journey ---------------- */}
@@ -182,8 +188,8 @@ export default function Home() {
               <Text style={s.sectionTitle}>{continueTitle}</Text>
               <Text style={s.sectionSub}>
                 {continueData.mode === "returning_user"
-                  ? "Picking up where you left off"
-                  : "Curated to help you find your first favorite"}
+                  ? t("continue_dreaming.subtitle")
+                  : t("start_journey.subtitle")}
               </Text>
             </View>
           </View>
@@ -206,8 +212,8 @@ export default function Home() {
         <View style={s.sectionHead}>
           <Text style={s.sectionEmoji}>🌍</Text>
           <View style={{ flex: 1 }}>
-            <Text style={s.sectionTitle}>Trending Worldwide</Text>
-            <Text style={s.sectionSub}>Braid trends from every corner of the world</Text>
+            <Text style={s.sectionTitle}>{t("trending_worldwide.title")}</Text>
+            <Text style={s.sectionSub}>{t("trending_worldwide.subtitle")}</Text>
           </View>
         </View>
 
@@ -231,7 +237,7 @@ export default function Home() {
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.hScroll}>
           {trending.length === 0 ? (
-            <Text style={s.emptyRow}>No trending styles for this country yet.</Text>
+            <Text style={s.emptyRow}>{t("empty_trending")}</Text>
           ) : (
             trending.map((it, idx) => (
               <StyleCard
@@ -250,15 +256,16 @@ export default function Home() {
       {THEMED_SECTIONS.map((sect) => {
         const items = byKey[sect.key] || [];
         if (!items.length) return null;
+        const title = t(`themed_sections.${sect.key}`);
         return (
           <View key={sect.key} style={s.section}>
             <View style={s.sectionHead}>
               <Text style={s.sectionEmoji}>{sect.emoji}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={s.sectionTitle}>{sect.title}</Text>
+                <Text style={s.sectionTitle}>{title}</Text>
               </View>
-              <Pressable onPress={() => router.push({ pathname: "/(tabs)/search", params: { tag: sect.key, label: sect.title } })} style={s.seeAll}>
-                <Text style={s.seeAllText}>See all</Text>
+              <Pressable onPress={() => router.push({ pathname: "/(tabs)/search", params: { tag: sect.key, label: title } })} style={s.seeAll}>
+                <Text style={s.seeAllText}>{t("see_all")}</Text>
                 <Feather name="chevron-right" size={14} color={colors.brand} />
               </Pressable>
             </View>

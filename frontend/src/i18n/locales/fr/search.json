@@ -1,1 +1,26 @@
-{}
+{
+  "header": "Découvrir",
+  "subtitle": "Trouvez la coiffure tressée de vos rêves.",
+  "search_placeholder": "Rechercher des styles de tresses…",
+  "tag_filters": {
+    "all": "Tout",
+    "trending": "Tendance",
+    "new": "Nouveau",
+    "most_loved": "Coups de cœur",
+    "kids": "Enfants",
+    "bridal": "Mariée",
+    "vacation": "Vacances",
+    "office": "Bureau",
+    "event": "Événement",
+    "protective": "Protecteur",
+    "luxury": "Luxe",
+    "color": "Couleur",
+    "celebrity": "Célébrité",
+    "natural": "Naturel",
+    "quick": "Rapide"
+  },
+  "error_title": "Impossible de charger les styles",
+  "error_load": "Nous n'avons pas pu charger les styles de tresses. Veuillez réessayer.",
+  "empty_title": "Aucun style pour le moment",
+  "empty_desc": "Essayez un autre filtre ou une autre catégorie."
+}

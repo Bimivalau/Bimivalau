@@ -1,1 +1,48 @@
-{}
+{
+  "greeting": {
+    "morning": "Bonjour",
+    "afternoon": "Bon après-midi",
+    "evening": "Bonsoir"
+  },
+  "tagline": "Quelle tresse imaginez-vous aujourd'hui ?",
+  "search_placeholder": "Rechercher des styles de tresses…",
+  "categories": {
+    "trending": "Tendance",
+    "new": "Nouveau",
+    "most_loved": "Coups de cœur",
+    "protective": "Protecteur",
+    "kids": "Enfants",
+    "bridal": "Mariée",
+    "vacation": "Vacances",
+    "office": "Bureau",
+    "event": "Événement",
+    "luxury": "Luxe",
+    "quick": "Rapide"
+  },
+  "themed_sections": {
+    "bridal": "Collection Mariée",
+    "vacation": "Looks de vacances",
+    "kids": "Tresses pour enfants",
+    "office": "Idéal bureau",
+    "event": "Coiffures pour événements",
+    "protective": "Styles protecteurs",
+    "luxury": "Tresses de luxe",
+    "new": "Nouveautés"
+  },
+  "continue_dreaming": {
+    "title": "Continuez à rêver",
+    "subtitle": "Reprenez là où vous vous étiez arrêté(e)"
+  },
+  "start_journey": {
+    "title": "Commencez votre parcours",
+    "subtitle": "Une sélection pour trouver votre premier coup de cœur"
+  },
+  "trending_worldwide": {
+    "title": "Tendances dans le monde",
+    "subtitle": "Les tendances tresses des quatre coins du monde"
+  },
+  "empty_trending": "Aucun style tendance pour ce pays pour le moment.",
+  "see_all": "Tout voir",
+  "error_title": "Impossible de contacter BraidsCommunity",
+  "error_load": "Nous n'avons pas pu charger les styles de tresses. Veuillez réessayer."
+}
