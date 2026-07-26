@@ -2,6 +2,7 @@ import { Tabs } from "expo-router";
 import { Feather } from "@expo/vector-icons";
 import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import { colors, font } from "@/src/theme";
 
 /**
@@ -19,6 +20,7 @@ import { colors, font } from "@/src/theme";
  */
 export default function ProTabsLayout() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation("navigation");
   const tabHeight = 56 + Math.max(insets.bottom, Platform.OS === "ios" ? 8 : 6);
   return (
     <Tabs
@@ -41,21 +43,21 @@ export default function ProTabsLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: "Schedule",
+          title: t("tabs.schedule"),
           tabBarIcon: ({ color, size }) => <Feather name="calendar" size={size - 2} color={color} />,
         }}
       />
       <Tabs.Screen
         name="bookings"
         options={{
-          title: "Bookings",
+          title: t("tabs.bookings"),
           tabBarIcon: ({ color, size }) => <Feather name="clipboard" size={size - 2} color={color} />,
         }}
       />
       <Tabs.Screen
         name="studio"
         options={{
-          title: "Profile",
+          title: t("tabs.profile"),
           tabBarIcon: ({ color, size }) => <Feather name="user" size={size - 2} color={color} />,
         }}
       />

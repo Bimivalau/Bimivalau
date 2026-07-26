@@ -1,0 +1,9 @@
+{
+  "tabs": {
+    "home": "Accueil",
+    "discover": "Découvrir",
+    "bookings": "Réservations",
+    "profile": "Profil",
+    "schedule": "Agenda"
+  }
+}

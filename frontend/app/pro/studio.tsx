@@ -61,6 +61,7 @@ export default function ProProfile() {
     { icon: "shield", label: "Verification", testID: "studio-verification", onPress: () => router.push("/pro/verification") },
     { icon: "bell", label: "Notifications", testID: "menu-notifications", onPress: () => router.push("/notifications") },
     { icon: "shield", label: "Safety & Community Guidelines", testID: "menu-safety", onPress: () => router.push("/safety") },
+    { icon: "settings", label: "Settings", testID: "menu-settings", onPress: () => router.push("/settings") },
   ];
 
   return (

@@ -1,0 +1,50 @@
+{
+  "app_name": "BraidsCommunity",
+  "buttons": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "back": "Back",
+    "next": "Next",
+    "done": "Done",
+    "close": "Close",
+    "ok": "OK",
+    "yes": "Yes",
+    "no": "No",
+    "retry": "Try again",
+    "sign_out": "Sign out",
+    "delete": "Delete",
+    "delete_permanently": "Delete permanently",
+    "edit": "Edit",
+    "submit": "Submit",
+    "continue": "Continue",
+    "confirm": "Confirm",
+    "share": "Share",
+    "add": "Add",
+    "remove": "Remove"
+  },
+  "states": {
+    "loading": "Loading…",
+    "saving": "Saving…",
+    "deleting": "Deleting…",
+    "submitting": "Submitting…",
+    "no_results": "Nothing here yet.",
+    "something_went_wrong": "Something went wrong. Please try again."
+  },
+  "errors": {
+    "generic": "Something went wrong. Please try again.",
+    "offline": "You're offline. Please check your connection and try again.",
+    "session_expired": "Please sign in again to continue.",
+    "not_found": "We couldn't find what you were looking for.",
+    "rate_limited": "Too many requests. Please wait a moment and try again.",
+    "server": "Something went wrong on our end. Please try again in a moment."
+  },
+  "roles": {
+    "customer": "Customer",
+    "braider": "Braider",
+    "admin": "Admin"
+  },
+  "language": {
+    "english": "English",
+    "french": "Français"
+  }
+}

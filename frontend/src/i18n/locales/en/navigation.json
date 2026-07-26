@@ -1,0 +1,9 @@
+{
+  "tabs": {
+    "home": "Home",
+    "discover": "Discover",
+    "bookings": "Bookings",
+    "profile": "Profile",
+    "schedule": "Schedule"
+  }
+}

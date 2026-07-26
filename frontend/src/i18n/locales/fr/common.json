@@ -1,0 +1,50 @@
+{
+  "app_name": "BraidsCommunity",
+  "buttons": {
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "back": "Retour",
+    "next": "Suivant",
+    "done": "Terminé",
+    "close": "Fermer",
+    "ok": "OK",
+    "yes": "Oui",
+    "no": "Non",
+    "retry": "Réessayer",
+    "sign_out": "Se déconnecter",
+    "delete": "Supprimer",
+    "delete_permanently": "Supprimer définitivement",
+    "edit": "Modifier",
+    "submit": "Envoyer",
+    "continue": "Continuer",
+    "confirm": "Confirmer",
+    "share": "Partager",
+    "add": "Ajouter",
+    "remove": "Retirer"
+  },
+  "states": {
+    "loading": "Chargement…",
+    "saving": "Enregistrement…",
+    "deleting": "Suppression…",
+    "submitting": "Envoi…",
+    "no_results": "Rien à afficher pour le moment.",
+    "something_went_wrong": "Une erreur est survenue. Veuillez réessayer."
+  },
+  "errors": {
+    "generic": "Une erreur est survenue. Veuillez réessayer.",
+    "offline": "Vous êtes hors ligne. Vérifiez votre connexion et réessayez.",
+    "session_expired": "Veuillez vous reconnecter pour continuer.",
+    "not_found": "Nous n'avons pas trouvé ce que vous cherchiez.",
+    "rate_limited": "Trop de requêtes. Veuillez patienter un instant puis réessayer.",
+    "server": "Une erreur est survenue de notre côté. Veuillez réessayer dans un instant."
+  },
+  "roles": {
+    "customer": "Client",
+    "braider": "Coiffeuse",
+    "admin": "Admin"
+  },
+  "language": {
+    "english": "English",
+    "french": "Français"
+  }
+}

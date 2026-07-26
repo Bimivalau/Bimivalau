@@ -1,0 +1,20 @@
+{
+  "eyebrow": "BRAIDSCOMMUNITY",
+  "hero_line1": "Là où les tresses",
+  "hero_line2": "sont un art.",
+  "subtitle": "Découvrez des artistes tresseuses dans votre ville, réservez un fauteuil, payez sur place.",
+  "choose_title": "Comment voulez-vous commencer ?",
+  "explain": "BraidsCommunity vous permet de découvrir des styles de tresses et les studios qui les créent.",
+  "customer_title": "Je suis client(e)",
+  "customer_desc": "Trouvez des artistes tresseuses près de chez vous et réservez votre prochain rendez-vous.",
+  "customer_a11y": "Continuer en tant que client",
+  "braider_title": "Je suis coiffeuse",
+  "braider_desc": "Montrez votre travail, prenez des réservations, soyez payée sur place.",
+  "braider_a11y": "Continuer en tant que coiffeuse",
+  "existing_account": "Vous avez déjà un compte ?",
+  "sign_in": "Se connecter",
+  "or_continue": "OU CONTINUEZ INSTANTANÉMENT",
+  "google_continue": "Continuer avec Google",
+  "google_opening": "Ouverture de Google…",
+  "google_error": "Échec de la connexion Google"
+}

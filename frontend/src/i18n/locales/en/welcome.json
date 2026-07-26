@@ -1,0 +1,20 @@
+{
+  "eyebrow": "BRAIDSCOMMUNITY",
+  "hero_line1": "Where braids",
+  "hero_line2": "are art.",
+  "subtitle": "Discover braid artists in your city, book a chair, pay at the counter.",
+  "choose_title": "How do you want to start?",
+  "explain": "BraidsCommunity is where you discover braid styles and the studios that create them.",
+  "customer_title": "I'm a Customer",
+  "customer_desc": "Find braid artists near you and book your next appointment.",
+  "customer_a11y": "Continue as customer",
+  "braider_title": "I'm a Braider",
+  "braider_desc": "Show your work, take bookings, get paid in person.",
+  "braider_a11y": "Continue as braider",
+  "existing_account": "Already have an account?",
+  "sign_in": "Sign in",
+  "or_continue": "OR CONTINUE INSTANTLY",
+  "google_continue": "Continue with Google",
+  "google_opening": "Opening Google…",
+  "google_error": "Google sign-in failed"
+}

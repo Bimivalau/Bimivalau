@@ -4,15 +4,19 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Feather } from "@expo/vector-icons";
 import { useSession } from "@/src/session";
 import { colors, spacing, font, radii } from "@/src/theme";
+import { setLanguage } from "@/src/i18n";
 
 // The Welcome/Splash. Role choice, not a login form.
 export default function Welcome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { signInWithGoogle } = useSession();
+  const { t, i18n } = useTranslation("welcome");
+  const { t: tCommon } = useTranslation("common");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -22,9 +26,10 @@ export default function Welcome() {
       const res = await signInWithGoogle();
       if (!res) { setBusy(false); return; }
       router.replace(res.needs_pro_completion ? "/pro/onboarding" : "/");
-    } catch (e: any) { setErr(e.message || "Google sign-in failed"); }
+    } catch (e: any) { setErr(e.message || t("google_error")); }
     finally { setBusy(false); }
   };
+  const toggleLanguage = () => setLanguage(i18n.language === "fr" ? "en" : "fr");
   return (
     <View style={{ flex: 1, backgroundColor: colors.surfaceInverse }}>
       <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
@@ -32,48 +37,48 @@ export default function Welcome() {
           <Image source={{ uri: "https://images.unsplash.com/photo-1592520113018-180c8bc831c9?w=1000&q=85" }} style={StyleSheet.absoluteFill} contentFit="cover" />
           <LinearGradient colors={["rgba(0,0,0,0.15)", "rgba(0,0,0,0.9)"]} style={StyleSheet.absoluteFill} />
           <View style={{ flex: 1, padding: spacing.xl, paddingTop: insets.top + spacing.lg, justifyContent: "flex-end" }}>
-            <Text style={s.eyebrow}>BRAIDSCOMMUNITY</Text>
-            <Text style={s.hero}>Where braids{"\n"}are art.</Text>
-            <Text style={s.sub}>Discover braid artists in your city, book a chair, pay at the counter.</Text>
+            <Text style={s.eyebrow}>{t("eyebrow")}</Text>
+            <Text style={s.hero}>{t("hero_line1")}{"\n"}{t("hero_line2")}</Text>
+            <Text style={s.sub}>{t("subtitle")}</Text>
           </View>
         </View>
 
         <View style={{ padding: spacing.xl, gap: spacing.md, backgroundColor: colors.surfaceInverse }}>
-          <View style={s.langRow}>
+          <Pressable testID="welcome-lang-toggle" onPress={toggleLanguage} style={s.langRow} accessibilityRole="button" accessibilityLabel={tCommon("language.english") + " / " + tCommon("language.french")}>
             <Feather name="globe" size={14} color="#F9F6F0" />
-            <Text style={s.langText}>English</Text>
-          </View>
-          <Text style={s.chooseTitle}>How do you want to start?</Text>
-          <Text style={s.explain}>BraidsCommunity is where you discover braid styles and the studios that create them.</Text>
+            <Text style={s.langText}>{i18n.language === "fr" ? tCommon("language.french") : tCommon("language.english")}</Text>
+          </Pressable>
+          <Text style={s.chooseTitle}>{t("choose_title")}</Text>
+          <Text style={s.explain}>{t("explain")}</Text>
 
-          <Pressable testID="welcome-customer" onPress={() => router.push("/register?role=customer")} style={s.roleCard} accessibilityRole="button" accessibilityLabel="Continue as customer">
+          <Pressable testID="welcome-customer" onPress={() => router.push("/register?role=customer")} style={s.roleCard} accessibilityRole="button" accessibilityLabel={t("customer_a11y")}>
             <View style={{ flex: 1 }}>
-              <Text style={s.roleTitle}>I&apos;m a Customer</Text>
-              <Text style={s.roleDesc}>Find braid artists near you and book your next appointment.</Text>
+              <Text style={s.roleTitle}>{t("customer_title")}</Text>
+              <Text style={s.roleDesc}>{t("customer_desc")}</Text>
             </View>
             <Text style={s.roleArrow}>→</Text>
           </Pressable>
 
-          <Pressable testID="welcome-braider" onPress={() => router.push("/register?role=hairdresser")} style={[s.roleCard, s.roleCardBraider]} accessibilityRole="button" accessibilityLabel="Continue as braider">
+          <Pressable testID="welcome-braider" onPress={() => router.push("/register?role=hairdresser")} style={[s.roleCard, s.roleCardBraider]} accessibilityRole="button" accessibilityLabel={t("braider_a11y")}>
             <View style={{ flex: 1 }}>
-              <Text style={[s.roleTitle, { color: "#fff" }]}>I&apos;m a Braider</Text>
-              <Text style={[s.roleDesc, { color: "#F9F6F0" }]}>Show your work, take bookings, get paid in person.</Text>
+              <Text style={[s.roleTitle, { color: "#fff" }]}>{t("braider_title")}</Text>
+              <Text style={[s.roleDesc, { color: "#F9F6F0" }]}>{t("braider_desc")}</Text>
             </View>
             <Text style={[s.roleArrow, { color: "#fff" }]}>→</Text>
           </Pressable>
 
           <Pressable testID="welcome-existing" onPress={() => router.push("/login")} style={{ padding: spacing.md, alignItems: "center", marginTop: spacing.md }} accessibilityRole="button">
-            <Text style={s.existingLink}>Already have an account? <Text style={{ fontFamily: font.bodyBold, color: "#fff" }}>Sign in</Text></Text>
+            <Text style={s.existingLink}>{t("existing_account")} <Text style={{ fontFamily: font.bodyBold, color: "#fff" }}>{t("sign_in")}</Text></Text>
           </Pressable>
 
           <View style={s.googleDivider}>
             <View style={s.gLine} />
-            <Text style={s.gDivText}>OR CONTINUE INSTANTLY</Text>
+            <Text style={s.gDivText}>{t("or_continue")}</Text>
             <View style={s.gLine} />
           </View>
           <Pressable testID="welcome-google" onPress={google} disabled={busy} style={s.googleBtn}>
             <View style={s.googleG}><Text style={s.googleGText}>G</Text></View>
-            <Text style={s.googleBtnText}>{busy ? "Opening Google…" : "Continue with Google"}</Text>
+            <Text style={s.googleBtnText}>{busy ? t("google_opening") : t("google_continue")}</Text>
           </Pressable>
           {err && <Text testID="welcome-err" style={{ color: "#FFB3B0", fontFamily: font.body, textAlign: "center", marginTop: spacing.sm }}>{err}</Text>}
         </View>

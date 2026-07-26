@@ -55,6 +55,7 @@ export default function Profile() {
   const items: { icon: any; label: string; testID: string; onPress: () => void }[] = [
     { icon: "bell", label: "Notifications", testID: "menu-notifications", onPress: () => router.push("/notifications") },
     { icon: "shield", label: "Safety & Community Guidelines", testID: "menu-safety", onPress: () => router.push("/safety") },
+    { icon: "settings", label: "Settings", testID: "menu-settings", onPress: () => router.push("/settings") },
     { icon: "help-circle", label: "Help & Support", testID: "menu-help", onPress: () => Alert.alert("Support", "Contact support@braidscommunity.app") },
   ];
 
