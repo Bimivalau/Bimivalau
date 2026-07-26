@@ -12,6 +12,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 import StyleCard, { Hairstyle } from "@/src/components/StyleCard";
@@ -28,6 +29,8 @@ export default function HairstyleDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation("hairstyle");
+  const { t: tCommon } = useTranslation("common");
   const [style, setStyle] = useState<any>(null);
   const [hds, setHds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,7 +66,7 @@ export default function HairstyleDetail() {
 
           {/* Nav row */}
           <View style={[s.navRow, { paddingTop: insets.top + spacing.sm }]}>
-            <Pressable testID="hs-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} style={s.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel="Back">
+            <Pressable testID="hs-back" onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))} style={s.iconBtn} hitSlop={8} accessibilityRole="button" accessibilityLabel={tCommon("buttons.back")}>
               <Feather name="arrow-left" size={20} color="#fff" />
             </Pressable>
             <View style={{ flex: 1 }} />
@@ -74,7 +77,7 @@ export default function HairstyleDetail() {
             {(style.tags || []).includes("trending") && (
               <View style={s.heroBadge}>
                 <Feather name="trending-up" size={10} color="#fff" />
-                <Text style={s.heroBadgeText}>TRENDING</Text>
+                <Text style={s.heroBadgeText}>{t("detail.trending_badge")}</Text>
               </View>
             )}
             <Text style={s.cat}>{(style.category || "").toUpperCase()}</Text>
@@ -82,15 +85,15 @@ export default function HairstyleDetail() {
             <View style={s.heroMetaRow}>
               <View style={s.heroMeta}>
                 <Feather name="users" size={11} color="#F5EFE7" />
-                <Text style={s.heroMetaText}>{style.nearby_pros_count || 0} pros nearby</Text>
+                <Text style={s.heroMetaText}>{t("detail.pros_nearby", { count: style.nearby_pros_count || 0 })}</Text>
               </View>
               <View style={s.heroMeta}>
                 <Feather name="heart" size={11} color="#F5EFE7" />
-                <Text style={s.heroMetaText}>{(style.saves_count || 0).toLocaleString()} saves</Text>
+                <Text style={s.heroMetaText}>{t("detail.saves_count", { count: (style.saves_count || 0).toLocaleString() })}</Text>
               </View>
               <View style={s.heroMeta}>
                 <Feather name="bookmark" size={11} color="#F5EFE7" />
-                <Text style={s.heroMetaText}>{(style.saves_count || 0).toLocaleString()} saves</Text>
+                <Text style={s.heroMetaText}>{t("detail.saves_count", { count: (style.saves_count || 0).toLocaleString() })}</Text>
               </View>
             </View>
           </View>
@@ -98,24 +101,24 @@ export default function HairstyleDetail() {
 
         {/* ---------- Facts grid ---------- */}
         <View style={s.factGrid}>
-          <Fact icon="dollar-sign" label="From" value={`$${Math.round(style.avg_price)}`} />
-          <Fact icon="clock" label="Duration" value={durationLabel(style.avg_duration_min)} />
-          <Fact icon="bar-chart-2" label="Difficulty" value={style.difficulty || "Medium"} />
-          <Fact icon="scissors" label="Hair length" value={style.hair_length || "Long"} />
-          <Fact icon="calendar" label="Lasts" value={`~${style.lasts_weeks || 6} wks`} />
-          <Fact icon="droplet" label="Maintenance" value={style.maintenance || "Low"} />
+          <Fact icon="dollar-sign" label={t("detail.fact_from")} value={`$${Math.round(style.avg_price)}`} />
+          <Fact icon="clock" label={t("detail.fact_duration")} value={durationLabel(style.avg_duration_min)} />
+          <Fact icon="bar-chart-2" label={t("detail.fact_difficulty")} value={style.difficulty || t("detail.difficulty_medium")} />
+          <Fact icon="scissors" label={t("detail.fact_hair_length")} value={style.hair_length || t("detail.hair_length_long")} />
+          <Fact icon="calendar" label={t("detail.fact_lasts")} value={t("detail.lasts_value", { weeks: style.lasts_weeks || 6 })} />
+          <Fact icon="droplet" label={t("detail.fact_maintenance")} value={style.maintenance || t("detail.maintenance_low")} />
         </View>
 
         {/* ---------- Description ---------- */}
         <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.xxl }}>
-          <Text style={s.section}>About this style</Text>
+          <Text style={s.section}>{t("detail.about_title")}</Text>
           <Text style={s.desc}>{style.description}</Text>
         </View>
 
         {/* ---------- Recommended for ---------- */}
         {(style.recommended_for || []).length > 0 && (
           <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.xl }}>
-            <Text style={s.section}>Recommended for</Text>
+            <Text style={s.section}>{t("detail.recommended_title")}</Text>
             <View style={s.chipRow}>
               {(style.recommended_for || []).map((r: string) => (
                 <View key={r} style={s.recChip}><Text style={s.recChipText}>{r}</Text></View>
@@ -126,15 +129,15 @@ export default function HairstyleDetail() {
 
         {/* ---------- Pros near you ---------- */}
         <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.xxl }}>
-          <Text style={s.section}>Professionals near you</Text>
-          <Text style={s.sub}>Braiders who specialize in {style.name}.</Text>
+          <Text style={s.section}>{t("detail.pros_title")}</Text>
+          <Text style={s.sub}>{t("detail.pros_subtitle", { name: style.name })}</Text>
 
           <Pressable testID="compare-cta" onPress={() => router.push(`/compare/${style.id}`)} style={s.compareCta}>
             <Feather name="git-compare" size={15} color="#fff" />
-            <Text style={s.compareCtaText}>Compare all braiders side-by-side</Text>
+            <Text style={s.compareCtaText}>{t("detail.compare_cta")}</Text>
           </Pressable>
 
-          {hds.length === 0 && <Text style={s.empty}>No specialists have added this style yet. Check back soon.</Text>}
+          {hds.length === 0 && <Text style={s.empty}>{t("detail.empty_pros")}</Text>}
           {hds.map((h) => (
             <Pressable key={h.id} testID={`hd-${h.id}`} onPress={() => router.push(`/hairdresser/${h.id}`)} style={s.hdRow}>
               <Image source={{ uri: h.cover_photo }} style={s.hdImg} contentFit="cover" />
@@ -161,7 +164,7 @@ export default function HairstyleDetail() {
         {/* ---------- Similar styles ---------- */}
         {(style.similar || []).length > 0 && (
           <View style={{ marginTop: spacing.xxl }}>
-            <Text style={[s.section, { paddingHorizontal: spacing.xl }]}>You&apos;ll also love</Text>
+            <Text style={[s.section, { paddingHorizontal: spacing.xl }]}>{t("detail.similar_title")}</Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}

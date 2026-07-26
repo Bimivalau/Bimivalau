@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 import { openDirections, hasDirectionsTarget } from "@/src/utils/directions";
@@ -13,6 +14,7 @@ export default function StudioPage() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation("hairdresser");
   const [h, setH] = useState<any>(null);
   const [tab, setTab] = useState<"portfolio" | "reviews" | "about">("portfolio");
   const [fav, setFav] = useState(false);
@@ -37,7 +39,7 @@ export default function StudioPage() {
     if (!reportReason.trim()) return;
     try {
       await api("/reports", { method: "POST", body: JSON.stringify({ reported_user_id: id, reason: reportReason.trim() }) });
-      setReportMsg("Reported. An admin will review.");
+      setReportMsg(t("report_success"));
       setTimeout(() => { setReportOpen(false); setReportMsg(null); setReportReason(""); }, 2500);
     } catch (e: any) { setReportMsg(e.message); }
   };
@@ -72,15 +74,15 @@ export default function StudioPage() {
         </View>
 
         <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.lg, flexDirection: "row", gap: spacing.xl }}>
-          <View><Text style={s.stat}>{h.rating_avg?.toFixed(1) || "—"}</Text><Text style={s.statLbl}>Rating</Text></View>
-          <View><Text style={s.stat}>{h.reviews_count || 0}</Text><Text style={s.statLbl}>Reviews</Text></View>
-          <View style={{ flex: 1 }}><Text style={s.stat}>{h.portfolio?.length || 0}</Text><Text style={s.statLbl}>Works</Text></View>
+          <View><Text style={s.stat}>{h.rating_avg?.toFixed(1) || "—"}</Text><Text style={s.statLbl}>{t("stat_rating")}</Text></View>
+          <View><Text style={s.stat}>{h.reviews_count || 0}</Text><Text style={s.statLbl}>{t("stat_reviews")}</Text></View>
+          <View style={{ flex: 1 }}><Text style={s.stat}>{h.portfolio?.length || 0}</Text><Text style={s.statLbl}>{t("stat_works")}</Text></View>
         </View>
 
         {/* Braider DNA — signature BraidsCommunity feature. Auto-computed expertise. */}
         {dna.length > 0 && (
           <View style={{ paddingHorizontal: spacing.xl, marginTop: spacing.lg }}>
-            <Text style={{ fontFamily: font.bodyBold, fontSize: 11, color: colors.onSurfaceTertiary, letterSpacing: 1.5, marginBottom: spacing.sm }}>BRAIDER DNA</Text>
+            <Text style={{ fontFamily: font.bodyBold, fontSize: 11, color: colors.onSurfaceTertiary, letterSpacing: 1.5, marginBottom: spacing.sm }}>{t("dna_title")}</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
               {dna.slice(0, 5).map((d: any) => (
                 <View key={d.category} style={{ paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: "#FAF6EF", borderWidth: 1, borderColor: "#EBDEC5", flexDirection: "row", alignItems: "center", gap: 5 }}>
@@ -93,9 +95,9 @@ export default function StudioPage() {
         )}
 
         <View style={s.tabs}>
-          {(["portfolio", "reviews", "about"] as const).map(t => (
-            <Pressable key={t} testID={`tab-${t}`} onPress={() => setTab(t)} style={[s.tab, tab === t && s.tabActive]}>
-              <Text style={[s.tabText, tab === t && s.tabTextActive]}>{t.charAt(0).toUpperCase() + t.slice(1)}</Text>
+          {(["portfolio", "reviews", "about"] as const).map(tabKey => (
+            <Pressable key={tabKey} testID={`tab-${tabKey}`} onPress={() => setTab(tabKey)} style={[s.tab, tab === tabKey && s.tabActive]}>
+              <Text style={[s.tabText, tab === tabKey && s.tabTextActive]}>{t(`tabs.${tabKey}`)}</Text>
             </Pressable>
           ))}
         </View>
@@ -116,12 +118,12 @@ export default function StudioPage() {
                 </Pressable>
               ));
             })()}
-            {h.portfolio.length === 0 && <Text style={{ paddingHorizontal: spacing.xl, color: colors.muted, fontFamily: font.body }}>No portfolio yet.</Text>}
+            {h.portfolio.length === 0 && <Text style={{ paddingHorizontal: spacing.xl, color: colors.muted, fontFamily: font.body }}>{t("empty_portfolio")}</Text>}
           </View>
         )}
         {tab === "reviews" && (
           <View style={{ paddingHorizontal: spacing.xl, gap: spacing.md, marginTop: spacing.md }}>
-            {h.reviews.length === 0 ? <Text style={{ color: colors.muted, fontFamily: font.body }}>No reviews yet.</Text> : h.reviews.map((r: any) => (
+            {h.reviews.length === 0 ? <Text style={{ color: colors.muted, fontFamily: font.body }}>{t("empty_reviews")}</Text> : h.reviews.map((r: any) => (
               <View key={r.id} style={s.review}>
                 <View style={{ flexDirection: "row", gap: spacing.sm, alignItems: "center" }}>
                   <Text style={s.revName}>{r.customer_name}</Text>
@@ -147,10 +149,10 @@ export default function StudioPage() {
                 accessibilityRole="button"
               >
                 <Feather name="navigation" size={14} color={colors.brand} />
-                <Text style={s.directionsText}>Get Directions</Text>
+                <Text style={s.directionsText}>{t("get_directions")}</Text>
               </Pressable>
             )}
-            <Text style={[s.aboutText, { marginTop: spacing.md, fontFamily: font.bodyBold }]}>Specialties</Text>
+            <Text style={[s.aboutText, { marginTop: spacing.md, fontFamily: font.bodyBold }]}>{t("specialties_title")}</Text>
             <View style={{ flexDirection: "row", flexWrap: "wrap", gap: spacing.sm }}>
               {h.specialties.map((sp: any) => (
                 <View key={sp.id} style={s.chip}><Text style={s.chipText}>{sp.name}</Text></View>
@@ -159,7 +161,7 @@ export default function StudioPage() {
 
             <Pressable testID="report-toggle" onPress={() => setReportOpen(o => !o)} style={{ flexDirection: "row", gap: spacing.sm, alignItems: "center", marginTop: spacing.lg }}>
               <Feather name="flag" size={14} color={colors.error} />
-              <Text style={{ color: colors.error, fontFamily: font.bodyMed, fontSize: 13 }}>Report this stylist</Text>
+              <Text style={{ color: colors.error, fontFamily: font.bodyMed, fontSize: 13 }}>{t("report_cta")}</Text>
             </Pressable>
             {reportOpen && (
               <View style={{ gap: spacing.sm }}>
@@ -167,13 +169,13 @@ export default function StudioPage() {
                   testID="report-reason"
                   value={reportReason}
                   onChangeText={setReportReason}
-                  placeholder="What happened? (visible only to admins)"
+                  placeholder={t("report_placeholder")}
                   placeholderTextColor={colors.muted}
                   multiline
                   style={{ borderWidth: 1, borderColor: colors.border, borderRadius: radii.md, padding: spacing.md, minHeight: 80, fontFamily: font.body, textAlignVertical: "top" }}
                 />
                 <Pressable testID="report-submit" onPress={submitReport} disabled={!reportReason.trim()} style={[s.btn, !reportReason.trim() && { opacity: 0.4 }]}>
-                  <Text style={s.btnText}>Submit report</Text>
+                  <Text style={s.btnText}>{t("report_submit")}</Text>
                 </Pressable>
                 {reportMsg && <Text style={{ color: colors.success, fontFamily: font.bodyMed }}>{reportMsg}</Text>}
               </View>
@@ -184,11 +186,11 @@ export default function StudioPage() {
 
       <View style={[s.bookBar, { paddingBottom: insets.bottom + spacing.md }]}>
         <View style={{ flex: 1 }}>
-          <Text style={s.bookPrice}>From ${h.specialties[0]?.avg_price || "—"}</Text>
-          <Text style={s.bookMeta}>Pay at counter</Text>
+          <Text style={s.bookPrice}>{t("book_from_price", { price: h.specialties[0]?.avg_price || "—" })}</Text>
+          <Text style={s.bookMeta}>{t("pay_at_counter")}</Text>
         </View>
         <Pressable testID="book-now" onPress={() => router.push(`/book/${h.id}`)} style={s.bookBtn}>
-          <Text style={s.bookBtnText}>Book now</Text>
+          <Text style={s.bookBtnText}>{t("book_now")}</Text>
         </Pressable>
       </View>
     </View>

@@ -1,1 +1,22 @@
-{}
+{
+  "stat_rating": "Note",
+  "stat_reviews": "Avis",
+  "stat_works": "Réalisations",
+  "dna_title": "ADN DE LA COIFFEUSE",
+  "tabs": {
+    "portfolio": "Portfolio",
+    "reviews": "Avis",
+    "about": "À propos"
+  },
+  "empty_portfolio": "Pas encore de portfolio.",
+  "empty_reviews": "Pas encore d'avis.",
+  "get_directions": "Itinéraire",
+  "specialties_title": "Spécialités",
+  "report_cta": "Signaler cette coiffeuse",
+  "report_placeholder": "Que s'est-il passé ? (visible uniquement par les administrateurs)",
+  "report_submit": "Envoyer le signalement",
+  "report_success": "Signalement envoyé. Un administrateur va l'examiner.",
+  "book_from_price": "À partir de {{price}} $",
+  "pay_at_counter": "Payer sur place",
+  "book_now": "Réserver"
+}

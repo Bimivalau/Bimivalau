@@ -1,1 +1,44 @@
-{}
+{
+  "detail": {
+    "trending_badge": "TENDANCE",
+    "pros_nearby": "{{count}} pros à proximité",
+    "saves_count": "{{count}} enregistrements",
+    "fact_from": "Dès",
+    "fact_duration": "Durée",
+    "fact_difficulty": "Difficulté",
+    "fact_hair_length": "Longueur de cheveux",
+    "fact_lasts": "Tient",
+    "fact_maintenance": "Entretien",
+    "difficulty_medium": "Moyenne",
+    "hair_length_long": "Longs",
+    "maintenance_low": "Faible",
+    "lasts_value": "~{{weeks}} sem.",
+    "about_title": "À propos de ce style",
+    "recommended_title": "Recommandé pour",
+    "pros_title": "Professionnelles près de chez vous",
+    "pros_subtitle": "Coiffeuses spécialisées dans {{name}}.",
+    "compare_cta": "Comparer toutes les coiffeuses côte à côte",
+    "empty_pros": "Aucune spécialiste n'a encore ajouté ce style. Revenez bientôt.",
+    "similar_title": "Vous aimerez aussi"
+  },
+  "compare": {
+    "sort_labels": {
+      "earliest": "Plus tôt",
+      "lowest_price": "Prix le plus bas",
+      "shortest": "Durée la plus courte",
+      "highest_rated": "Mieux notées",
+      "most_reviewed": "Plus commentées"
+    },
+    "available_today": "Disponible aujourd'hui",
+    "verified_pro": "Pro vérifiée",
+    "hair_included": "Cheveux inclus",
+    "hair_not_included": "Apportez vos cheveux",
+    "subtitle_one": "{{count}} coiffeuse près de chez vous propose ce style",
+    "subtitle_other": "{{count}} coiffeuses près de chez vous proposent ce style",
+    "verified_badge": "VÉRIFIÉE",
+    "metric_price": "PRIX",
+    "metric_time": "DURÉE",
+    "metric_reviews": "AVIS",
+    "no_slots": "Aucun créneau"
+  }
+}

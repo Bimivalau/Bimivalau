@@ -4,22 +4,18 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { api } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
 
 type Sort = "earliest" | "lowest_price" | "shortest" | "highest_rated" | "most_reviewed";
-const SORT_LABEL: Record<Sort, string> = {
-  earliest: "Earliest",
-  lowest_price: "Lowest price",
-  shortest: "Shortest time",
-  highest_rated: "Highest rated",
-  most_reviewed: "Most reviewed",
-};
+const SORT_KEYS: Sort[] = ["earliest", "lowest_price", "shortest", "highest_rated", "most_reviewed"];
 
 export default function Compare() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation("hairstyle");
   const [data, setData] = useState<any>(null);
   const [sort, setSort] = useState<Sort>("earliest");
   const [availToday, setAvailToday] = useState(false);
@@ -47,23 +43,23 @@ export default function Compare() {
         <Pressable testID="compare-back" onPress={() => router.back()}><Feather name="arrow-left" size={22} color={colors.onSurface} /></Pressable>
         <Text style={s.title}>{data.hairstyle.name}</Text>
         <Text style={s.sub}>
-          {data.total_matches} braider{data.total_matches === 1 ? "" : "s"} near you offer this style
+          {t("compare.subtitle", { count: data.total_matches })}
         </Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chipRow}>
-          {(Object.keys(SORT_LABEL) as Sort[]).map(k => (
+          {SORT_KEYS.map(k => (
             <Pressable key={k} testID={`sort-${k}`} onPress={() => setSort(k)} style={[s.chip, sort === k && s.chipActive]}>
-              <Text style={[s.chipText, sort === k && s.chipTextActive]}>{SORT_LABEL[k]}</Text>
+              <Text style={[s.chipText, sort === k && s.chipTextActive]}>{t(`compare.sort_labels.${k}`)}</Text>
             </Pressable>
           ))}
           <Pressable testID="filter-today" onPress={() => setAvailToday(v => !v)} style={[s.chip, availToday && s.chipActive]}>
-            <Text style={[s.chipText, availToday && s.chipTextActive]}>Available today</Text>
+            <Text style={[s.chipText, availToday && s.chipTextActive]}>{t("compare.available_today")}</Text>
           </Pressable>
           <Pressable testID="filter-verified" onPress={() => setVerifiedOnly(v => !v)} style={[s.chip, verifiedOnly && s.chipActive]}>
-            <Text style={[s.chipText, verifiedOnly && s.chipTextActive]}>Verified Pro</Text>
+            <Text style={[s.chipText, verifiedOnly && s.chipTextActive]}>{t("compare.verified_pro")}</Text>
           </Pressable>
           <Pressable testID="filter-hair" onPress={() => setHairIncluded(v => v === true ? null : true)} style={[s.chip, hairIncluded === true && s.chipActive]}>
-            <Text style={[s.chipText, hairIncluded === true && s.chipTextActive]}>Hair included</Text>
+            <Text style={[s.chipText, hairIncluded === true && s.chipTextActive]}>{t("compare.hair_included")}</Text>
           </Pressable>
         </ScrollView>
       </View>
@@ -77,20 +73,20 @@ export default function Compare() {
             <View style={{ padding: spacing.md, gap: 4 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
                 <Text style={s.cardName}>{c.name}</Text>
-                {c.verified && <View style={s.verifiedBadge}><Feather name="check" size={10} color="#fff" /><Text style={s.verifiedText}>VERIFIED</Text></View>}
+                {c.verified && <View style={s.verifiedBadge}><Feather name="check" size={10} color="#fff" /><Text style={s.verifiedText}>{t("compare.verified_badge")}</Text></View>}
               </View>
               <Text style={s.cardSalon}>{c.salon_name || c.service_area}</Text>
               <View style={s.metricsRow}>
-                <View style={s.metric}><Text style={s.metricValue}>{c.currency === "USD" ? "$" : ""}{c.price}</Text><Text style={s.metricLabel}>PRICE</Text></View>
-                <View style={s.metric}><Text style={s.metricValue}>{Math.round(c.duration_minutes / 60)}h</Text><Text style={s.metricLabel}>TIME</Text></View>
-                <View style={s.metric}><Text style={s.metricValue}>{c.rating_avg ? c.rating_avg.toFixed(1) : "—"}</Text><Text style={s.metricLabel}>{c.reviews_count} REVIEWS</Text></View>
+                <View style={s.metric}><Text style={s.metricValue}>{c.currency === "USD" ? "$" : ""}{c.price}</Text><Text style={s.metricLabel}>{t("compare.metric_price")}</Text></View>
+                <View style={s.metric}><Text style={s.metricValue}>{Math.round(c.duration_minutes / 60)}h</Text><Text style={s.metricLabel}>{t("compare.metric_time")}</Text></View>
+                <View style={s.metric}><Text style={s.metricValue}>{c.rating_avg ? c.rating_avg.toFixed(1) : "—"}</Text><Text style={s.metricLabel}>{c.reviews_count} {t("compare.metric_reviews")}</Text></View>
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm, marginTop: spacing.sm }}>
                 <Feather name={c.hair_included ? "check-circle" : "circle"} size={13} color={c.hair_included ? colors.success : colors.muted} />
-                <Text style={s.tag}>{c.hair_included ? "Hair included" : "Bring your own hair"}</Text>
+                <Text style={s.tag}>{c.hair_included ? t("compare.hair_included") : t("compare.hair_not_included")}</Text>
                 <Text style={{ color: colors.muted }}>·</Text>
                 <Feather name="clock" size={12} color={colors.muted} />
-                <Text style={s.tag}>{c.earliest_available || "No slots"}</Text>
+                <Text style={s.tag}>{c.earliest_available || t("compare.no_slots")}</Text>
               </View>
             </View>
           </Pressable>

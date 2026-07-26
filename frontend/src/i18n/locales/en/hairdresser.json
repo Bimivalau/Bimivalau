@@ -1,1 +1,22 @@
-{}
+{
+  "stat_rating": "Rating",
+  "stat_reviews": "Reviews",
+  "stat_works": "Works",
+  "dna_title": "BRAIDER DNA",
+  "tabs": {
+    "portfolio": "Portfolio",
+    "reviews": "Reviews",
+    "about": "About"
+  },
+  "empty_portfolio": "No portfolio yet.",
+  "empty_reviews": "No reviews yet.",
+  "get_directions": "Get Directions",
+  "specialties_title": "Specialties",
+  "report_cta": "Report this stylist",
+  "report_placeholder": "What happened? (visible only to admins)",
+  "report_submit": "Submit report",
+  "report_success": "Reported. An admin will review.",
+  "book_from_price": "From ${{price}}",
+  "pay_at_counter": "Pay at counter",
+  "book_now": "Book now"
+}

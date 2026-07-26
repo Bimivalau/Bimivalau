@@ -1,1 +1,44 @@
-{}
+{
+  "detail": {
+    "trending_badge": "TRENDING",
+    "pros_nearby": "{{count}} pros nearby",
+    "saves_count": "{{count}} saves",
+    "fact_from": "From",
+    "fact_duration": "Duration",
+    "fact_difficulty": "Difficulty",
+    "fact_hair_length": "Hair length",
+    "fact_lasts": "Lasts",
+    "fact_maintenance": "Maintenance",
+    "difficulty_medium": "Medium",
+    "hair_length_long": "Long",
+    "maintenance_low": "Low",
+    "lasts_value": "~{{weeks}} wks",
+    "about_title": "About this style",
+    "recommended_title": "Recommended for",
+    "pros_title": "Professionals near you",
+    "pros_subtitle": "Braiders who specialize in {{name}}.",
+    "compare_cta": "Compare all braiders side-by-side",
+    "empty_pros": "No specialists have added this style yet. Check back soon.",
+    "similar_title": "You'll also love"
+  },
+  "compare": {
+    "sort_labels": {
+      "earliest": "Earliest",
+      "lowest_price": "Lowest price",
+      "shortest": "Shortest time",
+      "highest_rated": "Highest rated",
+      "most_reviewed": "Most reviewed"
+    },
+    "available_today": "Available today",
+    "verified_pro": "Verified Pro",
+    "hair_included": "Hair included",
+    "hair_not_included": "Bring your own hair",
+    "subtitle_one": "{{count}} braider near you offer this style",
+    "subtitle_other": "{{count}} braiders near you offer this style",
+    "verified_badge": "VERIFIED",
+    "metric_price": "PRICE",
+    "metric_time": "TIME",
+    "metric_reviews": "REVIEWS",
+    "no_slots": "No slots"
+  }
+}
