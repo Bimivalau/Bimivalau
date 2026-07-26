@@ -39,6 +39,17 @@
     "metric_price": "PRICE",
     "metric_time": "TIME",
     "metric_reviews": "REVIEWS",
-    "no_slots": "No slots"
+    "no_slots": "No slots",
+    "loading": "Finding braiders for this style…",
+    "load_error": "We couldn't load braiders for this style. Please try again.",
+    "empty_no_braiders_title": "No braiders offering {{name}} near you yet",
+    "empty_no_braiders_message": "We're growing fast — check back soon, or explore other styles.",
+    "browse_other_styles": "Browse other styles",
+    "notify_me": "Notify me when one joins",
+    "notify_me_saving": "Saving…",
+    "notify_me_done": "We'll notify you!",
+    "notify_me_error": "Couldn't save that — please try again.",
+    "empty_filtered_title": "No braiders match these filters",
+    "empty_filtered_message": "Try adjusting or clearing a filter to see more braiders."
   }
 }

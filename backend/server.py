@@ -234,6 +234,10 @@ class SpecialtyIn(BaseModel):
 class FavoriteIn(BaseModel):
     hairdresser_id: str
 
+class InterestSignupIn(BaseModel):
+    """Customer opts in to be notified when a braider offering this style joins."""
+    hairstyle_id: str
+
 class PlanUpdate(BaseModel):
     plan: Plan
 
@@ -2232,6 +2236,32 @@ async def compare_braiders_for_style(
         "gated": False,
         "results": cards,
     }
+
+
+@api.post("/interest-signups")
+async def create_interest_signup(body: InterestSignupIn, user: UserOut = Depends(get_user)):
+    """Customer taps 'Notify me when one joins' from the empty hairdresser-list
+    state. `area` is a best-effort snapshot of the customer's own profile
+    location at signup time — there's no braider-side geo search yet, so this
+    just records interest for the growth team to act on manually."""
+    hs = await db.hairstyles.find_one({"id": body.hairstyle_id}, {"_id": 0, "name": 1})
+    if not hs:
+        raise HTTPException(404, "Hairstyle not found")
+    existing = await db.interest_signups.find_one({"user_id": user.id, "hairstyle_id": body.hairstyle_id})
+    if existing:
+        return {"ok": True, "already_signed_up": True}
+    u = await db.users.find_one({"id": user.id}, {"_id": 0, "city": 1, "country": 1})
+    area = (u or {}).get("city") or (u or {}).get("country") or ""
+    doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": user.id,
+        "hairstyle_id": body.hairstyle_id,
+        "hairstyle_name": hs["name"],
+        "area": area,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.interest_signups.insert_one(doc)
+    return {"ok": True, "already_signed_up": False}
 
 
 # ---------- Inventory ----------

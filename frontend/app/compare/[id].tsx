@@ -5,11 +5,13 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useTranslation } from "react-i18next";
-import { api } from "@/src/api";
+import { api, ApiError } from "@/src/api";
 import { colors, spacing, font, radii } from "@/src/theme";
+import { LoadingState, EmptyState, ErrorState } from "@/src/ui";
 
 type Sort = "earliest" | "lowest_price" | "shortest" | "highest_rated" | "most_reviewed";
 const SORT_KEYS: Sort[] = ["earliest", "lowest_price", "shortest", "highest_rated", "most_reviewed"];
+type NotifyState = "idle" | "saving" | "done" | "error";
 
 export default function Compare() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -22,20 +24,40 @@ export default function Compare() {
   const [hairIncluded, setHairIncluded] = useState<boolean | null>(null);
   const [verifiedOnly, setVerifiedOnly] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [notifyState, setNotifyState] = useState<NotifyState>("idle");
 
   const load = useCallback(async () => {
     setLoading(true);
-    const params = new URLSearchParams({ sort });
-    if (availToday) params.set("available_today", "true");
-    if (verifiedOnly) params.set("verified_only", "true");
-    if (hairIncluded !== null) params.set("hair_included", String(hairIncluded));
-    const r = await api(`/hairstyles/${id}/compare?${params.toString()}`);
-    setData(r);
-    setLoading(false);
-  }, [id, sort, availToday, hairIncluded, verifiedOnly]);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ sort });
+      if (availToday) params.set("available_today", "true");
+      if (verifiedOnly) params.set("verified_only", "true");
+      if (hairIncluded !== null) params.set("hair_included", String(hairIncluded));
+      const r = await api(`/hairstyles/${id}/compare?${params.toString()}`);
+      setData(r);
+    } catch (e: any) {
+      setError(e instanceof ApiError ? e.userMessage : t("compare.load_error"));
+    } finally {
+      setLoading(false);
+    }
+  }, [id, sort, availToday, hairIncluded, verifiedOnly, t]);
   useEffect(() => { load(); }, [load]);
 
-  if (!data) return <View style={{ flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" }}><ActivityIndicator color={colors.brand} /></View>;
+  const notifyMe = async () => {
+    setNotifyState("saving");
+    try {
+      await api("/interest-signups", { method: "POST", body: JSON.stringify({ hairstyle_id: id }) });
+      setNotifyState("done");
+    } catch {
+      setNotifyState("error");
+    }
+  };
+
+  if (loading && !data) return <LoadingState label={t("compare.loading")} />;
+  if (error && !data) return <ErrorState message={error} onRetry={load} />;
+  if (!data) return null;
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.surface }}>
@@ -64,10 +86,42 @@ export default function Compare() {
         </ScrollView>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.xl, paddingBottom: spacing.xxxl }}>
+      <ScrollView contentContainerStyle={{ padding: spacing.xl, paddingBottom: spacing.xxxl, flexGrow: 1 }}>
         {loading && <ActivityIndicator color={colors.brand} />}
-        {/* Discovery is universal — every match is visible to every customer, always. */}
-        {data.results.map((c: any) => (
+
+        {!loading && data.total_matches === 0 ? (
+          <View>
+            <EmptyState
+              testID="compare-empty-no-braiders"
+              icon="users"
+              title={t("compare.empty_no_braiders_title", { name: data.hairstyle.name })}
+              message={t("compare.empty_no_braiders_message")}
+              ctaLabel={t("compare.browse_other_styles")}
+              onCta={() => router.push("/(tabs)/search")}
+            />
+            <Pressable
+              testID="compare-notify-me"
+              onPress={notifyMe}
+              disabled={notifyState === "saving" || notifyState === "done"}
+              style={[s.notifyBtn, (notifyState === "saving" || notifyState === "done") && { opacity: 0.6 }]}
+            >
+              <Feather name={notifyState === "done" ? "check" : "bell"} size={14} color={colors.brand} />
+              <Text style={s.notifyText}>
+                {notifyState === "done" ? t("compare.notify_me_done") : notifyState === "saving" ? t("compare.notify_me_saving") : t("compare.notify_me")}
+              </Text>
+            </Pressable>
+            {notifyState === "error" && <Text style={s.notifyError}>{t("compare.notify_me_error")}</Text>}
+          </View>
+        ) : !loading && data.results.length === 0 ? (
+          <EmptyState
+            testID="compare-empty-filtered"
+            icon="filter"
+            title={t("compare.empty_filtered_title")}
+            message={t("compare.empty_filtered_message")}
+          />
+        ) : (
+          /* Discovery is universal — every match is visible to every customer, always. */
+          data.results.map((c: any) => (
           <Pressable key={c.hairdresser_id} testID={`compare-card-${c.hairdresser_id}`} onPress={() => router.push(`/hairdresser/${c.hairdresser_id}`)} style={s.card}>
             <Image source={{ uri: c.portfolio_photo }} style={s.cardImg} contentFit="cover" />
             <View style={{ padding: spacing.md, gap: 4 }}>
@@ -90,13 +144,17 @@ export default function Compare() {
               </View>
             </View>
           </Pressable>
-        ))}
+          ))
+        )}
       </ScrollView>
     </View>
   );
 }
 
 const s = StyleSheet.create({
+  notifyBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginTop: spacing.lg, alignSelf: "center", paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.brand },
+  notifyText: { fontFamily: font.bodyMed, color: colors.brand, fontSize: 14 },
+  notifyError: { fontFamily: font.body, color: colors.error, fontSize: 12, textAlign: "center", marginTop: spacing.sm },
   title: { fontFamily: font.display, fontSize: 30, color: colors.onSurface, marginTop: spacing.sm },
   sub: { fontFamily: font.body, color: colors.onSurfaceTertiary, fontSize: 13, marginBottom: spacing.md },
   chipRow: { gap: spacing.sm, paddingRight: spacing.xl },

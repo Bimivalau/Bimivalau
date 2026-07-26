@@ -40,7 +40,7 @@ test_result.md, test_reports/ # QA iteration history
 
 ## Data Model (Mongo collections, reference-based)
 
-`users`, `hairdressers` (bio, service_area, verification_status, onboarding_completed, specialty_ids), `hairstyles`, `portfolio_items`, `availability`, `bookings` (6-char check-in code), `reviews`, `customer_ratings`, `subscriptions`, `featured_stylists`, `reports`, `notifications`, `platform_config` (singleton, admin-editable runtime config).
+`users`, `hairdressers` (bio, service_area, verification_status, onboarding_completed, specialty_ids), `hairstyles`, `portfolio_items`, `availability`, `bookings` (6-char check-in code), `reviews`, `customer_ratings`, `subscriptions`, `featured_stylists`, `reports`, `notifications`, `interest_signups` (customer opt-in when a hairstyle has zero braiders — "Notify me when one joins"), `platform_config` (singleton, admin-editable runtime config).
 
 ## Running Locally
 

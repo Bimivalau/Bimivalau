@@ -39,6 +39,17 @@
     "metric_price": "PRIX",
     "metric_time": "DURÉE",
     "metric_reviews": "AVIS",
-    "no_slots": "Aucun créneau"
+    "no_slots": "Aucun créneau",
+    "loading": "Recherche de coiffeuses pour ce style…",
+    "load_error": "Impossible de charger les coiffeuses pour ce style. Veuillez réessayer.",
+    "empty_no_braiders_title": "Aucune coiffeuse ne propose {{name}} près de chez vous pour le moment",
+    "empty_no_braiders_message": "Nous grandissons vite — revenez bientôt, ou découvrez d'autres styles.",
+    "browse_other_styles": "Découvrir d'autres styles",
+    "notify_me": "Me prévenir dès qu'une coiffeuse propose ce style",
+    "notify_me_saving": "Enregistrement…",
+    "notify_me_done": "Vous serez prévenu(e) !",
+    "notify_me_error": "Impossible d'enregistrer — veuillez réessayer.",
+    "empty_filtered_title": "Aucune coiffeuse ne correspond à ces filtres",
+    "empty_filtered_message": "Essayez d'ajuster ou de retirer un filtre pour voir plus de coiffeuses."
   }
 }
